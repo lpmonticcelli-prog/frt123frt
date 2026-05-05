@@ -1,0 +1,90 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_ENV=local
+      - APP_DEBUG=true
+      - OCTANE_SERVER=frankenphp
+      - DB_CONNECTION=pgsql
+      - DB_HOST=pgsql
+      - DB_PORT=5432
+      - DB_DATABASE=fretematch
+      - DB_USERNAME=fretematch
+      - DB_PASSWORD=secret
+      # Gestão de Estado delegada ao Redis
+      - CACHE_STORE=redis
+      - SESSION_DRIVER=redis
+      - QUEUE_CONNECTION=redis
+      - REDIS_CLIENT=phpredis
+      - REDIS_HOST=redis
+      - REDIS_PASSWORD=null
+      - REDIS_PORT=6379
+    volumes:
+      - .:/app
+    depends_on:
+      redis:
+        condition: service_healthy
+      pgsql:
+        condition: service_healthy
+    networks:
+      - fretematch_net
+
+  redis:
+    image: 'redis:alpine'
+    ports:
+      - '6379:6379'
+    volumes:
+      - 'fretematch_redis:/data'
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      retries: 3
+      timeout: 5s
+    networks:
+      - fretematch_net
+
+  pgsql:
+    image: 'postgres:16-alpine'
+    ports:
+      - '5432:5432'
+    environment:
+      POSTGRES_DB: fretematch
+      POSTGRES_USER: fretematch
+      POSTGRES_PASSWORD: secret
+    volumes:
+      - 'fretematch_pgsql:/var/lib/postgresql/data'
+    healthcheck:
+      test: ["CMD", "pg_isready", "-q", "-d", "fretematch", "-U", "fretematch"]
+      retries: 3
+      timeout: 5s
+    networks:
+      - fretematch_net
+
+  # =========================================================
+  # MICROSERVIÇO DE RASTREAMENTO EM TEMPO REAL (GO)
+  # =========================================================
+  tracking:
+    build:
+      context: ./tracking-service
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - fretematch_net
+
+volumes:
+  fretematch_redis:
+    driver: local
+  fretematch_pgsql:
+    driver: local
+
+networks:
+  fretematch_net:
+    driver: bridge

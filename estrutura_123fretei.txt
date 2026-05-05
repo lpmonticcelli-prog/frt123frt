@@ -1,0 +1,403 @@
+Topologia do Projeto 123fretei
+==============================
+
+├── app/
+│   ├── Console/
+│   │   └── Commands/
+│   │       └── ProcessarSlaLiquidacao.php
+│   ├── Contracts/
+│   │   └── PefGatewayInterface.php
+│   ├── Filament/
+│   │   └── Resources/
+│   │       └── Users/
+│   │           ├── Pages/
+│   │           │   ├── CreateUser.php
+│   │           │   ├── EditUser.php
+│   │           │   ├── ListUsers.php
+│   │           │   └── ViewUser.php
+│   │           ├── Schemas/
+│   │           │   ├── UserForm.php
+│   │           │   └── UserInfolist.php
+│   │           ├── Tables/
+│   │           │   └── UsersTable.php
+│   │           └── UserResource.php
+│   ├── Http/
+│   │   ├── Controllers/
+│   │   │   ├── Api/
+│   │   │   │   └── V1/
+│   │   │   │       ├── Admin/
+│   │   │   │       │   └── AdminController.php
+│   │   │   │       ├── Auth/
+│   │   │   │       │   ├── AuthController.php
+│   │   │   │       │   └── RegisterController.php
+│   │   │   │       ├── Embarcador/
+│   │   │   │       │   ├── CargaController.php
+│   │   │   │       │   ├── FaturaController.php
+│   │   │   │       │   └── PerfilController.php
+│   │   │   │       ├── Motorista/
+│   │   │   │       │   ├── CargaController.php
+│   │   │   │       │   └── PerfilController.php
+│   │   │   │       └── Support/
+│   │   │   │           ├── FaqController.php
+│   │   │   │           └── TicketController.php
+│   │   │   ├── Auth/
+│   │   │   │   ├── AuthenticatedSessionController.php
+│   │   │   │   ├── ConfirmablePasswordController.php
+│   │   │   │   ├── EmailVerificationNotificationController.php
+│   │   │   │   ├── EmailVerificationPromptController.php
+│   │   │   │   ├── NewPasswordController.php
+│   │   │   │   ├── PasswordController.php
+│   │   │   │   ├── PasswordResetLinkController.php
+│   │   │   │   ├── RegisteredUserController.php
+│   │   │   │   └── VerifyEmailController.php
+│   │   │   ├── Controller.php
+│   │   │   └── ProfileController.php
+│   │   ├── Middleware/
+│   │   │   ├── CheckRole.php
+│   │   │   └── HandleInertiaRequests.php
+│   │   └── Requests/
+│   │       ├── Auth/
+│   │       │   └── LoginRequest.php
+│   │       ├── ProfileUpdateRequest.php
+│   │       └── StoreCargaRequest.php
+│   ├── Jobs/
+│   │   ├── ProcessarAceiteCarga.php
+│   │   └── ProcessarPublicacaoCarga.php
+│   ├── Models/
+│   │   ├── Carga.php
+│   │   ├── CargaAceiteLog.php
+│   │   ├── CargaPublicacaoLog.php
+│   │   ├── Ciot.php
+│   │   ├── Embarcador.php
+│   │   ├── Faq.php
+│   │   ├── Fatura.php
+│   │   ├── Motorista.php
+│   │   ├── Role.php
+│   │   ├── Ticket.php
+│   │   ├── TicketMessage.php
+│   │   └── User.php
+│   ├── Providers/
+│   │   ├── Filament/
+│   │   │   └── AdminPanelProvider.php
+│   │   ├── AppServiceProvider.php
+│   │   └── PefServiceProvider.php
+│   └── Services/
+│       ├── Pef/
+│       │   └── MockPefGateway.php
+│       ├── CpfValidatorService.php
+│       └── ReceitaWSService.php
+├── bootstrap/
+│   ├── cache/
+│   │   ├── .gitignore
+│   │   ├── packages.php
+│   │   └── services.php
+│   ├── app.php
+│   └── providers.php
+├── config/
+│   ├── app.php
+│   ├── auth.php
+│   ├── cache.php
+│   ├── database.php
+│   ├── filesystems.php
+│   ├── logging.php
+│   ├── mail.php
+│   ├── octane.php
+│   ├── queue.php
+│   ├── sanctum.php
+│   ├── services.php
+│   └── session.php
+├── database/
+│   ├── factories/
+│   │   └── UserFactory.php
+│   ├── migrations/
+│   │   ├── 0001_01_01_000000_create_users_table.php
+│   │   ├── 0001_01_01_000001_create_cache_table.php
+│   │   ├── 0001_01_01_000002_create_jobs_table.php
+│   │   ├── 2026_04_06_130504_create_embarcadors_table.php
+│   │   ├── 2026_04_06_130526_create_motoristas_table.php
+│   │   ├── 2026_04_06_131204_create_personal_access_tokens_table.php
+│   │   ├── 2026_04_06_171822_create_cargas_table.php
+│   │   ├── 2026_04_06_185233_update_cargas_table.php
+│   │   ├── 2026_04_08_183538_add_pod_fields_to_cargas_table.php
+│   │   ├── 2026_04_08_185638_add_documents_to_motoristas_table.php
+│   │   ├── 2026_04_08_191843_add_selfie_to_motoristas_table.php
+│   │   ├── 2026_04_09_162539_create_carga_aceites_log_table.php
+│   │   ├── 2026_04_09_171832_create_carga_publicacoes_log_table.php
+│   │   ├── 2026_04_14_184037_create_settings_table.php
+│   │   ├── 2026_04_24_165234_create_activity_log_table.php
+│   │   ├── 2026_04_24_175645_create_tickets_table.php
+│   │   ├── 2026_04_24_175703_create_ticket_messages_table.php
+│   │   ├── 2026_04_27_171826_create_faturas_table.php
+│   │   ├── 2026_04_27_171827_add_fatura_id_to_cargas_table.php
+│   │   ├── 2026_05_04_150219_create_faqs_table.php
+│   │   └── 2026_05_05_085121_add_pod_and_audit_fields_to_cargas_table.php
+│   ├── seeders/
+│   │   ├── DatabaseSeeder.php
+│   │   ├── FaqSeeder.php
+│   │   ├── HomologacaoSeeder.php
+│   │   └── RoleSeeder.php
+│   └── .gitignore
+├── lang/
+│   ├── pt_BR/
+│   │   ├── auth.php
+│   │   ├── pagination.php
+│   │   ├── passwords.php
+│   │   └── validation.php
+│   └── pt_BR.json
+├── node_modules/ [Ignorado]
+├── public/
+│   ├── build/
+│   │   ├── assets/
+│   │   │   ├── _plugin-vue_export-helper-B67ILkmu.js
+│   │   │   ├── AdminLayout-BF6BaIaV.js
+│   │   │   ├── AdminLayout-DdIXJ9k5.css
+│   │   │   ├── app-9Cexe_dI.css
+│   │   │   ├── app-Cgc4vqfH.js
+│   │   │   ├── auth-CxxGJQab.js
+│   │   │   ├── axios-C7ZsDN63.js
+│   │   │   ├── BaseEmbarcadores-D2BZ83Ci.js
+│   │   │   ├── BaseEmbarcadores-DqIUS-q5.css
+│   │   │   ├── BaseMotoristas-bLWTJ4dZ.js
+│   │   │   ├── BaseMotoristas-RKCBndCd.css
+│   │   │   ├── browser-image-compression-C4vZAZbP.js
+│   │   │   ├── CriarCarga-DJGm_LoB.js
+│   │   │   ├── Dashboard-BdPqIMgK.js
+│   │   │   ├── Dashboard-BfLm4jJ3.js
+│   │   │   ├── Dashboard-ciQKvTVn.js
+│   │   │   ├── Dashboard-DvIIYKLu.css
+│   │   │   ├── Dashboard-jV_km0_8.css
+│   │   │   ├── Disputas-BsZLqzJO.css
+│   │   │   ├── Disputas-BYRGL3sz.js
+│   │   │   ├── EditarCarga-BlI1zHxy.js
+│   │   │   ├── EmbarcadorLayout-C31YzQ0P.js
+│   │   │   ├── ExtratoTaxas-6uwU2h8U.css
+│   │   │   ├── ExtratoTaxas-B2rkyuUs.js
+│   │   │   ├── FaqView-BvFi1ovK.js
+│   │   │   ├── Faturamento-CfSNJnx1.css
+│   │   │   ├── Faturamento-CzjfnS7K.js
+│   │   │   ├── Faturas-DsRTkuuC.js
+│   │   │   ├── Kyc-RjrelOYF.js
+│   │   │   ├── Login-8z_OUFNZ.js
+│   │   │   ├── LojaView-CkXaSV1p.js
+│   │   │   ├── MesaOperacoes-Bn99HdgD.css
+│   │   │   ├── MesaOperacoes-DHnsYqsD.js
+│   │   │   ├── MeusChamados-BWCUBm1Q.js
+│   │   │   ├── MeusChamados-DzASyfmS.js
+│   │   │   ├── MeusFretes-BdKfzIeh.js
+│   │   │   ├── MotoristaLayout-C0VqOesv.js
+│   │   │   ├── MuralFretes-CHtFWVhq.css
+│   │   │   ├── MuralFretes-DZpfwu79.js
+│   │   │   ├── ParceirosView-BQ1hdHln.js
+│   │   │   ├── Perfil-CkZqfLc-.js
+│   │   │   ├── Perfil-DhahOcHU.js
+│   │   │   ├── RastreadorFrete-NqitRiIl.js
+│   │   │   ├── RastreamentoCarga-Cn2aQ2VB.js
+│   │   │   ├── RastreamentoCarga-DOmyDbFV.css
+│   │   │   ├── RegisterEmbarcador-CK7iTVZ6.js
+│   │   │   ├── RegisterMotorista-CxOiGoYE.js
+│   │   │   ├── ResetPassword-Cg0xG3PQ.js
+│   │   │   ├── Staff-B-72MukM.css
+│   │   │   ├── Staff-CMCZ6A7b.js
+│   │   │   ├── VariaveisGlobais--9iQSED3.css
+│   │   │   ├── VariaveisGlobais-CiJMKNdF.js
+│   │   │   ├── VoucherView-0J5GHWoQ.js
+│   │   │   ├── vue-router-C-m0q8zy.js
+│   │   │   ├── vue.esm-bundler-Cs_G0Xdj.js
+│   │   │   ├── Welcome-7iM_mzNQ.js
+│   │   │   └── Welcome-DEp4PKf0.css
+│   │   └── manifest.json
+│   ├── css/
+│   │   └── filament/
+│   │       └── filament/
+│   │           └── app.css
+│   ├── fonts/
+│   │   └── filament/
+│   │       └── filament/
+│   │           └── inter/
+│   │               ├── index.css
+│   │               ├── inter-cyrillic-ext-wght-normal-IYF56FF6.woff2
+│   │               ├── inter-cyrillic-wght-normal-JEOLYBOO.woff2
+│   │               ├── inter-greek-ext-wght-normal-EOVOK2B5.woff2
+│   │               ├── inter-greek-wght-normal-IRE366VL.woff2
+│   │               ├── inter-latin-ext-wght-normal-HA22NDSG.woff2
+│   │               ├── inter-latin-wght-normal-NRMW37G5.woff2
+│   │               └── inter-vietnamese-wght-normal-CE5GGD3W.woff2
+│   ├── js/
+│   │   └── filament/
+│   │       ├── actions/
+│   │       │   └── actions.js
+│   │       ├── filament/
+│   │       │   ├── app.js
+│   │       │   └── echo.js
+│   │       ├── forms/
+│   │       │   └── components/
+│   │       │       ├── checkbox-list.js
+│   │       │       ├── code-editor.js
+│   │       │       ├── color-picker.js
+│   │       │       ├── date-time-picker.js
+│   │       │       ├── file-upload.js
+│   │       │       ├── key-value.js
+│   │       │       ├── markdown-editor.js
+│   │       │       ├── rich-editor.js
+│   │       │       ├── select.js
+│   │       │       ├── slider.js
+│   │       │       ├── tags-input.js
+│   │       │       └── textarea.js
+│   │       ├── notifications/
+│   │       │   └── notifications.js
+│   │       ├── schemas/
+│   │       │   ├── components/
+│   │       │   │   ├── actions.js
+│   │       │   │   ├── tabs.js
+│   │       │   │   └── wizard.js
+│   │       │   └── schemas.js
+│   │       ├── support/
+│   │       │   └── support.js
+│   │       ├── tables/
+│   │       │   ├── components/
+│   │       │   │   └── columns/
+│   │       │   │       ├── checkbox.js
+│   │       │   │       ├── select.js
+│   │       │   │       ├── text-input.js
+│   │       │   │       └── toggle.js
+│   │       │   └── tables.js
+│   │       └── widgets/
+│   │           └── components/
+│   │               ├── stats-overview/
+│   │               │   └── stat/
+│   │               │       └── chart.js
+│   │               └── chart.js
+│   ├── storage/ [Ignorado]
+│   ├── .htaccess
+│   ├── favicon.png
+│   ├── frankenphp-worker.php
+│   ├── hot
+│   ├── index.php
+│   └── robots.txt
+├── resources/
+│   ├── css/
+│   │   └── app.css
+│   ├── js/
+│   │   ├── assets/
+│   │   │   └── logo.png
+│   │   ├── Components/
+│   │   │   ├── ApplicationLogo.vue
+│   │   │   ├── Checkbox.vue
+│   │   │   ├── DangerButton.vue
+│   │   │   ├── Dropdown.vue
+│   │   │   ├── DropdownLink.vue
+│   │   │   ├── FaqAccordion.vue
+│   │   │   ├── InputError.vue
+│   │   │   ├── InputLabel.vue
+│   │   │   ├── Modal.vue
+│   │   │   ├── NavLink.vue
+│   │   │   ├── PrimaryButton.vue
+│   │   │   ├── ResponsiveNavLink.vue
+│   │   │   ├── SecondaryButton.vue
+│   │   │   └── TextInput.vue
+│   │   ├── Layouts/
+│   │   │   ├── AdminLayout.vue
+│   │   │   ├── AuthenticatedLayout.vue
+│   │   │   ├── EmbarcadorLayout.vue
+│   │   │   ├── GuestLayout.vue
+│   │   │   ├── HubLayout.vue
+│   │   │   └── MotoristaLayout.vue
+│   │   ├── router/
+│   │   │   └── index.js
+│   │   ├── stores/
+│   │   │   └── auth.js
+│   │   ├── views/
+│   │   │   ├── Admin/
+│   │   │   │   ├── BaseEmbarcadores.vue
+│   │   │   │   ├── BaseMotoristas.vue
+│   │   │   │   ├── Dashboard.vue
+│   │   │   │   ├── Disputas.vue
+│   │   │   │   ├── ExtratoTaxas.vue
+│   │   │   │   ├── Faturamento.vue
+│   │   │   │   ├── Kyc.vue
+│   │   │   │   ├── MesaOperacoes.vue
+│   │   │   │   ├── MuralFretes.vue
+│   │   │   │   ├── Staff.vue
+│   │   │   │   └── VariaveisGlobais.vue
+│   │   │   ├── Embarcador/
+│   │   │   │   ├── CriarCarga.vue
+│   │   │   │   ├── Dashboard.vue
+│   │   │   │   ├── EditarCarga.vue
+│   │   │   │   ├── Faturas.vue
+│   │   │   │   ├── MeusChamados.vue
+│   │   │   │   ├── Perfil.vue
+│   │   │   │   └── RastreamentoCarga.vue
+│   │   │   ├── Hub/
+│   │   │   │   ├── FaqView.vue
+│   │   │   │   ├── LojaView.vue
+│   │   │   │   ├── ParceirosView.vue
+│   │   │   │   └── VoucherView.vue
+│   │   │   ├── Motorista/
+│   │   │   │   ├── Dashboard.vue
+│   │   │   │   ├── MeusChamados.vue
+│   │   │   │   ├── MeusFretes.vue
+│   │   │   │   ├── Perfil.vue
+│   │   │   │   └── RastreadorFrete.vue
+│   │   │   ├── Suporte/
+│   │   │   │   └── CentralAjuda.vue
+│   │   │   ├── Login.vue
+│   │   │   ├── RegisterEmbarcador.vue
+│   │   │   ├── RegisterMotorista.vue
+│   │   │   ├── ResetPassword.vue
+│   │   │   └── Welcome.vue
+│   │   ├── app.js
+│   │   ├── App.vue
+│   │   └── bootstrap.js
+│   └── views/
+│       └── app.blade.php
+├── routes/
+│   ├── api.php
+│   ├── auth.php
+│   ├── console.php
+│   └── web.php
+├── storage/ [Ignorado]
+├── tests/
+│   ├── Feature/
+│   │   ├── Auth/
+│   │   │   ├── AuthenticationTest.php
+│   │   │   ├── EmailVerificationTest.php
+│   │   │   ├── PasswordConfirmationTest.php
+│   │   │   ├── PasswordResetTest.php
+│   │   │   ├── PasswordUpdateTest.php
+│   │   │   └── RegistrationTest.php
+│   │   ├── ExampleTest.php
+│   │   └── ProfileTest.php
+│   ├── Unit/
+│   │   └── ExampleTest.php
+│   └── TestCase.php
+├── tracking-service/
+│   ├── Dockerfile
+│   ├── go.mod
+│   ├── go.sum
+│   └── main.go
+├── vendor/ [Ignorado]
+├── .editorconfig
+├── .env
+├── .env.example
+├── .gitattributes
+├── .gitignore
+├── 123fretei_dump_arquitetura.txt
+├── artisan
+├── codigo_auditoria.txt
+├── compose.yaml
+├── composer.json
+├── composer.lock
+├── Dockerfile
+├── extrair_codigo.sh
+├── extrair_core.sh
+├── jsconfig.json
+├── package-lock.json
+├── package.json
+├── phpunit.xml
+├── postcss.config.js
+├── power_on.sh
+├── README.md
+├── stress-pub.js
+├── stress.js
+├── tailwind.config.js
+└── vite.config.js
