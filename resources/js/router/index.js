@@ -24,8 +24,6 @@ const routes = [
             { path: 'suporte', name: 'EmbarcadorMeusChamados', component: () => import('../views/Embarcador/MeusChamados.vue'), meta: { title: 'Central de Suporte (SAC)' } },
             { path: 'faturas', name: 'EmbarcadorFaturas', component: () => import('../views/Embarcador/Faturas.vue'), meta: { title: 'Minhas Faturas' } },
             { path: 'perfil', name: 'EmbarcadorPerfil', component: () => import('../views/Embarcador/Perfil.vue'), meta: { title: 'Minha Conta' } },
-            
-            // --- HUB EMBARCADOR ---
             { path: 'faq', name: 'EmbarcadorFaq', component: () => import('../views/Hub/FaqView.vue'), meta: { title: 'Central de Ajuda (FAQ)' } },
             { path: 'loja', name: 'EmbarcadorLoja', component: () => import('../views/Hub/LojaView.vue'), meta: { title: 'Loja VIWE SyS' } },
             { path: 'voucher', name: 'EmbarcadorVoucher', component: () => import('../views/Hub/VoucherView.vue'), meta: { title: 'Gestão de Vouchers' } },
@@ -47,8 +45,6 @@ const routes = [
             { path: 'rastreamento/:id', name: 'RastreadorFrete', component: () => import('../views/Motorista/RastreadorFrete.vue'), meta: { title: 'Painel de Viagem Ativa' } },
             { path: 'suporte', name: 'MotoristaMeusChamados', component: () => import('../views/Motorista/MeusChamados.vue'), meta: { title: 'Central de Suporte (SAC)' } },
             { path: 'perfil', name: 'MotoristaPerfil', component: () => import('../views/Motorista/Perfil.vue'), meta: { title: 'Minha Conta' } },
-            
-            // --- HUB MOTORISTA ---
             { path: 'faq', name: 'MotoristaFaq', component: () => import('../views/Hub/FaqView.vue'), meta: { title: 'Central de Ajuda (FAQ)' } },
             { path: 'loja', name: 'MotoristaLoja', component: () => import('../views/Hub/LojaView.vue'), meta: { title: 'Loja VIWE SyS' } },
             { path: 'voucher', name: 'MotoristaVoucher', component: () => import('../views/Hub/VoucherView.vue'), meta: { title: 'Meus Vouchers' } },
@@ -87,20 +83,18 @@ const router = createRouter({
 });
 
 // ==========================================
-// ESCUDO DE NAVEGAÇÃO (ZERO TRUST FRONTEND)
+// ESCUDO DE NAVEGAÇÃO (ZERO TRUST FRONTEND - V4)
 // ==========================================
-router.beforeEach(async (to, from, next) => {
+router.beforeEach(async (to, from) => {
     const authStore = useAuthStore();
     
-    // 1. Hidratação Atômica de Estado (Prevenção de F5 Branco)
-    // Se há indício de sessão na máquina, mas a RAM do Pinia está limpa, faz o fetch ANTES de renderizar a tela.
     const hasLocalSession = localStorage.getItem('user');
     if (!authStore.user && hasLocalSession) {
         await authStore.fetchUser();
     }
 
     const requiresAuth = to.matched.some(record => record.meta.requiresAuth);
-    // As roles agora podem vir da rota atual ou da rota "pai" (matched)
+    
     let requiredRoles = [];
     if (to.meta.role) {
         requiredRoles = Array.isArray(to.meta.role) ? to.meta.role : [to.meta.role];
@@ -113,31 +107,27 @@ router.beforeEach(async (to, from, next) => {
 
     const userRole = authStore.user?.role?.slug;
 
-    // 2. Interceptação Nível 1: Não Autenticado
     if (requiresAuth && !authStore.isAuthenticated) {
-        console.warn('[Security] Acesso bloqueado: Rejeitado na Borda (Não autenticado).');
-        return next({ name: 'Login' });
+        console.warn('[Security] Acesso bloqueado: Rejeitado na Borda.');
+        return { name: 'Login' };
     }
 
-    // 3. Interceptação Nível 2: Violação de Papel (Role-Based Access Control)
     if (requiresAuth && requiredRoles.length > 0 && !requiredRoles.includes(userRole)) {
         console.error(`[Security] Violação de RBAC. Perfil '${userRole}' tentou acesso à rota restrita.`);
-        authStore.clearAuth(); // Corta o mal pela raiz e expulsa da sessão
-        return next({ name: 'Login' });
+        authStore.clearAuth(); 
+        return { name: 'Login' };
     }
 
-    // 4. Redirecionamento de rotas de visitante (Login/Reset) para usuários já logados
     const guestRoutes = ['/login', '/reset-password'];
     if (guestRoutes.includes(to.path) && authStore.isAuthenticated && authStore.user) {
         const staffRoles = ['admin', 'manager', 'compliance', 'suporte_n1'];
         if (staffRoles.includes(userRole)) {
-            return userRole === 'suporte_n1' ? next({ name: 'AdminSuporte' }) : next({ name: 'AdminDashboard' });
+            return userRole === 'suporte_n1' ? { name: 'AdminSuporte' } : { name: 'AdminDashboard' };
         }
-        return next(`/${userRole}/painel`); 
+        return { path: `/${userRole}/painel` }; 
     }
 
-    // 5. Acesso Liberado
-    next();
+    return true; // Padrão Vue Router 4: retornar true libera a navegação.
 });
 
 export default router;

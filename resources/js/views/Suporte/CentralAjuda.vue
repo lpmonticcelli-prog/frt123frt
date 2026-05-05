@@ -29,7 +29,7 @@
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-200">
-          <tr v-if="meusTickets.length === 0">
+          <tr v-if="meusTickets?.length === 0">
             <td colspan="4" class="px-6 py-12 text-center text-gray-500">Você não tem nenhum chamado aberto.</td>
           </tr>
           <tr v-for="ticket in meusTickets" :key="ticket.id" class="hover:bg-gray-50 transition-colors">
@@ -42,7 +42,7 @@
               <div v-if="ticket.carga_id" class="text-[10px] font-bold text-blue-600 mt-1 uppercase">Carga #{{ ticket.carga_id }}</div>
             </td>
             <td class="px-6 py-4 text-center">
-              <span :class="getStatusBadge(ticket.status)">{{ ticket.status.replace('_', ' ') }}</span>
+              <span :class="getStatusBadge(ticket.status)">{{ ticket.status?.replace('_', ' ') }}</span>
             </td>
             <td class="px-6 py-4 text-right">
               <button @click="abrirDetalhes(ticket.id)" class="text-blue-600 hover:text-blue-800 text-sm font-bold">
@@ -104,7 +104,7 @@
             <p class="text-xs text-gray-500 font-bold uppercase tracking-wider text-blue-600">Suporte N1 • Em Atendimento</p>
           </div>
         </div>
-        <span :class="getStatusBadge(ticketAtivo.status)">{{ ticketAtivo.status.replace('_', ' ') }}</span>
+        <span :class="getStatusBadge(ticketAtivo.status)">{{ ticketAtivo.status?.replace('_', ' ') }}</span>
       </div>
 
       <div class="flex-1 overflow-y-auto p-6 bg-white space-y-4">

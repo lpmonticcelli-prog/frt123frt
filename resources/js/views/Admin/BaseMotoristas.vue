@@ -25,7 +25,7 @@
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-200">
-          <tr v-if="motoristas.length === 0">
+          <tr v-if="motoristas?.length === 0">
             <td colspan="4" class="px-6 py-10 text-center text-gray-500 font-bold">Nenhum motorista encontrado na base de dados.</td>
           </tr>
           <tr v-for="user in motoristas" :key="user.id" class="hover:bg-gray-50" :class="{'opacity-50 bg-red-50': user.status === 'banned'}">

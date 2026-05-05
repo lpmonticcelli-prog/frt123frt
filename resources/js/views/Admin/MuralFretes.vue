@@ -29,7 +29,7 @@
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-200">
-          <tr v-if="cargas.length === 0">
+          <tr v-if="cargas?.length === 0">
             <td colspan="5" class="px-6 py-10 text-center text-gray-500 font-bold">Nenhuma carga ativa no momento. Radar limpo.</td>
           </tr>
           <tr v-for="carga in cargas" :key="carga.id" class="hover:bg-gray-50">
@@ -48,7 +48,7 @@
             </td>
             <td class="px-6 py-4 whitespace-nowrap">
               <span class="px-2 py-1 text-xs font-bold rounded-md uppercase" :class="getStatusClass(carga.status)">
-                {{ carga.status.replace('_', ' ') }}
+                {{ carga.status?.replace('_', ' ') }}
               </span>
             </td>
             <td class="px-6 py-4 whitespace-nowrap text-right">

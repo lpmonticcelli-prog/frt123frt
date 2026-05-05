@@ -29,7 +29,7 @@
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-200">
-          <tr v-if="disputas.length === 0">
+          <tr v-if="disputas?.length === 0">
             <td colspan="5" class="px-6 py-12 text-center text-gray-500">
               <span class="block text-4xl mb-2">✅</span>
               <span class="font-bold text-lg text-gray-800">Operação Limpa</span><br>

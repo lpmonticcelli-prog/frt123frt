@@ -8,7 +8,7 @@
       </div>
       <div class="text-right">
         <span class="bg-yellow-100 text-yellow-800 text-xs font-bold px-3 py-1.5 rounded-full uppercase tracking-wider border border-yellow-200">
-          {{ usuariosPendentes.length }} Pendentes
+          {{ usuariosPendentes?.length }} Pendentes
         </span>
       </div>
     </div>
@@ -29,7 +29,7 @@
             <td colspan="5" class="px-6 py-8 text-center text-gray-400 font-bold">Carregando dados da fila...</td>
           </tr>
           
-          <tr v-else-if="usuariosPendentes.length === 0">
+          <tr v-else-if="usuariosPendentes?.length === 0">
             <td colspan="5" class="px-6 py-12 text-center text-gray-500">
               <p class="font-bold text-lg text-gray-900">Fila Limpa</p>
               <p class="text-sm mt-1">Todos os usuários pendentes foram analisados.</p>

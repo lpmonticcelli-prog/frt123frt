@@ -19,11 +19,11 @@
 
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
       
-      <div v-if="loading && cargas.length === 0" class="p-12 text-center text-gray-500 font-medium text-sm">
+      <div v-if="loading && cargas?.length === 0" class="p-12 text-center text-gray-500 font-medium text-sm">
         A carregar histórico de operações...
       </div>
 
-      <div v-else-if="!cargas || cargas.length === 0" class="p-16 text-center">
+      <div v-else-if="!cargas || cargas?.length === 0" class="p-16 text-center">
         <div class="mx-auto w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4 border border-slate-100">
           <svg class="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path></svg>
         </div>
@@ -69,7 +69,7 @@
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
                   <span :class="['px-3 py-1 inline-flex text-[10px] font-black uppercase tracking-wider rounded-md border', getStatusClass(carga.status)]">
-                    {{ carga.status.replace('_', ' ') }}
+                    {{ carga.status?.replace('_', ' ') }}
                   </span>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap border-l border-gray-100 bg-slate-50/30">
@@ -287,7 +287,7 @@ const aprovarPagamento = async () => {
   
   actionLoading.value = true;
   try {
-    await axios.post(`/api/v1/embarcador/cargas/${cargaSelecionada.value.id}/aprovar`);
+    await axios.post(`/api/embarcador/cargas/${cargaSelecionada.value.id}/aprovar`);
     alert('✅ Sucesso! Pagamento aprovado. A carga agora será liquidada na Pamcard/NDD.');
     fecharModalPod();
     fetchCargas(pagination.value.current_page);
@@ -304,7 +304,7 @@ const abrirDisputa = async () => {
 
   actionLoading.value = true;
   try {
-    await axios.post(`/api/v1/embarcador/cargas/${cargaSelecionada.value.id}/disputa`, { motivo });
+    await axios.post(`/api/embarcador/cargas/${cargaSelecionada.value.id}/disputa`, { motivo });
     alert('⚠️ Carga bloqueada. Uma disputa foi aberta na Mesa de Operações (SAC).');
     fecharModalPod();
     fetchCargas(pagination.value.current_page);

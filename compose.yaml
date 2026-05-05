@@ -3,6 +3,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    # [SECURITY] Força o container a operar com o seu usuário do WSL, evitando arquivos travados como 'root'
+    user: "${WWWUSER:-1000}:${WWWGROUP:-1000}"
     ports:
       - "8000:8000"
     environment:
@@ -12,9 +14,9 @@ services:
       - DB_CONNECTION=pgsql
       - DB_HOST=pgsql
       - DB_PORT=5432
-      - DB_DATABASE=fretematch
-      - DB_USERNAME=fretematch
-      - DB_PASSWORD=secret
+      - DB_DATABASE=fretei
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=postgres
       # Gestão de Estado delegada ao Redis
       - CACHE_STORE=redis
       - SESSION_DRIVER=redis
@@ -31,38 +33,38 @@ services:
       pgsql:
         condition: service_healthy
     networks:
-      - fretematch_net
+      - fretei_net
 
   redis:
     image: 'redis:alpine'
     ports:
       - '6379:6379'
     volumes:
-      - 'fretematch_redis:/data'
+      - 'fretei_redis:/data'
     command: redis-server --appendonly yes
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       retries: 3
       timeout: 5s
     networks:
-      - fretematch_net
+      - fretei_net
 
   pgsql:
     image: 'postgres:16-alpine'
     ports:
       - '5432:5432'
     environment:
-      POSTGRES_DB: fretematch
-      POSTGRES_USER: fretematch
-      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: fretei
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
     volumes:
-      - 'fretematch_pgsql:/var/lib/postgresql/data'
+      - 'fretei_pgsql:/var/lib/postgresql/data'
     healthcheck:
-      test: ["CMD", "pg_isready", "-q", "-d", "fretematch", "-U", "fretematch"]
+      test: ["CMD", "pg_isready", "-q", "-d", "fretei", "-U", "postgres"]
       retries: 3
       timeout: 5s
     networks:
-      - fretematch_net
+      - fretei_net
 
   # =========================================================
   # MICROSERVIÇO DE RASTREAMENTO EM TEMPO REAL (GO)
@@ -72,19 +74,21 @@ services:
       context: ./tracking-service
       dockerfile: Dockerfile
     ports:
-      - "8080:8080"
+      # [INFRA] Evasão de porta: O host acessa na 8081, o container escuta na 8080.
+      # Isso libera a 8080 para o seu uso nativo ou outros serviços.
+      - "8081:8080" 
     depends_on:
       redis:
         condition: service_healthy
     networks:
-      - fretematch_net
+      - fretei_net
 
 volumes:
-  fretematch_redis:
+  fretei_redis:
     driver: local
-  fretematch_pgsql:
+  fretei_pgsql:
     driver: local
 
 networks:
-  fretematch_net:
+  fretei_net:
     driver: bridge

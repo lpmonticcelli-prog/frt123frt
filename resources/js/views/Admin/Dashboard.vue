@@ -9,7 +9,7 @@
         </div>
         <div class="flex space-x-2 overflow-x-auto pb-2 md:pb-0">
           <button @click="activeTab = 'overview'" :class="tabClass('overview')">Visão Geral</button>
-          <button @click="activeTab = 'kyc'" :class="tabClass('kyc')">Auditoria KYC <span v-if="kycQueue.length" class="ml-2 bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">{{ kycQueue.length }}</span></button>
+          <button @click="activeTab = 'kyc'" :class="tabClass('kyc')">Auditoria KYC <span v-if="kycQueue?.length" class="ml-2 bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">{{ kycQueue?.length }}</span></button>
           <button @click="activeTab = 'crm'" :class="tabClass('crm')">Base de Usuários</button>
           <button @click="activeTab = 'finance'" :class="tabClass('finance')">Operações & Fretes</button>
         </div>
@@ -48,7 +48,7 @@
       </div>
 
       <div v-if="activeTab === 'kyc'" class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden animate-fade-in">
-        <div v-if="kycQueue.length === 0" class="p-12 text-center">
+        <div v-if="kycQueue?.length === 0" class="p-12 text-center">
           <h3 class="mt-4 text-lg font-bold text-gray-900">Fila Limpa</h3>
           <p class="mt-1 text-sm text-gray-500">Não há nenhum usuário aguardando análise de documentos no momento.</p>
         </div>
@@ -82,7 +82,7 @@
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
                 <span class="text-xs font-bold bg-yellow-100 text-yellow-800 px-2 py-1 rounded-md uppercase">
-                  {{ user.status.replace('_', ' ') }}
+                  {{ user.status?.replace('_', ' ') }}
                 </span>
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-right">
@@ -136,7 +136,7 @@
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-200">
-            <tr v-if="fretes.length === 0"><td colspan="5" class="px-6 py-10 text-center text-gray-500">Nenhum frete registrado ainda.</td></tr>
+            <tr v-if="fretes?.length === 0"><td colspan="5" class="px-6 py-10 text-center text-gray-500">Nenhum frete registrado ainda.</td></tr>
             <tr v-for="carga in fretes" :key="carga.id" class="hover:bg-gray-50">
               <td class="px-6 py-4 whitespace-nowrap text-xs text-gray-500">{{ new Date(carga.created_at).toLocaleDateString('pt-BR') }}</td>
               <td class="px-6 py-4 whitespace-nowrap">
@@ -148,7 +148,7 @@
                 <div v-if="carga.motorista"><span class="font-bold text-gray-400">MOT:</span> {{ carga.motorista?.user?.name || 'Aguardando' }}</div>
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
-                <span class="px-2 py-1 text-xs font-bold rounded-md bg-gray-100 text-gray-800 uppercase">{{ carga.status.replace('_', ' ') }}</span>
+                <span class="px-2 py-1 text-xs font-bold rounded-md bg-gray-100 text-gray-800 uppercase">{{ carga.status?.replace('_', ' ') }}</span>
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-right">
                 <div class="text-sm font-bold text-gray-900">{{ formatMoney(carga.valor_frete) }}</div>

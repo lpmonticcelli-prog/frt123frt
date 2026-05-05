@@ -206,8 +206,8 @@ const handleDocumentUpload = (event) => {
 };
 
 const buscarCep = async () => {
-  const cepLimpo = form.value.cep.replace(/\D/g, '');
-  if (cepLimpo.length !== 8) return;
+  const cepLimpo = form.value.cep?.replace(/\D/g, '');
+  if (cepLimpo?.length !== 8) return;
 
   try {
     const response = await axios.get(`https://viacep.com.br/ws/${cepLimpo}/json/`);

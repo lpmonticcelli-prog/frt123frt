@@ -172,7 +172,7 @@ const getStatusMensagem = (status) => {
 const fetchPerfil = async () => {
   loading.value = true;
   try {
-    const response = await axios.get('/api/v1/motorista/perfil');
+    const response = await axios.get('/api/motorista/perfil');
     perfil.value = response.data;
   } catch (error) {
     console.error('Erro ao carregar perfil:', error);
@@ -221,7 +221,7 @@ const submitDocumentos = async () => {
 
   try {
     // --- Atualizado para a URL V1 de envio de documentos ---
-    const response = await axios.post('/api/v1/motorista/perfil/documentos', formData, {
+    const response = await axios.post('/api/motorista/perfil/documentos', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
     });
     

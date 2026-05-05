@@ -9,7 +9,7 @@
       </svg>
     </div>
 
-    <div v-else-if="Object.keys(faqs).length === 0" class="text-center text-gray-500 py-12">
+    <div v-else-if="Object.keys(faqs)?.length === 0" class="text-center text-gray-500 py-12">
       Nenhuma documentação disponível no momento.
     </div>
 
@@ -76,7 +76,7 @@ const categoryLabels = {
 };
 
 const formatCategoryName = (key) => {
-  return categoryLabels[key] || key.replace('_', ' ');
+  return categoryLabels[key] || key?.replace('_', ' ');
 };
 
 const toggle = (id) => {

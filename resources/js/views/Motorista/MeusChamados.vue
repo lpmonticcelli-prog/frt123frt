@@ -10,11 +10,11 @@
       </div>
 
       <div class="overflow-y-auto flex-1 p-2 bg-gray-50">
-        <div v-if="loading && tickets.length === 0" class="text-center py-10 text-gray-500 text-sm font-bold">
+        <div v-if="loading && tickets?.length === 0" class="text-center py-10 text-gray-500 text-sm font-bold">
           A carregar histórico...
         </div>
         
-        <div v-else-if="tickets.length === 0" class="text-center py-12 px-4">
+        <div v-else-if="tickets?.length === 0" class="text-center py-12 px-4">
           <div class="bg-blue-50 text-blue-800 p-4 rounded-lg text-sm font-medium">
             Você não possui nenhum chamado de suporte aberto.
           </div>
@@ -23,18 +23,18 @@
         <div v-else class="space-y-2">
           <div 
             v-for="ticket in tickets" 
-            :key="ticket.id"
+            :key="ticket?.id"
             @click="abrirTicket(ticket)"
-            :class="['p-4 rounded-lg cursor-pointer border transition-all duration-200', ticketSelecionado?.id === ticket.id ? 'bg-blue-50 border-blue-300 shadow-sm' : 'bg-white border-gray-200 hover:border-blue-200 hover:shadow-sm']"
+            :class="['p-4 rounded-lg cursor-pointer border transition-all duration-200', ticketSelecionado?.id === ticket?.id ? 'bg-blue-50 border-blue-300 shadow-sm' : 'bg-white border-gray-200 hover:border-blue-200 hover:shadow-sm']"
           >
             <div class="flex justify-between items-start mb-2">
-              <span :class="getStatusBadge(ticket.status)">{{ ticket.status.replace('_', ' ') }}</span>
-              <span class="text-[10px] text-gray-400 font-bold">{{ formatarData(ticket.created_at) }}</span>
+              <span :class="getStatusBadge(ticket?.status)">{{ ticket?.status?.replace('_', ' ') || 'Processando' }}</span>
+              <span class="text-[10px] text-gray-400 font-bold">{{ formatarData(ticket?.created_at) }}</span>
             </div>
-            <h4 class="text-sm font-black text-gray-800 truncate" :title="ticket.assunto">{{ ticket.assunto }}</h4>
+            <h4 class="text-sm font-black text-gray-800 truncate" :title="ticket?.assunto">{{ ticket?.assunto }}</h4>
             <div class="flex justify-between items-center mt-2 text-xs">
-              <span class="text-gray-500">{{ ticket.categoria }}</span>
-              <span v-if="ticket.carga_id" class="px-2 py-0.5 bg-gray-100 text-gray-600 rounded font-mono text-[10px] border border-gray-200">
+              <span class="text-gray-500">{{ ticket?.categoria }}</span>
+              <span v-if="ticket?.carga_id" class="px-2 py-0.5 bg-gray-100 text-gray-600 rounded font-mono text-[10px] border border-gray-200">
                 Carga #{{ ticket.carga_id }}
               </span>
             </div>
@@ -56,7 +56,7 @@
             <div>
               <div class="flex items-center gap-2 mb-1">
                 <span class="text-[10px] font-black text-gray-400 uppercase tracking-wider">Ticket #{{ ticketSelecionado.id }}</span>
-                <span :class="getStatusBadge(ticketSelecionado.status)">{{ ticketSelecionado.status.replace('_', ' ') }}</span>
+                <span :class="getStatusBadge(ticketSelecionado.status)">{{ ticketSelecionado.status?.replace('_', ' ') || 'Processando' }}</span>
               </div>
               <h2 class="text-lg font-black text-gray-900">{{ ticketSelecionado.assunto }}</h2>
             </div>
@@ -133,7 +133,6 @@ const loadingChat = ref(false);
 const novaMensagem = ref('');
 const enviando = ref(false);
 
-// Função auxiliar para rolar o chat para a última mensagem
 const scrollToBottom = async () => {
   await nextTick();
   const container = document.getElementById('chat-container');
@@ -143,6 +142,7 @@ const scrollToBottom = async () => {
 };
 
 const getStatusBadge = (status) => {
+  if (!status) return 'bg-gray-100 text-gray-800';
   const map = {
     aberto: 'bg-yellow-100 text-yellow-800 border-yellow-200',
     em_atendimento: 'bg-blue-100 text-blue-800 border-blue-200',
@@ -155,33 +155,30 @@ const getStatusBadge = (status) => {
 const formatarData = (dataStr) => {
   if (!dataStr) return '';
   const d = new Date(dataStr);
-  return d.toLocaleDateString('pt-PT');
+  return d.toLocaleDateString('pt-BR');
 };
 
 const formatarHora = (dataStr) => {
   if (!dataStr) return '';
   const d = new Date(dataStr);
-  return `${d.toLocaleDateString('pt-PT')} às ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+  return `${d.toLocaleDateString('pt-BR')} às ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
 };
-
-// ==========================================
-// INTEGRAÇÃO DE API
-// ==========================================
 
 const fetchTickets = async () => {
   loading.value = true;
   try {
-    // Consulta a rota partilhada de suporte para o cliente logado
     const res = await axios.get('/api/suporte/tickets');
     tickets.value = res.data;
   } catch (error) {
     console.error('Erro ao carregar chamados', error);
+    tickets.value = [];
   } finally {
     loading.value = false;
   }
 };
 
 const abrirTicket = async (ticketBase) => {
+  if (!ticketBase?.id) return;
   ticketSelecionado.value = ticketBase;
   loadingChat.value = true;
   try {
@@ -196,7 +193,7 @@ const abrirTicket = async (ticketBase) => {
 };
 
 const enviarResposta = async () => {
-  if (!novaMensagem.value.trim() || !ticketSelecionado.value) return;
+  if (!novaMensagem.value.trim() || !ticketSelecionado.value?.id) return;
   
   enviando.value = true;
   try {
@@ -205,11 +202,8 @@ const enviarResposta = async () => {
     });
     
     novaMensagem.value = '';
-    
-    // Recarrega o chat para atualizar a lista com a nova mensagem e alterar o status
     await abrirTicket(ticketSelecionado.value);
     
-    // Atualiza a lista da coluna esquerda silenciosamente para refletir a mudança de status
     axios.get('/api/suporte/tickets').then(res => {
       tickets.value = res.data;
       const t = tickets.value.find(t => t.id === ticketSelecionado.value.id);

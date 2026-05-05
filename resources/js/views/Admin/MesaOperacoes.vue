@@ -13,7 +13,7 @@
       </div>
 
       <div class="flex-1 overflow-y-auto bg-gray-50 p-3 space-y-3 custom-scrollbar">
-        <div v-if="filaTickets.length === 0" class="text-center py-10 text-gray-500 text-sm font-bold flex flex-col items-center">
+        <div v-if="filaTickets?.length === 0" class="text-center py-10 text-gray-500 text-sm font-bold flex flex-col items-center">
           <span class="text-4xl mb-2">🎉</span>
           Fila zerada. Excelente trabalho!
         </div>
@@ -49,7 +49,7 @@
             <div>
               <div class="flex items-center gap-2 mb-1">
                 <span class="text-xs font-black text-gray-400">TICKET #{{ ticketAtivo.id }}</span>
-                <span :class="getStatusBadge(ticketAtivo.status)">{{ ticketAtivo.status.replace('_', ' ') }}</span>
+                <span :class="getStatusBadge(ticketAtivo.status)">{{ ticketAtivo.status?.replace('_', ' ') }}</span>
               </div>
               <h2 class="text-xl font-black text-gray-900">{{ ticketAtivo.assunto }}</h2>
               <p class="text-sm text-gray-500 mt-1">Aberto por <span class="font-bold text-gray-700">{{ ticketAtivo.user?.name }}</span> ({{ ticketAtivo.user?.email }})</p>

@@ -116,6 +116,7 @@ const handleRecovery = async () => {
           <input 
             type="email" 
             v-model.trim="email" 
+            autocomplete="email"
             placeholder="seu@email.com" 
             required 
             class="w-full bg-slate-50 border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-slate-900 focus:bg-white outline-none transition-all" 
@@ -133,6 +134,7 @@ const handleRecovery = async () => {
             <input 
               :type="showPassword ? 'text' : 'password'" 
               v-model="password" 
+              autocomplete="current-password"
               placeholder="••••••••" 
               required 
               class="w-full bg-slate-50 border-slate-200 rounded-xl p-3 pr-10 text-sm focus:ring-2 focus:ring-slate-900 focus:bg-white outline-none transition-all" 
@@ -170,6 +172,7 @@ const handleRecovery = async () => {
           <input 
             type="email" 
             v-model.trim="email" 
+            autocomplete="email"
             placeholder="seu@email.com" 
             required 
             class="w-full bg-slate-50 border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-slate-900 focus:bg-white outline-none transition-all" 

@@ -38,7 +38,7 @@
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-200">
-          <tr v-if="extratos.length === 0">
+          <tr v-if="extratos?.length === 0">
             <td colspan="6" class="px-6 py-10 text-center text-gray-500 font-bold">Nenhum frete concluído para gerar extrato.</td>
           </tr>
           <tr v-for="extrato in extratos" :key="extrato.id" class="hover:bg-gray-50">
@@ -85,11 +85,11 @@ const formatMoney = (value) => {
 };
 
 const totalTransacionado = computed(() => {
-  return extratos.value.reduce((acc, curr) => acc + Number(curr.valor_frete), 0);
+  return extratos.value?.reduce((acc, curr) => acc + Number(curr.valor_frete), 0);
 });
 
 const totalReceita = computed(() => {
-  return extratos.value.reduce((acc, curr) => acc + Number(curr.taxa_retida), 0);
+  return extratos.value?.reduce((acc, curr) => acc + Number(curr.taxa_retida), 0);
 });
 
 const carregarExtrato = async () => {

@@ -10,7 +10,7 @@
 
       <div v-if="loading" class="p-8 text-center text-gray-500 font-medium">Buscando seus fretes...</div>
 
-      <div v-else-if="!cargas || cargas.length === 0" class="p-12 text-center">
+      <div v-else-if="!cargas || cargas?.length === 0" class="p-12 text-center">
         <h3 class="mt-2 text-sm font-medium text-gray-900">Nenhum frete em andamento</h3>
         <p class="mt-1 text-sm text-gray-500">Vá ao Mural para pegar fretes.</p>
       </div>
@@ -27,14 +27,14 @@
           <tr v-for="carga in cargas" :key="carga.id" class="hover:bg-gray-50">
             <td class="px-6 py-4 whitespace-nowrap">
               <span :class="['px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full capitalize', getStatusClass(carga.status)]">
-                {{ carga.status.replace('_', ' ') }}
+                {{ carga.status?.replace('_', ' ') || 'Indefinido' }}
               </span>
             </td>
             <td class="px-6 py-4 whitespace-nowrap">
-              <div class="text-sm font-bold text-gray-900">{{ carga.cidade_origem }} → {{ carga.cidade_destino }}</div>
+              <div class="text-sm font-bold text-gray-900">{{ carga.cidade_origem || 'N/A' }} → {{ carga.cidade_destino || 'N/A' }}</div>
               
               <div class="text-sm text-gray-500 flex items-center mb-2">
-                {{ carga.embarcador?.razao_social }}
+                {{ carga.embarcador?.razao_social || 'Empresa Privada' }}
                 <span v-if="carga.aceite_log" title="Contrato Assinado" class="ml-1 text-green-500">
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                     <path fill-rule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
@@ -269,6 +269,7 @@ const isCompressingCanhoto = ref(false);
 const isCompressingCarga = ref(false);
 
 const getStatusClass = (status) => {
+  if (!status) return 'bg-gray-100 text-gray-800';
   const classes = { alocada: 'bg-yellow-100 text-yellow-800', em_transito: 'bg-purple-100 text-purple-800', entregue: 'bg-green-100 text-green-800', em_disputa: 'bg-red-100 text-red-800' };
   return classes[status] || 'bg-gray-100 text-gray-800';
 };
@@ -342,7 +343,7 @@ const extrairTextoOriginal = () => {
         return `TERMO PUBLICAÇÃO. Carga ${c.id}, Origem ${c.cidade_origem}, Destino ${c.cidade_destino}, IP ${log.ip_address}, Data ${log.publicado_em}`;
     } else {
         const motoristaNome = c.motorista?.user?.name || 'N/A';
-        const frete = parseFloat(c.valor_frete).toFixed(2).replace('.', ',');
+        const frete = parseFloat(c.valor_frete || 0).toFixed(2)?.replace('.', ',');
         return `CONTRATO DE TRANSPORTE. O motorista ${motoristaNome} aceita o frete ID ${c.id}, de ${c.cidade_origem} para ${c.cidade_destino}, pelo valor de R$ ${frete}.`;
     }
 };
@@ -395,7 +396,6 @@ const handleImageUpload = async (event, tipo) => {
   }
 };
 
-// Zero Trust Geolocation Promise
 const getGeolocation = () => {
     return new Promise((resolve) => {
         if (!navigator.geolocation) {
@@ -404,7 +404,7 @@ const getGeolocation = () => {
         }
         navigator.geolocation.getCurrentPosition(resolve, (err) => {
             console.warn("[Segurança] Falha ao capturar GPS de auditoria:", err);
-            resolve({ coords: { latitude: null, longitude: null } }); // Permite o fluxo mesmo se o motorista negar o GPS na hora
+            resolve({ coords: { latitude: null, longitude: null } });
         }, { enableHighAccuracy: true, timeout: 10000 });
     });
 };
@@ -419,15 +419,11 @@ const submitFinalizacao = async () => {
   uploadProgress.value = 10;
 
   try {
-    // 1. Auditoria Silenciosa de Localização
     const position = await getGeolocation();
-
-    // 2. Solicita as Pre-signed URLs ao Laravel
-    const resCanhoto = await axios.post(`/api/v1/motorista/cargas/${cargaSelecionada.value.id}/pod/url`);
+    const resCanhoto = await axios.post(`/api/motorista/cargas/${cargaSelecionada.value.id}/pod/url`);
     const signCanhoto = resCanhoto.data;
     uploadProgress.value = 30;
 
-    // 3. Offloading de Banda (Bypass backend). Envia o blob direto para a AWS S3 / DO Spaces
     await axios.put(signCanhoto.upload_url, fotoCanhoto.value, {
         headers: { 'Content-Type': fotoCanhoto.value.type },
         onUploadProgress: (progressEvent) => {
@@ -435,12 +431,9 @@ const submitFinalizacao = async () => {
         }
     });
 
-    // *(Em arquitetura real, você repetiria as linhas 2 e 3 para a fotoCarga.value caso o backend fosse desenhado para salvar 2 links no banco. Para o nosso escopo atual, faremos o bind do comprovante primário no backend.)*
-
     uploadProgress.value = 90;
 
-    // 4. Consolida a Transação Final no Banco do Laravel (Avisando que o S3 já tem o arquivo)
-    await axios.post(`/api/v1/motorista/cargas/${cargaSelecionada.value.id}/pod/confirmar`, {
+    await axios.post(`/api/motorista/cargas/${cargaSelecionada.value.id}/pod/confirmar`, {
         file_path: signCanhoto.file_path,
         latitude_entrega: position.coords.latitude,
         longitude_entrega: position.coords.longitude
@@ -461,7 +454,6 @@ const submitFinalizacao = async () => {
   }
 };
 
-// --- FUNÇÕES DO TICKET (SAC) ---
 const abrirModalTicket = (carga) => {
   cargaSelecionada.value = carga;
   ticketForm.value = { categoria: 'Dúvida Técnica', assunto: '', mensagem: '' };

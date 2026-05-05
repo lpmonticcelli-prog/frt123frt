@@ -10,9 +10,9 @@
       </div>
 
       <div class="overflow-y-auto flex-1 p-2 bg-slate-50/50">
-        <div v-if="loading && tickets.length === 0" class="text-center py-10 text-slate-400 text-xs font-bold uppercase">Sincronizando Chamados...</div>
+        <div v-if="loading && tickets?.length === 0" class="text-center py-10 text-slate-400 text-xs font-bold uppercase">Sincronizando Chamados...</div>
         
-        <div v-else-if="tickets.length === 0" class="text-center py-12 px-4">
+        <div v-else-if="tickets?.length === 0" class="text-center py-12 px-4">
           <div class="bg-white border border-slate-200 text-slate-500 p-6 rounded-xl text-sm font-medium shadow-sm italic">
             Nenhum ticket de suporte registado para a sua conta.
           </div>
@@ -24,7 +24,7 @@
             :class="['p-4 rounded-xl cursor-pointer border transition-all duration-200', ticketSelecionado?.id === ticket.id ? 'bg-slate-900 border-slate-900 shadow-md transform scale-[1.02]' : 'bg-white border-slate-200 hover:border-slate-400 shadow-sm']"
           >
             <div class="flex justify-between items-start mb-2">
-              <span :class="getStatusBadge(ticket.status)">{{ ticket.status.replace('_', ' ') }}</span>
+              <span :class="getStatusBadge(ticket.status)">{{ ticket.status?.replace('_', ' ') }}</span>
               <span :class="['text-[10px] font-bold uppercase', ticketSelecionado?.id === ticket.id ? 'text-slate-400' : 'text-slate-400']">{{ formatarData(ticket.created_at) }}</span>
             </div>
             <h4 :class="['text-sm font-black truncate', ticketSelecionado?.id === ticket.id ? 'text-white' : 'text-slate-800']">{{ ticket.assunto }}</h4>
@@ -50,7 +50,7 @@
           <div>
             <div class="flex items-center gap-3 mb-1">
               <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Protocolo #{{ ticketSelecionado.id }}</span>
-              <span :class="getStatusBadge(ticketSelecionado.status)">{{ ticketSelecionado.status.replace('_', ' ') }}</span>
+              <span :class="getStatusBadge(ticketSelecionado.status)">{{ ticketSelecionado.status?.replace('_', ' ') }}</span>
             </div>
             <h2 class="text-lg font-black text-slate-900 tracking-tight">{{ ticketSelecionado.assunto }}</h2>
           </div>

@@ -9,11 +9,11 @@
         </button>
       </div>
 
-      <div v-if="loading && cargas.length === 0" class="p-8 text-center text-gray-500 font-medium">
+      <div v-if="loading && cargas?.length === 0" class="p-8 text-center text-gray-500 font-medium">
         Buscando fretes disponíveis...
       </div>
 
-      <div v-else-if="!cargas || cargas.length === 0" class="p-12 text-center">
+      <div v-else-if="!cargas || cargas?.length === 0" class="p-12 text-center">
         <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         </svg>
@@ -34,38 +34,40 @@
             </tr>
           </thead>
           <tbody class="bg-white divide-y divide-gray-200" :class="{ 'opacity-50': loading }">
-            <tr v-for="carga in cargas" :key="carga.id" class="hover:bg-gray-50 transition-colors">
+            <tr v-for="carga in cargas" :key="carga?.id" class="hover:bg-gray-50 transition-colors">
               <td class="px-6 py-4 whitespace-nowrap">
-                <div class="text-sm font-bold text-gray-900">{{ carga.embarcador?.razao_social || 'Empresa Privada' }}</div>
-                <div class="text-xs font-medium text-gray-500 mt-1">Coleta: {{ formatData(carga.data_coleta) }}</div>
+                <div class="text-sm font-bold text-gray-900">{{ carga?.embarcador?.razao_social || 'Empresa Privada' }}</div>
+                <div class="text-xs font-medium text-gray-500 mt-1">Coleta: {{ formatData(carga?.data_coleta) }}</div>
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
-                <div class="text-sm font-bold text-gray-900">{{ carga.cidade_origem }}/{{ carga.uf_origem }}</div>
-                <div class="text-sm text-gray-500">para {{ carga.cidade_destino }}/{{ carga.uf_destino }}</div>
+                <div class="text-sm font-bold text-gray-900">{{ carga?.cidade_origem }}/{{ carga?.uf_origem }}</div>
+                <div class="text-sm text-gray-500">para {{ carga?.cidade_destino }}/{{ carga?.uf_destino }}</div>
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
-                <div class="text-sm font-medium text-gray-900">{{ carga.produto }}</div>
-                <div class="text-sm text-gray-500">{{ carga.peso_kg }} kg</div>
+                <div class="text-sm font-medium text-gray-900">{{ carga?.produto || 'N/A' }}</div>
+                <div class="text-sm text-gray-500">{{ carga?.peso_kg || '0' }} kg</div>
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
-                <div class="text-sm font-medium text-gray-900 capitalize">{{ carga.tipo_veiculo?.replace('_', ' ') || 'N/A' }}</div>
-                <div class="text-sm text-gray-500 capitalize">{{ carga.tipo_carroceria?.replace('_', ' ') || 'N/A' }}</div>
+                <div class="text-sm font-medium text-gray-900 capitalize">{{ carga?.tipo_veiculo?.replace('_', ' ') || 'N/A' }}</div>
+                <div class="text-sm text-gray-500 capitalize">{{ carga?.tipo_carroceria?.replace('_', ' ') || 'N/A' }}</div>
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-sm font-black text-green-700">
-                R$ {{ carga.valor_frete }}
+                R$ {{ carga?.valor_frete || '0.00' }}
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-right">
                 <div class="flex justify-end space-x-2">
                   <button 
                     @click="abrirModalTicket(carga)" 
-                    class="inline-flex justify-center items-center px-3 py-2 border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 font-bold rounded shadow-sm focus:outline-none transition-colors"
+                    :disabled="!carga?.id"
+                    class="inline-flex justify-center items-center px-3 py-2 border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 font-bold rounded shadow-sm focus:outline-none transition-colors disabled:opacity-50"
                     title="Dúvidas ou problemas com este frete? Abra um chamado"
                   >
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"></path></svg>
                   </button>
                   <button 
                     @click="abrirModalAceite(carga)" 
-                    class="inline-flex justify-center items-center px-4 py-2 bg-blue-600 text-white font-bold rounded shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+                    :disabled="!carga?.id"
+                    class="inline-flex justify-center items-center px-4 py-2 bg-blue-600 text-white font-bold rounded shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors disabled:opacity-50"
                   >
                     Analisar
                   </button>
@@ -218,14 +220,12 @@ const loading = ref(true);
 const actionLoading = ref(false);
 const ticketLoading = ref(false);
 
-// Controle de Paginação
 const pagination = ref({
   current_page: 1,
   last_page: 1,
   total: 0
 });
 
-// Controle de Modais
 const showModalAceite = ref(false);
 const showModalTicket = ref(false);
 const cargaSelecionada = ref(null);
@@ -250,7 +250,8 @@ const formatData = (dataStr) => {
 const fetchCargas = async (page = 1) => {
   loading.value = true;
   try {
-    const response = await axios.get(`/api/cargas?page=${page}`);
+    // CORREÇÃO: Endpoint EXATO que está no routes/api.php
+    const response = await axios.get(`/api/v1/motorista/cargas/disponiveis?page=${page}`);
     
     if (response.data && response.data.data) {
       cargas.value = response.data.data;
@@ -270,7 +271,6 @@ const fetchCargas = async (page = 1) => {
   }
 };
 
-// --- Fluxo de Aceite de Frete ---
 const abrirModalAceite = (carga) => {
   cargaSelecionada.value = carga;
   showModalAceite.value = true;
@@ -282,11 +282,12 @@ const fecharModalAceite = () => {
 };
 
 const confirmarAceite = async () => {
-  if (!cargaSelecionada.value) return;
+  if (!cargaSelecionada.value?.id) return;
   
   actionLoading.value = true;
   try {
-    const response = await axios.post(`/api/cargas/${cargaSelecionada.value.id}/aceitar`);
+    // CORREÇÃO: Endpoint EXATO que está no routes/api.php
+    const response = await axios.post(`/api/v1/motorista/cargas/${cargaSelecionada.value.id}/aceitar`);
     alert(response.data.message || 'Frete assinado e aceito com sucesso!');
     fecharModalAceite();
     router.push({ name: 'MotoristaMeusFretes' });
@@ -304,7 +305,6 @@ const confirmarAceite = async () => {
   }
 };
 
-// --- Fluxo de Abertura de Ticket (SAC) ---
 const abrirModalTicket = (carga) => {
   cargaSelecionada.value = carga;
   ticketForm.value = { categoria: 'Dúvida Técnica', assunto: '', mensagem: '' };
@@ -317,7 +317,7 @@ const fecharModalTicket = () => {
 };
 
 const enviarTicket = async () => {
-  if (!cargaSelecionada.value) return;
+  if (!cargaSelecionada.value?.id) return;
   
   ticketLoading.value = true;
   try {
@@ -328,7 +328,8 @@ const enviarTicket = async () => {
       mensagem: ticketForm.value.mensagem
     };
 
-    const response = await axios.post('/api/suporte/tickets', payload);
+    // CORREÇÃO: Endpoint EXATO que está no routes/api.php
+    const response = await axios.post('/api/v1/suporte/tickets', payload);
     
     alert(response.data.message || 'Chamado aberto com sucesso! Nossa equipe retornará em breve.');
     fecharModalTicket();
