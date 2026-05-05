@@ -25,7 +25,7 @@ const routes = [
             { path: 'faturas', name: 'EmbarcadorFaturas', component: () => import('../views/Embarcador/Faturas.vue'), meta: { title: 'Minhas Faturas' } },
             { path: 'perfil', name: 'EmbarcadorPerfil', component: () => import('../views/Embarcador/Perfil.vue'), meta: { title: 'Minha Conta' } },
             
-            // --- HUB EMBARCADOR (Injeção Direta) ---
+            // --- HUB EMBARCADOR ---
             { path: 'faq', name: 'EmbarcadorFaq', component: () => import('../views/Hub/FaqView.vue'), meta: { title: 'Central de Ajuda (FAQ)' } },
             { path: 'loja', name: 'EmbarcadorLoja', component: () => import('../views/Hub/LojaView.vue'), meta: { title: 'Loja VIWE SyS' } },
             { path: 'voucher', name: 'EmbarcadorVoucher', component: () => import('../views/Hub/VoucherView.vue'), meta: { title: 'Gestão de Vouchers' } },
@@ -48,7 +48,7 @@ const routes = [
             { path: 'suporte', name: 'MotoristaMeusChamados', component: () => import('../views/Motorista/MeusChamados.vue'), meta: { title: 'Central de Suporte (SAC)' } },
             { path: 'perfil', name: 'MotoristaPerfil', component: () => import('../views/Motorista/Perfil.vue'), meta: { title: 'Minha Conta' } },
             
-            // --- HUB MOTORISTA (Injeção Direta) ---
+            // --- HUB MOTORISTA ---
             { path: 'faq', name: 'MotoristaFaq', component: () => import('../views/Hub/FaqView.vue'), meta: { title: 'Central de Ajuda (FAQ)' } },
             { path: 'loja', name: 'MotoristaLoja', component: () => import('../views/Hub/LojaView.vue'), meta: { title: 'Loja VIWE SyS' } },
             { path: 'voucher', name: 'MotoristaVoucher', component: () => import('../views/Hub/VoucherView.vue'), meta: { title: 'Meus Vouchers' } },
@@ -86,30 +86,58 @@ const router = createRouter({
     scrollBehavior() { return { top: 0 }; }
 });
 
-router.beforeEach(async (to) => {
-    const auth = useAuthStore();
+// ==========================================
+// ESCUDO DE NAVEGAÇÃO (ZERO TRUST FRONTEND)
+// ==========================================
+router.beforeEach(async (to, from, next) => {
+    const authStore = useAuthStore();
     
-    if (to.meta.requiresAuth && !auth.isAuthenticated) return '/login';
-    if (auth.isAuthenticated && !auth.user) await auth.fetchUser();
+    // 1. Hidratação Atômica de Estado (Prevenção de F5 Branco)
+    // Se há indício de sessão na máquina, mas a RAM do Pinia está limpa, faz o fetch ANTES de renderizar a tela.
+    const hasLocalSession = localStorage.getItem('user');
+    if (!authStore.user && hasLocalSession) {
+        await authStore.fetchUser();
+    }
 
-    if (to.meta.requiresAuth && to.meta.role && auth.user) {
-        const allowedRoles = Array.isArray(to.meta.role) ? to.meta.role : [to.meta.role];
-        if (!allowedRoles.includes(auth.user.role.slug)) {
-            const staffRoles = ['admin', 'manager', 'compliance', 'suporte_n1'];
-            if (staffRoles.includes(auth.user.role.slug)) return '/admin/dashboard';
-            return `/${auth.user.role.slug}/painel`;
+    const requiresAuth = to.matched.some(record => record.meta.requiresAuth);
+    // As roles agora podem vir da rota atual ou da rota "pai" (matched)
+    let requiredRoles = [];
+    if (to.meta.role) {
+        requiredRoles = Array.isArray(to.meta.role) ? to.meta.role : [to.meta.role];
+    } else {
+        const parentWithRole = to.matched.slice().reverse().find(record => record.meta && record.meta.role);
+        if (parentWithRole) {
+            requiredRoles = Array.isArray(parentWithRole.meta.role) ? parentWithRole.meta.role : [parentWithRole.meta.role];
         }
     }
-    
+
+    const userRole = authStore.user?.role?.slug;
+
+    // 2. Interceptação Nível 1: Não Autenticado
+    if (requiresAuth && !authStore.isAuthenticated) {
+        console.warn('[Security] Acesso bloqueado: Rejeitado na Borda (Não autenticado).');
+        return next({ name: 'Login' });
+    }
+
+    // 3. Interceptação Nível 2: Violação de Papel (Role-Based Access Control)
+    if (requiresAuth && requiredRoles.length > 0 && !requiredRoles.includes(userRole)) {
+        console.error(`[Security] Violação de RBAC. Perfil '${userRole}' tentou acesso à rota restrita.`);
+        authStore.clearAuth(); // Corta o mal pela raiz e expulsa da sessão
+        return next({ name: 'Login' });
+    }
+
+    // 4. Redirecionamento de rotas de visitante (Login/Reset) para usuários já logados
     const guestRoutes = ['/login', '/reset-password'];
-    if (guestRoutes.includes(to.path) && auth.isAuthenticated && auth.user) {
+    if (guestRoutes.includes(to.path) && authStore.isAuthenticated && authStore.user) {
         const staffRoles = ['admin', 'manager', 'compliance', 'suporte_n1'];
-        if (staffRoles.includes(auth.user.role.slug)) {
-            return auth.user.role.slug === 'suporte_n1' ? '/admin/suporte' : '/admin/dashboard';
+        if (staffRoles.includes(userRole)) {
+            return userRole === 'suporte_n1' ? next({ name: 'AdminSuporte' }) : next({ name: 'AdminDashboard' });
         }
-        return `/${auth.user.role.slug}/painel`; 
+        return next(`/${userRole}/painel`); 
     }
-    return true;
+
+    // 5. Acesso Liberado
+    next();
 });
 
 export default router;

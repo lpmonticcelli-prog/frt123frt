@@ -63,7 +63,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted } from 'vue';
+import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
 
@@ -77,16 +77,4 @@ const logout = async () => {
     await authStore.logout(); 
     router.push({ name: 'Login' });
 };
-
-// Trava de Segurança Extra no Frontend
-onMounted(async () => {
-  if (!authStore.user) {
-    await authStore.fetchUser();
-  }
-  // Se tentar acessar o painel de embarcador sendo motorista ou admin, é expulso
-  if (authStore.user?.role?.slug !== 'embarcador') {
-    authStore.clearAuth();
-    router.push({ name: 'Login' });
-  }
-});
 </script>

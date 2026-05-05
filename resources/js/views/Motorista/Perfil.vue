@@ -26,18 +26,22 @@
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 bg-gray-50 p-4 rounded-lg border border-gray-100">
           <div>
             <label class="block text-xs font-bold text-gray-500 uppercase">Nome Completo</label>
-            <div class="mt-1 text-sm font-medium text-gray-900">{{ perfil.user?.name }}</div>
+            <!-- Alterado para a chave plana do novo contrato -->
+            <div class="mt-1 text-sm font-medium text-gray-900">{{ perfil.nome }}</div>
           </div>
           <div>
             <label class="block text-xs font-bold text-gray-500 uppercase">E-mail</label>
-            <div class="mt-1 text-sm font-medium text-gray-900">{{ perfil.user?.email }}</div>
+            <!-- Alterado para a chave plana do novo contrato -->
+            <div class="mt-1 text-sm font-medium text-gray-900">{{ perfil.email }}</div>
           </div>
           <div>
             <label class="block text-xs font-bold text-gray-500 uppercase">Telefone</label>
-            <div class="mt-1 text-sm font-medium text-gray-900">{{ perfil.user?.phone }}</div>
+            <!-- Alterado para a chave plana do novo contrato -->
+            <div class="mt-1 text-sm font-medium text-gray-900">{{ perfil.telefone }}</div>
           </div>
           <div>
             <label class="block text-xs font-bold text-gray-500 uppercase">CPF</label>
+            <!-- A chave 'cpf' já era plana, mas garantimos que lê direto da raiz -->
             <div class="mt-1 text-sm font-medium text-gray-900">{{ perfil.cpf }}</div>
           </div>
         </div>
@@ -55,7 +59,8 @@
               <label class="block text-sm font-bold text-gray-700">Foto da CNH</label>
               <div class="mt-2 flex items-center justify-between">
                 <input type="file" accept="image/*,application/pdf" capture="environment" @change="(e) => handleFileUpload(e, 'cnh')" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
-                <a v-if="perfil.doc_cnh" :href="`/storage/${perfil.doc_cnh}`" target="_blank" class="text-xs text-blue-600 underline ml-4 whitespace-nowrap">Ver Atual</a>
+                <!-- Alterado para usar as propriedades '_url' retornadas pela API -->
+                <a v-if="perfil.doc_cnh_url" :href="perfil.doc_cnh_url" target="_blank" class="text-xs text-blue-600 underline ml-4 whitespace-nowrap">Ver Atual</a>
               </div>
               <div v-if="isCompressing.cnh" class="text-xs text-blue-600 mt-2 font-bold">Comprimindo imagem...</div>
             </div>
@@ -67,7 +72,8 @@
               </p>
               <div class="flex items-center justify-between">
                 <input type="file" accept="image/*" capture="user" @change="(e) => handleFileUpload(e, 'selfie_cnh')" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-100 file:text-blue-800 hover:file:bg-blue-200" />
-                <a v-if="perfil.doc_selfie_cnh" :href="`/storage/${perfil.doc_selfie_cnh}`" target="_blank" class="text-xs text-blue-800 underline ml-4 whitespace-nowrap">Ver Atual</a>
+                <!-- Alterado para usar as propriedades '_url' retornadas pela API -->
+                <a v-if="perfil.doc_selfie_cnh_url" :href="perfil.doc_selfie_cnh_url" target="_blank" class="text-xs text-blue-800 underline ml-4 whitespace-nowrap">Ver Atual</a>
               </div>
               <div v-if="isCompressing.selfie_cnh" class="text-xs text-blue-800 mt-2 font-bold">Comprimindo imagem...</div>
             </div>
@@ -76,7 +82,8 @@
               <label class="block text-sm font-bold text-gray-700">Documento RNTRC</label>
               <div class="mt-2 flex items-center justify-between">
                 <input type="file" accept="image/*,application/pdf" capture="environment" @change="(e) => handleFileUpload(e, 'rntrc')" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
-                <a v-if="perfil.doc_rntrc" :href="`/storage/${perfil.doc_rntrc}`" target="_blank" class="text-xs text-blue-600 underline ml-4 whitespace-nowrap">Ver Atual</a>
+                <!-- Alterado para usar as propriedades '_url' retornadas pela API -->
+                <a v-if="perfil.doc_rntrc_url" :href="perfil.doc_rntrc_url" target="_blank" class="text-xs text-blue-600 underline ml-4 whitespace-nowrap">Ver Atual</a>
               </div>
               <div v-if="isCompressing.rntrc" class="text-xs text-blue-600 mt-2 font-bold">Comprimindo imagem...</div>
             </div>
@@ -85,7 +92,8 @@
               <label class="block text-sm font-bold text-gray-700">Comprovante de Endereço</label>
               <div class="mt-2 flex items-center justify-between">
                 <input type="file" accept="image/*,application/pdf" capture="environment" @change="(e) => handleFileUpload(e, 'endereco')" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
-                <a v-if="perfil.doc_comprovante_endereco" :href="`/storage/${perfil.doc_comprovante_endereco}`" target="_blank" class="text-xs text-blue-600 underline ml-4 whitespace-nowrap">Ver Atual</a>
+                <!-- Alterado para usar as propriedades '_url' retornadas pela API -->
+                <a v-if="perfil.doc_comprovante_endereco_url" :href="perfil.doc_comprovante_endereco_url" target="_blank" class="text-xs text-blue-600 underline ml-4 whitespace-nowrap">Ver Atual</a>
               </div>
               <div v-if="isCompressing.endereco" class="text-xs text-blue-600 mt-2 font-bold">Comprimindo imagem...</div>
             </div>
@@ -112,9 +120,9 @@
 import { ref, onMounted, computed } from 'vue';
 import axios from 'axios';
 import imageCompression from 'browser-image-compression';
-import { useAuthStore } from '../../stores/auth'; // Importação CRÍTICA para a sincronização global
+import { useAuthStore } from '../../stores/auth';
 
-const authStore = useAuthStore(); // Instanciação do store global
+const authStore = useAuthStore();
 const perfil = ref({});
 const loading = ref(true);
 const actionLoading = ref(false);
@@ -160,14 +168,15 @@ const getStatusMensagem = (status) => {
   return mensagens[status] || '';
 };
 
+// --- Atualizado para consumir a URL baseada na versão do backend (V1) ---
 const fetchPerfil = async () => {
   loading.value = true;
   try {
-    const response = await axios.get('/api/motorista/perfil');
+    const response = await axios.get('/api/v1/motorista/perfil');
     perfil.value = response.data;
   } catch (error) {
     console.error('Erro ao carregar perfil:', error);
-    alert('Erro ao carregar os dados da conta.');
+    alert('Erro ao carregar os dados da conta. Verifique sua conexão.');
   } finally {
     loading.value = false;
   }
@@ -211,16 +220,16 @@ const submitDocumentos = async () => {
   if (arquivos.value.endereco) formData.append('doc_comprovante_endereco', arquivos.value.endereco);
 
   try {
-    const response = await axios.post('/api/motorista/perfil/documentos', formData, {
+    // --- Atualizado para a URL V1 de envio de documentos ---
+    const response = await axios.post('/api/v1/motorista/perfil/documentos', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
     });
     
     alert(response.data.message);
     
-    // Atualiza a variável local
-    perfil.value = response.data.motorista;
-    
-    // CORREÇÃO CRÍTICA: Atualiza o store global do Pinia para o VueRouter reagir
+    // O backend retorna apenas a mensagem e o status, refazemos o fetch para garantir que todos
+    // os dados da view (URLs de documentos e etc) estejam atualizados e corretos.
+    await fetchPerfil();
     await authStore.fetchUser(); 
     
     arquivos.value = { cnh: null, selfie_cnh: null, rntrc: null, endereco: null };

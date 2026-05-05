@@ -3,7 +3,7 @@
     
     <aside class="w-64 bg-white border-r border-gray-200 flex flex-col">
       <div class="h-16 flex items-center px-6 border-b border-gray-200">
-        <span class="text-xl font-bold text-blue-700">VIWE SyS</span>
+        <span class="text-xl font-bold text-blue-700">123fretei</span>
         <span class="ml-2 text-xs font-semibold text-gray-500 bg-gray-100 px-2 py-1 rounded">Driver</span>
       </div>
       
@@ -29,7 +29,7 @@
 
         <!-- SEÇÃO HUB: SERVIÇOS COMPARTILHADOS -->
         <div class="pt-6 mt-2">
-          <span class="block px-4 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">Hub VIWE SyS</span>
+          <span class="block px-4 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">Hub 123fretei</span>
           
           <router-link :to="{ name: 'MotoristaLoja' }" class="block px-4 py-2 rounded text-sm font-medium transition-colors hover:bg-gray-100" active-class="bg-emerald-50 text-emerald-700">
             Loja & EPIs
@@ -68,7 +68,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted } from 'vue';
+import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
 
@@ -82,16 +82,4 @@ const logout = async () => {
     await authStore.logout(); 
     router.push({ name: 'Login' });
 };
-
-// Trava de Segurança Extra no Frontend
-onMounted(async () => {
-  if (!authStore.user) {
-    await authStore.fetchUser();
-  }
-  // Se tentar acessar o painel de motorista sendo embarcador, é expulso
-  if (authStore.user?.role?.slug !== 'motorista') {
-    authStore.clearAuth();
-    router.push({ name: 'Login' });
-  }
-});
 </script>

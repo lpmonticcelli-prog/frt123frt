@@ -80,7 +80,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
 
@@ -103,7 +103,7 @@ const menuItens = [
     id: 'dash',
     label: 'Centro de Comando',
     route: 'AdminDashboard',
-    roles: ['admin', 'manager'] // N1 não tem acesso ao dashboard geral
+    roles: ['admin', 'manager']
   },
   {
     id: 'ops',
@@ -145,13 +145,11 @@ const menuItens = [
   }
 ];
 
-// FILTRO DE MENUS PAI
 const menuFiltrado = computed(() => {
   if (!userRole.value) return [];
   return menuItens.filter(item => item.roles.includes(userRole.value));
 });
 
-// FILTRO DE SUBMENUS
 const submenusFiltrados = (submenus) => {
   if (!userRole.value || !submenus) return [];
   return submenus.filter(sub => sub.roles.includes(userRole.value));
@@ -161,19 +159,6 @@ const logout = async () => {
     await authStore.logout(); 
     router.push({ name: 'Login' });
 };
-
-// Trava de Segurança Extra no Frontend para Todo o Staff
-onMounted(async () => {
-  if (!authStore.user) {
-    await authStore.fetchUser();
-  }
-  
-  const allowedStaff = ['admin', 'manager', 'compliance', 'suporte_n1'];
-  if (!allowedStaff.includes(authStore.user?.role?.slug)) {
-    authStore.clearAuth();
-    router.push({ name: 'Login' });
-  }
-});
 </script>
 
 <style scoped>
