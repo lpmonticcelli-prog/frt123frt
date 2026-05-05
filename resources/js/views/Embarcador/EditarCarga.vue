@@ -245,7 +245,7 @@ const carregarCidades = async (uf, tipo, isInitialLoad = false) => {
   }
 
   try {
-    const response = await axios.get(`https://servicodados.ibge.gov.br/api/localidades/estados/${uf}/municipios`);
+    const response = await axios.get(`/api/v1/localidades/estados/${uf}/municipios`);
     if (tipo === 'origem') cidadesOrigem.value = response.data;
     else cidadesDestino.value = response.data;
   } catch (error) {
@@ -268,7 +268,7 @@ const formatStringToFloat = (stringNumber) => {
 
 onMounted(async () => {
   try {
-    const responseUFs = await axios.get('https://servicodados.ibge.gov.br/api/localidades/estados?orderBy=nome');
+    const responseUFs = await axios.get('/api/v1/localidades/estados?orderBy=nome');
     ufs.value = responseUFs.data;
 
     const response = await axios.get(`/api/cargas/${route.params.id}`);

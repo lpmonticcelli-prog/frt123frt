@@ -26,3 +26,6 @@ Thumbs.db
 **/caddy
 frankenphp
 frankenphp-worker.php
+.env
+.env.backup
+123fretei_*.txt

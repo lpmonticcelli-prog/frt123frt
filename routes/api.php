@@ -181,3 +181,8 @@ Route::prefix('v1')->group(function () {
         });
     }
 });
+// [INFRAESTRUTURA] Microsserviço Interno de Localidades (Zero Dependência Externa)
+Route::prefix('v1/localidades')->group(function () {
+    Route::get('/estados', [\App\Http\Controllers\Api\V1\LocalidadeController::class, 'estados']);
+    Route::get('/estados/{uf}/municipios', [\App\Http\Controllers\Api\V1\LocalidadeController::class, 'municipios']);
+});

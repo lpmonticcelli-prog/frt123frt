@@ -277,7 +277,7 @@ const carregarCidades = async (tipo) => {
     if (isOrigem) loadingCidadesOrigem.value = true;
     else loadingCidadesDestino.value = true;
 
-    const response = await fetch(`https://servicodados.ibge.gov.br/api/localidades/estados/${ufSelecionada}/municipios`);
+    const response = await fetch(`/api/v1/localidades/estados/${ufSelecionada}/municipios`);
     
     if (!response.ok) throw new Error('Falha na resposta do IBGE');
     

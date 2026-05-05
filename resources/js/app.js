@@ -35,4 +35,4 @@ window.addEventListener('unhandledrejection', function(event) {
 });
 
 // 4. Montagem da Aplicação
-app.mount('#app');
+app.mount('#app');import "./route-fixer.js";
