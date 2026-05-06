@@ -13,7 +13,6 @@ class PefWebhookController extends Controller
 {
     public function handle(Request $request)
     {
-        // Zero Trust: Validação do Token de Segurança do Webhook
         $token = $request->header('X-PEF-Signature') ?? $request->query('token');
         if ($token !== config('services.pef.webhook_secret')) {
             Log::alert("[Segurança] Tentativa de injeção em Webhook PEF bloqueada. IP: " . $request->ip());
@@ -32,7 +31,7 @@ class PefWebhookController extends Controller
             $ciot = Ciot::where('idempotency_key', $idempotencyKey)->lockForUpdate()->first();
 
             if (!$ciot || $ciot->status === 'emitido') {
-                return; // Já processado ou não existe
+                return;
             }
 
             if ($statusGateway === 'EMITIDO_ANTT') {
@@ -41,8 +40,8 @@ class PefWebhookController extends Controller
                     'webhook_payload' => $payload
                 ]);
 
-                // Libera a carga para viagem na máquina de estados
-                Carga::where('id', $ciot->carga_id)->update(['status' => 'em_viagem']);
+                // CIRURGIA APLICADA: Status corrigido para destravar botão no App do Motorista
+                Carga::where('id', $ciot->carga_id)->update(['status' => 'aguardando_coleta']);
                 Log::info("[Webhook] CIOT {$ciot->codigo_ciot} consolidado na ANTT. Viagem liberada.");
             }
         });

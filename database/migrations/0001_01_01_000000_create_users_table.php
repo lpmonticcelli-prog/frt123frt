@@ -8,7 +8,6 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // 1. Cria a tabela de Perfis ANTES dos usuários
         Schema::create('roles', function (Blueprint $table) {
             $table->id();
             $table->string('slug')->unique();
@@ -16,25 +15,24 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        // 2. Modifica a tabela padrão de Usuários incluindo a coluna PHONE e STATUS
         Schema::create('users', function (Blueprint $table) {
             $table->id();
             $table->foreignId('role_id')->constrained('roles')->onDelete('restrict');
             
             $table->string('name');
             $table->string('email')->unique();
-            $table->string('phone', 20)->unique(); // A coluna exigida
+            $table->string('phone', 20)->unique();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
             
-            $table->enum('status', ['pending', 'active', 'suspended', 'banned'])->default('pending');
+            // CIRURGIA APLICADA: Todos os status possíveis da plataforma foram mapeados
+            $table->enum('status', ['pending', 'em_analise', 'active', 'rejected', 'suspended', 'banned'])->default('pending');
             
             $table->rememberToken();
             $table->timestamps();
             $table->softDeletes();
         });
 
-        // 3. Tabelas nativas de sessão do Laravel
         Schema::create('password_reset_tokens', function (Blueprint $table) {
             $table->string('email')->primary();
             $table->string('token');

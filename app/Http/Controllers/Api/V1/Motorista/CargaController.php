@@ -9,6 +9,7 @@ use App\Contracts\PefGatewayInterface;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use App\Jobs\ProcessarAceiteCarga;
 
 class CargaController extends Controller
@@ -17,7 +18,8 @@ class CargaController extends Controller
     {
         return response()->json([
             'status' => 'success',
-            'data' => Carga::where('status', 'disponivel')->orderBy('created_at', 'desc')->paginate(20)
+            // CIRURGIA APLICADA: Sincronizado para "publicada"
+            'data' => Carga::where('status', 'publicada')->orderBy('created_at', 'desc')->paginate(20)
         ], 200);
     }
 
@@ -28,7 +30,7 @@ class CargaController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'data' => Carga::where('motorista_id', $motoristaId)->orderBy('created_at', 'desc')->paginate(15)
+            'data' => Carga::with(['embarcador', 'aceite_log', 'publicacao_log'])->where('motorista_id', $motoristaId)->orderBy('created_at', 'desc')->paginate(15)
         ], 200);
     }
 
@@ -37,27 +39,38 @@ class CargaController extends Controller
         $user = $request->user();
         if (!$user->motorista) return response()->json(['error' => 'Acesso negado. Crie seu perfil.'], 403);
 
+        // CIRURGIA APLICADA: Otimização brutal de Banco de Dados. Impede Deadlock com a API.
+        $carga = DB::transaction(function () use ($id, $user) {
+            $carga = Carga::lockForUpdate()->findOrFail($id);
+
+            if ($carga->status !== 'publicada') {
+                abort(409, 'Carga indisponível ou assumida por outro motorista.');
+            }
+
+            $carga->update(['status' => 'processando_aceite', 'motorista_id' => $user->motorista->id]);
+            return $carga;
+        });
+
         try {
-            DB::transaction(function () use ($id, $user, $request, $pefGateway) {
-                $carga = Carga::lockForUpdate()->findOrFail($id);
+            // CIRURGIA APLICADA: Chave UUID gerada corretamente antes do CIOT
+            $idempotencyKey = (string) Str::uuid();
 
-                if ($carga->status !== 'disponivel') {
-                    abort(409, 'Carga indisponível.');
-                }
+            // Chamada de API Externa isolada e Segura
+            $respostaPef = $pefGateway->emitirCiot($carga);
+            
+            if (!$respostaPef->sucesso) {
+                $carga->update(['status' => 'publicada', 'motorista_id' => null]);
+                abort(422, 'Erro na emissão do CIOT: ' . $respostaPef->mensagemErro);
+            }
 
-                $respostaPef = $pefGateway->emitirCiot($carga);
-                if (!$respostaPef->sucesso) {
-                    abort(422, 'Erro na emissão do CIOT.');
-                }
-
-                $carga->update(['status' => 'aguardando_coleta', 'motorista_id' => $user->motorista->id]);
-
+            DB::transaction(function () use ($carga, $user, $respostaPef, $idempotencyKey, $request) {
                 Ciot::create([
+                    'idempotency_key' => $idempotencyKey,
                     'carga_id' => $carga->id,
                     'embarcador_id' => $carga->embarcador_id,
                     'motorista_id' => $user->motorista->id,
                     'codigo_ciot' => $respostaPef->codigoCiot,
-                    'status' => 'emitido',
+                    'status' => 'processando', // Nasce como processando para engatilhar o Webhook
                     'valor_frete_bruto' => $respostaPef->bruto,
                     'imposto_inss' => $respostaPef->inss,
                     'imposto_sest_senat' => $respostaPef->sestSenat,
@@ -71,10 +84,12 @@ class CargaController extends Controller
                 ProcessarAceiteCarga::dispatch($carga->id, $user->id, $request->ip(), $request->userAgent());
             });
 
-            return response()->json(['message' => 'Frete assinado. CIOT emitido.'], 200);
+            return response()->json(['message' => 'Frete assinado. CIOT solicitado. Aguardando processamento da ANTT.'], 200);
+
         } catch (\Exception $e) {
+            $carga->update(['status' => 'publicada', 'motorista_id' => null]);
             Log::error('[CRÍTICO] Falha no aceite da carga ID ' . $id . ': ' . $e->getMessage());
-            return response()->json(['error' => $e->getMessage()], $e instanceof \Symfony\Component\HttpKernel\Exception\HttpException ? $e->getStatusCode() : 500);
+            return response()->json(['error' => 'Falha de comunicação com o sistema ANTT.'], 500);
         }
     }
 
@@ -84,7 +99,7 @@ class CargaController extends Controller
             $carga = Carga::lockForUpdate()->findOrFail($id);
 
             if ($carga->motorista_id !== $request->user()->motorista->id) abort(403, 'Operação negada.');
-            if ($carga->status !== 'aguardando_coleta') abort(400, 'Status inválido para cancelamento.');
+            if (!in_array($carga->status, ['aguardando_coleta', 'processando_aceite'])) abort(400, 'Status inválido para cancelamento.');
 
             $ciot = Ciot::where('carga_id', $carga->id)->first();
             if ($ciot) {
@@ -93,10 +108,10 @@ class CargaController extends Controller
                 $ciot->delete();
             }
 
-            $carga->update(['status' => 'disponivel', 'motorista_id' => null]);
+            $carga->update(['status' => 'publicada', 'motorista_id' => null]);
         });
 
-        return response()->json(['message' => 'Aceite cancelado.'], 200);
+        return response()->json(['message' => 'Aceite cancelado. Carga devolvida ao mural.'], 200);
     }
 
     public function iniciarViagem(Request $request, $id)
@@ -104,7 +119,7 @@ class CargaController extends Controller
         DB::transaction(function () use ($request, $id) {
             $carga = Carga::lockForUpdate()->findOrFail($id);
             if ($carga->motorista_id !== $request->user()->motorista->id) abort(403, 'Operação negada.');
-            if ($carga->status !== 'aguardando_coleta') abort(400, 'Status inválido.');
+            if ($carga->status !== 'aguardando_coleta') abort(400, 'Status inválido. Aguarde a liberação do CIOT.');
 
             $carga->update(['status' => 'em_transito']);
         });
@@ -131,6 +146,6 @@ class CargaController extends Controller
             ]);
         });
 
-        return response()->json(['message' => 'Entrega finalizada. Aguardando auditoria do embarcador.'], 200);
+        return response()->json(['message' => 'Entrega finalizada. Aguardando auditoria da Indústria.'], 200);
     }
 }

@@ -167,7 +167,7 @@ const formatarHora = (dataStr) => {
 const fetchTickets = async () => {
   loading.value = true;
   try {
-    const res = await axios.get('/api/suporte/tickets');
+    const res = await axios.get('/api/v1/suporte/tickets');
     tickets.value = res.data;
   } catch (error) {
     console.error('Erro ao carregar chamados', error);
@@ -182,7 +182,7 @@ const abrirTicket = async (ticketBase) => {
   ticketSelecionado.value = ticketBase;
   loadingChat.value = true;
   try {
-    const res = await axios.get(`/api/suporte/tickets/${ticketBase.id}`);
+    const res = await axios.get(`/api/v1/suporte/tickets/${ticketBase.id}`);
     ticketDetalhado.value = res.data;
     scrollToBottom();
   } catch (error) {
@@ -197,14 +197,14 @@ const enviarResposta = async () => {
   
   enviando.value = true;
   try {
-    await axios.post(`/api/suporte/tickets/${ticketSelecionado.value.id}/responder`, {
+    await axios.post(`/api/v1/suporte/tickets/${ticketSelecionado.value.id}/responder`, {
       mensagem: novaMensagem.value
     });
     
     novaMensagem.value = '';
     await abrirTicket(ticketSelecionado.value);
     
-    axios.get('/api/suporte/tickets').then(res => {
+    axios.get('/api/v1/suporte/tickets').then(res => {
       tickets.value = res.data;
       const t = tickets.value.find(t => t.id === ticketSelecionado.value.id);
       if(t) ticketSelecionado.value = t;

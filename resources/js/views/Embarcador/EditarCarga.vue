@@ -196,7 +196,6 @@ import axios from 'axios';
 const route = useRoute();
 const router = useRouter();
 
-// Estrutura espelhada do componente CriarCarga.vue
 const form = ref({
   produto: '',
   especie: '',
@@ -271,18 +270,16 @@ onMounted(async () => {
     const responseUFs = await axios.get('/api/v1/localidades/estados?orderBy=nome');
     ufs.value = responseUFs.data;
 
-    const response = await axios.get(`/api/cargas/${route.params.id}`);
+    const response = await axios.get(`/api/v1/embarcador/cargas/${route.params.id}`);
     const dataCarregada = response.data;
     
     if (dataCarregada.data_coleta) dataCarregada.data_coleta = dataCarregada.data_coleta.split('T')[0];
     if (dataCarregada.data_entrega_prevista) dataCarregada.data_entrega_prevista = dataCarregada.data_entrega_prevista.split('T')[0];
     
-    // Injeta os valores em suas respectivas variáveis
     form.value = { ...dataCarregada };
     
-    // Alimenta o v-maska convertendo o Float (banco) para String "unmasked" inicial
     formUnmasked.value.peso_kg = formatFloatToString(dataCarregada.peso_kg);
-    formVisual.value.peso_kg = dataCarregada.peso_kg; // O Maska fará o trigger de formatação
+    formVisual.value.peso_kg = dataCarregada.peso_kg; 
 
     formUnmasked.value.cubagem_m3 = formatFloatToString(dataCarregada.cubagem_m3);
     formVisual.value.cubagem_m3 = dataCarregada.cubagem_m3;
@@ -312,7 +309,7 @@ const updateCarga = async () => {
   };
 
   try {
-    await axios.put(`/api/cargas/${route.params.id}`, payload);
+    await axios.put(`/api/v1/embarcador/cargas/${route.params.id}`, payload);
     message.value = { type: 'success', text: 'Carga atualizada com sucesso!' };
     
     setTimeout(() => {

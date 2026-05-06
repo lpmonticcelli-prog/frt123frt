@@ -67,12 +67,11 @@ const cargaId = ref(route.params.id);
 const isTransmitting = ref(false);
 const currentLat = ref(null);
 const currentLng = ref(null);
-const currentHeading = ref(0); // Novo estado para o ângulo
+const currentHeading = ref(0); 
 
 let ws = null;
 let geoWatcherId = null;
 
-// Lógica Matemática de Azimute (Caso o telemóvel não mande o Heading)
 let lastLat = null;
 let lastLng = null;
 
@@ -91,11 +90,13 @@ const calculateBearing = (startLat, startLng, destLat, destLng) => {
   
   let brng = Math.atan2(y, x);
   brng = toDegrees(brng);
-  return (brng + 360) % 360; // Converte para o eixo de 0 a 360 graus
+  return (brng + 360) % 360; 
 };
 
 const connectWebSocket = () => {
-  ws = new WebSocket('ws://localhost:8080/ws/driver');
+  // SINCRONIA: Dinâmico baseado na variável de ambiente do Vite
+  const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8080';
+  ws = new WebSocket(`${wsUrl}/ws/driver`);
 
   ws.onopen = () => {
     startTracking();
@@ -122,21 +123,17 @@ const startTracking = () => {
       currentLat.value = position.coords.latitude;
       currentLng.value = position.coords.longitude;
       
-      // 1. Tenta pegar o ângulo nativo do hardware (se estiver em movimento)
       if (position.coords.heading !== null && !isNaN(position.coords.heading)) {
         currentHeading.value = position.coords.heading;
       } 
-      // 2. Se falhar, calcula matematicamente com base na diferença espacial
       else if (lastLat !== null && lastLng !== null && (lastLat !== currentLat.value || lastLng !== currentLng.value)) {
         currentHeading.value = calculateBearing(lastLat, lastLng, currentLat.value, currentLng.value);
       }
 
-      // Salva as coordenadas para o próximo cálculo trigonométrico
       lastLat = currentLat.value;
       lastLng = currentLng.value;
 
       if (ws && ws.readyState === WebSocket.OPEN) {
-        // Injeta a variável 'heading' no JSON que o Go vai retransmitir
         const payload = {
           driver_id: authStore.user?.id,
           carga_id: parseInt(cargaId.value),
@@ -153,14 +150,14 @@ const startTracking = () => {
     },
     {
       enableHighAccuracy: true,
-      maximumAge: 0, // Força a leitura fresca do satélite
+      maximumAge: 0, 
       timeout: 10000
     }
   );
 };
 
 const voltar = () => {
-  router.push({ name: 'MeusFretes' }); // Correção do nome da rota no botão 'Sair' do Motorista
+  router.push({ name: 'MotoristaMeusFretes' }); 
 };
 
 onMounted(() => {

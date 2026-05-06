@@ -60,10 +60,9 @@ let ws = null;
 let map = null;
 let truckMarker = null;
 
-// Busca detalhes da carga para saber o destino
 const fetchCargaDetails = async () => {
   try {
-    const response = await axios.get(`/api/cargas/${cargaId.value}`);
+    const response = await axios.get(`/api/v1/embarcador/cargas/${cargaId.value}`);
     cargaInfo.value = response.data;
   } catch (error) {
     console.error("Erro ao carregar detalhes da carga");
@@ -74,7 +73,7 @@ const initMap = () => {
   map = markRaw(new maplibregl.Map({
     container: 'map',
     style: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
-    center: [-47.9292, -15.7801], // Brasilia inicial
+    center: [-47.9292, -15.7801],
     zoom: 4,
     pitch: 45,
     antialias: true
@@ -83,7 +82,6 @@ const initMap = () => {
   map.addControl(new maplibregl.NavigationControl(), 'top-right');
 
   map.on('load', () => {
-    // Camada da Linha de Rota (Polyline)
     map.addSource('route', {
       'type': 'geojson',
       'data': {
@@ -91,7 +89,7 @@ const initMap = () => {
         'properties': {},
         'geometry': {
           'type': 'LineString',
-          'coordinates': [] // Será preenchido com o histórico de posições
+          'coordinates': []
         }
       }
     });
@@ -119,11 +117,12 @@ const createTruckMarkerElement = () => {
   return el;
 };
 
-// Histórico para desenhar a linha
 const routeCoordinates = [];
 
 const connectWebSocket = () => {
-  ws = new WebSocket('ws://localhost:8080/ws/shipper');
+  // SINCRONIA: Dinâmico baseado na variável de ambiente do Vite
+  const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8080';
+  ws = new WebSocket(`${wsUrl}/ws/shipper`);
 
   ws.onopen = () => {
     isConnected.value = true;
@@ -146,7 +145,6 @@ const connectWebSocket = () => {
       lastUpdate.value = now.toLocaleTimeString('pt-PT');
 
       if (!truckMarker) {
-        // PRIMEIRA LOCALIZAÇÃO: IR DIRETO
         truckMarker = new maplibregl.Marker({ 
           element: createTruckMarkerElement(),
           rotation: heading,
@@ -155,7 +153,6 @@ const connectWebSocket = () => {
           .setLngLat(coordinates)
           .addTo(map);
 
-        // Pulo imediato para a posição
         map.jumpTo({
           center: coordinates,
           zoom: 17
@@ -164,7 +161,6 @@ const connectWebSocket = () => {
         truckMarker.setLngLat(coordinates);
         truckMarker.setRotation(heading);
         
-        // Atualiza a linha no mapa
         if (map.getSource('route')) {
           map.getSource('route').setData({
             'type': 'Feature',

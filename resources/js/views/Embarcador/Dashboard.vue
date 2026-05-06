@@ -1,6 +1,5 @@
 <template>
   <div class="space-y-6 relative">
-    
     <div class="flex justify-between items-center bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
       <div>
         <h2 class="text-xl font-bold text-slate-900 tracking-tight">Painel de Controle Logístico</h2>
@@ -101,7 +100,7 @@
                       </button>
                     </template>
 
-                    <template v-else-if="carga.status === 'entregue' || carga.status === 'concluida'">
+                    <template v-else-if="carga.status === 'entregue' || carga.status === 'finalizada' || carga.status === 'concluida'">
                       <button @click="abrirModalPod(carga)" class="inline-flex items-center px-3 py-1.5 bg-green-50 border border-green-200 text-green-700 font-bold text-xs rounded hover:bg-green-100 transition-colors">
                         Ver Comprovantes
                       </button>
@@ -143,7 +142,6 @@
       </template>
     </div>
 
-    <!-- Modal de Auditoria (PoD) -->
     <div v-if="showModalPod" class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-pod-title" role="dialog" aria-modal="true">
       <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
         <div class="fixed inset-0 bg-slate-900 bg-opacity-75 transition-opacity backdrop-blur-sm" @click="fecharModalPod"></div>
@@ -206,10 +204,6 @@
         </div>
       </div>
     </div>
-
-    <!-- Modal de Contrato Eletrônico -->
-    <!-- (Mantido igual, oculto para concisão visual no bloco) -->
-    
   </div>
 </template>
 
@@ -233,30 +227,25 @@ const getStatusClass = (status) => {
     publicada: 'bg-blue-50 text-blue-700 border-blue-200',
     alocada: 'bg-amber-50 text-amber-700 border-amber-200',
     em_transito: 'bg-purple-50 text-purple-700 border-purple-200',
-    em_auditoria: 'bg-yellow-100 text-yellow-800 border-yellow-300', // Status Novo S3
+    em_auditoria: 'bg-yellow-100 text-yellow-800 border-yellow-300',
     entregue: 'bg-green-50 text-green-700 border-green-200',
-    concluida: 'bg-green-50 text-green-700 border-green-200',
+    finalizada: 'bg-green-50 text-green-700 border-green-200',
     cancelada: 'bg-red-50 text-red-700 border-red-200',
     em_disputa: 'bg-red-100 text-red-800 border-red-300'
   };
   return classes[status] || 'bg-gray-50 text-gray-700 border-gray-200';
 };
 
-// Zero Trust na visualização de Arquivos da Nuvem (S3 / DO Spaces)
 const getImageUrl = (path) => {
   if (!path) return '';
-  // Se já for uma URL completa do S3 assinada, renderiza direto.
   if (path.startsWith('http')) return path;
-  
-  // Se for apenas o PATH, aponta para a rota assinada do seu Backend ou direto pro bucket
-  // (O ideal é sua API devolver as presigned_urls no load da carga)
   return `${import.meta.env.VITE_STORAGE_URL || ''}/storage/${path}`;
 };
 
 const fetchCargas = async (page = 1) => {
   loading.value = true;
   try {
-    const response = await axios.get(`/api/cargas?page=${page}`);
+    const response = await axios.get(`/api/v1/embarcador/cargas?page=${page}`);
     if (response.data && response.data.data) {
       cargas.value = response.data.data;
       pagination.value = { current_page: response.data.current_page, last_page: response.data.last_page, total: response.data.total };
@@ -271,7 +260,7 @@ const fetchCargas = async (page = 1) => {
 const cancelarCarga = async (id) => {
   if (!confirm('Tem certeza que deseja cancelar esta carga?')) return;
   try {
-    await axios.delete(`/api/cargas/${id}`);
+    await axios.delete(`/api/v1/embarcador/cargas/${id}`);
     fetchCargas(pagination.value.current_page);
   } catch (error) { alert('Erro ao tentar cancelar a carga.'); }
 };
@@ -279,15 +268,12 @@ const cancelarCarga = async (id) => {
 const abrirModalPod = (carga) => { cargaSelecionada.value = carga; showModalPod.value = true; };
 const fecharModalPod = () => { showModalPod.value = false; if (!showModalContrato.value) cargaSelecionada.value = null; };
 
-// ==========================================
-// MESA FINANCEIRA: APROVAÇÃO & DISPUTA
-// ==========================================
 const aprovarPagamento = async () => {
   if (!confirm('ATENÇÃO: Ao aprovar a entrega, o frete será enviado para liquidação e o CIOT será finalizado. Confirma?')) return;
   
   actionLoading.value = true;
   try {
-    await axios.post(`/api/embarcador/cargas/${cargaSelecionada.value.id}/aprovar`);
+    await axios.post(`/api/v1/embarcador/cargas/${cargaSelecionada.value.id}/aprovar`);
     alert('✅ Sucesso! Pagamento aprovado. A carga agora será liquidada na Pamcard/NDD.');
     fecharModalPod();
     fetchCargas(pagination.value.current_page);
@@ -300,11 +286,11 @@ const aprovarPagamento = async () => {
 
 const abrirDisputa = async () => {
   const motivo = prompt('Descreva o motivo da reprovação (Ex: Canhoto rasurado, Carga Avariada):');
-  if (!motivo) return; // Cancela se o campo ficar vazio
+  if (!motivo) return; 
 
   actionLoading.value = true;
   try {
-    await axios.post(`/api/embarcador/cargas/${cargaSelecionada.value.id}/disputa`, { motivo });
+    await axios.post(`/api/v1/embarcador/cargas/${cargaSelecionada.value.id}/disputa`, { motivo });
     alert('⚠️ Carga bloqueada. Uma disputa foi aberta na Mesa de Operações (SAC).');
     fecharModalPod();
     fetchCargas(pagination.value.current_page);

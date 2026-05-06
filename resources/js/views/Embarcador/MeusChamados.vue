@@ -124,7 +124,7 @@ const formatarHora = (d) => d ? new Date(d).toLocaleTimeString('pt-PT', { hour: 
 const fetchTickets = async () => {
   loading.value = true;
   try {
-    const res = await axios.get('/api/suporte/tickets');
+    const res = await axios.get('/api/v1/suporte/tickets');
     tickets.value = res.data;
   } catch (e) { console.error(e); } finally { loading.value = false; }
 };
@@ -133,7 +133,7 @@ const abrirTicket = async (ticket) => {
   ticketSelecionado.value = ticket;
   loadingChat.value = true;
   try {
-    const res = await axios.get(`/api/suporte/tickets/${ticket.id}`);
+    const res = await axios.get(`/api/v1/suporte/tickets/${ticket.id}`);
     ticketDetalhado.value = res.data;
     scrollToBottom();
   } catch (e) { console.error(e); } finally { loadingChat.value = false; }
@@ -143,7 +143,7 @@ const enviarResposta = async () => {
   if (!novaMensagem.value.trim() || !ticketSelecionado.value) return;
   enviando.value = true;
   try {
-    await axios.post(`/api/suporte/tickets/${ticketSelecionado.value.id}/responder`, { mensagem: novaMensagem.value });
+    await axios.post(`/api/v1/suporte/tickets/${ticketSelecionado.value.id}/responder`, { mensagem: novaMensagem.value });
     novaMensagem.value = '';
     await abrirTicket(ticketSelecionado.value);
     fetchTickets();

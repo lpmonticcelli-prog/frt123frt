@@ -327,7 +327,7 @@ const submitCarga = async () => {
     await axios.get('/sanctum/csrf-cookie');
     
     // Dispara a requisição de publicação
-    await axios.post('/api/cargas', payload);
+    await axios.post('/api/v1/embarcador/cargas', payload);
     
     alert('Carga publicada com sucesso no Mural de Fretes!');
     router.push({ name: 'EmbarcadorDashboard' });

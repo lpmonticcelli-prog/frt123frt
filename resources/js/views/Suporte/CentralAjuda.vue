@@ -181,7 +181,7 @@ const formatarDataHora = (dataStr) => new Date(dataStr).toLocaleString('pt-BR', 
 const carregarMeusTickets = async () => {
   loading.value = true;
   try {
-    const res = await axios.get('/api/suporte/tickets');
+    const res = await axios.get('/api/v1/suporte/tickets');
     meusTickets.value = res.data;
   } catch (error) {
     console.error('Erro ao carregar tickets', error);
@@ -198,7 +198,7 @@ const iniciarNovoChamado = () => {
 const enviarNovoChamado = async () => {
   processando.value = true;
   try {
-    const res = await axios.post('/api/suporte/tickets', formNovo.value);
+    const res = await axios.post('/api/v1/suporte/tickets', formNovo.value);
     alert(res.data.message);
     await carregarMeusTickets();
     view.value = 'lista';
@@ -212,7 +212,7 @@ const enviarNovoChamado = async () => {
 const abrirDetalhes = async (id) => {
   loading.value = true;
   try {
-    const res = await axios.get(`/api/suporte/tickets/${id}`);
+    const res = await axios.get(`/api/v1/suporte/tickets/${id}`);
     ticketAtivo.value = res.data;
     view.value = 'detalhe';
   } catch (error) {
@@ -226,7 +226,7 @@ const enviarResposta = async () => {
   if (!novaMensagem.value.trim()) return;
   processando.value = true;
   try {
-    await axios.post(`/api/suporte/tickets/${ticketAtivo.value.id}/responder`, {
+    await axios.post(`/api/v1/suporte/tickets/${ticketAtivo.value.id}/responder`, {
       mensagem: novaMensagem.value
     });
     novaMensagem.value = '';

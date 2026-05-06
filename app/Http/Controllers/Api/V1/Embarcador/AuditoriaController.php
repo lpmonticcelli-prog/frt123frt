@@ -10,14 +10,10 @@ use Illuminate\Support\Facades\DB;
 
 class AuditoriaController extends Controller
 {
-    /**
-     * 1. Aprova o PoD e engatilha a Liquidação do Frete
-     */
     public function aprovarPagamento(Carga $carga, Request $request)
     {
         $user = $request->user();
 
-        // Zero Trust: A carga pertence a este embarcador e está esperando auditoria?
         if ($carga->embarcador_id !== $user->embarcador->id) {
             return response()->json(['message' => 'Acesso negado.'], 403);
         }
@@ -26,18 +22,15 @@ class AuditoriaController extends Controller
         }
 
         DB::transaction(function () use ($carga) {
-            $carga->update(['status' => 'concluida']); // Ou 'entregue' dependendo da sua modelagem
+            // CIRURGIA APLICADA: Status "finalizada" para alinhar perfeitamente com o Faturamento do Admin
+            $carga->update(['status' => 'finalizada']); 
 
-            // Envia o CIOT para liquidação em background (Webhook para a Pamcard/NDD)
             // LiquidarFreteJob::dispatch($carga->id)->onQueue('financeiro');
         });
 
         return response()->json(['message' => 'Auditoria aprovada com sucesso.']);
     }
 
-    /**
-     * 2. Reprova o PoD e trava o dinheiro (Abre Disputa no SAC)
-     */
     public function abrirDisputa(Carga $carga, Request $request)
     {
         $user = $request->user();
@@ -51,7 +44,6 @@ class AuditoriaController extends Controller
         DB::transaction(function () use ($carga, $request, $user) {
             $carga->update(['status' => 'em_disputa']);
 
-            // Abre automaticamente um chamado Nível 2 para a Mesa de Operações (Admin)
             Ticket::create([
                 'user_id' => $user->id,
                 'carga_id' => $carga->id,

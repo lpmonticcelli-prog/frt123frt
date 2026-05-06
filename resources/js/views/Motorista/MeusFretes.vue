@@ -56,13 +56,17 @@
                 🎧 Ajuda
               </button>
 
-              <template v-if="carga.status === 'alocada'">
+              <template v-if="carga.status === 'aguardando_coleta'">
                 <button @click="iniciarViagemEAbrirRastreador(carga.id)" :disabled="actionLoading === carga.id" class="inline-flex items-center px-3 py-1.5 bg-green-600 text-white font-bold rounded hover:bg-green-700 disabled:opacity-50 transition-colors">
                   {{ actionLoading === carga.id ? 'Processando...' : '▶ Iniciar Viagem' }}
                 </button>
                 <button @click="cancelarAceite(carga.id)" :disabled="actionLoading === carga.id" class="inline-flex items-center px-3 py-1.5 border border-red-600 text-red-600 font-bold rounded hover:bg-red-50 disabled:opacity-50 transition-colors ml-2">
                   Desistir
                 </button>
+              </template>
+              
+              <template v-else-if="carga.status === 'processando_aceite'">
+                <span class="text-blue-600 font-bold text-sm">Aguardando ANTT...</span>
               </template>
 
               <template v-else-if="carga.status === 'em_transito'">
@@ -74,7 +78,7 @@
                 </button>
               </template>
 
-              <template v-else-if="carga.status === 'entregue'">
+              <template v-else-if="carga.status === 'entregue' || carga.status === 'em_auditoria' || carga.status === 'finalizada'">
                 <span class="text-green-600 font-bold text-sm">✔ Em Auditoria</span>
               </template>
               
@@ -88,7 +92,6 @@
       </table>
     </div>
 
-    <!-- Modais omitidos para concisão do script, apenas mantendo íntegro o código HTML original -->
     <div v-if="showModalContrato" class="fixed inset-0 z-50 overflow-y-auto print:static print:z-auto print:inset-auto" aria-labelledby="modal-contrato-title" role="dialog" aria-modal="true">
       <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0 print:block print:p-0 print:min-h-0">
         <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity print:hidden" @click="fecharModalContrato"></div>
@@ -142,7 +145,6 @@
       </div>
     </div>
 
-    <!-- Modal de Finalização (PoD) Atualizado para S3 -->
     <div v-if="showModalFinalizacao" class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
       <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
         <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" @click="fecharModalFinalizacao"></div>
@@ -156,7 +158,7 @@
                   Comprovação de Entrega
                 </h3>
                 <div class="mt-2 text-sm text-gray-500">
-                  Para finalizar a viagem, anexe as fotos obrigatórias. O upload será feito diretamente para o nosso storage seguro (Bypass S3).
+                  Para finalizar a viagem, anexe as fotos obrigatórias. O upload será feito diretamente para o nosso storage seguro.
                 </div>
 
                 <div class="mt-4 space-y-4">
@@ -190,7 +192,6 @@
       </div>
     </div>
 
-    <!-- Modal Ticket omitido para concisão do script -->
     <div v-if="showModalTicket" class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-ticket-title" role="dialog" aria-modal="true">
       <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
         <div class="fixed inset-0 bg-gray-900 bg-opacity-75 transition-opacity" @click="fecharModalTicket"></div>
@@ -198,27 +199,31 @@
         <div class="inline-block align-bottom bg-white rounded-xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg w-full">
           <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
             <div class="flex justify-between items-center mb-4">
-              <h3 class="text-lg leading-6 font-black text-gray-900" id="modal-ticket-title">Precisando de Ajuda?</h3>
+              <h3 class="text-lg leading-6 font-black text-gray-900" id="modal-ticket-title">Precisa de Ajuda?</h3>
               <span class="bg-blue-100 text-blue-800 text-[10px] px-2 py-1 rounded font-bold">Carga #{{ cargaSelecionada?.id }}</span>
             </div>
-            <p class="text-sm text-gray-500 mb-4">Relate qualquer problema técnico ou de percurso relacionado a este frete à nossa Mesa de Operações.</p>
+            
+            <p class="text-sm text-gray-500 mb-4">Abra um chamado diretamente com a nossa central de atendimento para esclarecer dúvidas sobre este frete específico.</p>
+
             <div class="space-y-4">
               <div>
                 <label class="block text-sm font-bold text-gray-700">Categoria do Suporte</label>
                 <select v-model="ticketForm.categoria" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md">
-                  <option value="Dúvida Técnica">Dúvida Técnica / Problema na Carga</option>
-                  <option value="Disputa de Frete">Disputa (Bloqueio, Avaria, Cancelamento)</option>
-                  <option value="Financeiro">Financeiro / Pagamento</option>
+                  <option value="Dúvida Técnica">Dúvida Técnica (Veículo, Rota, Peso)</option>
+                  <option value="Financeiro">Dúvida Financeira (Pagamento, Taxas)</option>
                   <option value="Problema no App">Erro no Aplicativo</option>
+                  <option value="Outros">Outros Assuntos</option>
                 </select>
               </div>
+
               <div>
-                <label class="block text-sm font-bold text-gray-700">Assunto (Resumo)</label>
-                <input v-model="ticketForm.assunto" type="text" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" placeholder="Ex: Pneu furado e carga atrasada" />
+                <label class="block text-sm font-bold text-gray-700">Resumo (Assunto)</label>
+                <input v-model="ticketForm.assunto" type="text" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" placeholder="Ex: A altura livre do galpão comporta carreta LS?" />
               </div>
+
               <div>
                 <label class="block text-sm font-bold text-gray-700">Mensagem Detalhada</label>
-                <textarea v-model="ticketForm.mensagem" rows="4" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" placeholder="Descreva o que aconteceu..."></textarea>
+                <textarea v-model="ticketForm.mensagem" rows="4" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" placeholder="Explique sua dúvida ao nosso time de suporte N1..."></textarea>
               </div>
             </div>
           </div>
@@ -233,32 +238,35 @@
         </div>
       </div>
     </div>
+
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue';
-import { useRouter } from 'vue-router'; 
+import { useRouter } from 'vue-router';
 import axios from 'axios';
 import imageCompression from 'browser-image-compression';
 
-const router = useRouter(); 
-
+const router = useRouter();
 const cargas = ref([]);
 const loading = ref(true);
 const actionLoading = ref(false);
+const ticketLoading = ref(false);
 const uploadProgress = ref(0);
 
-// Estados dos Modais
+const showModalAceite = ref(false);
+const showModalTicket = ref(false);
 const showModalFinalizacao = ref(false); 
 const showModalContrato = ref(false); 
-const showModalTicket = ref(false);
 const cargaSelecionada = ref(null);
 const tipoCertificadoSelecionado = ref('motorista');
 
-// Ticket Form State
-const ticketLoading = ref(false);
-const ticketForm = ref({ categoria: 'Dúvida Técnica', assunto: '', mensagem: '' });
+const ticketForm = ref({
+  categoria: 'Dúvida Técnica',
+  assunto: '',
+  mensagem: ''
+});
 
 // Uploads
 const fotoCanhoto = ref(null);
@@ -270,14 +278,22 @@ const isCompressingCarga = ref(false);
 
 const getStatusClass = (status) => {
   if (!status) return 'bg-gray-100 text-gray-800';
-  const classes = { alocada: 'bg-yellow-100 text-yellow-800', em_transito: 'bg-purple-100 text-purple-800', entregue: 'bg-green-100 text-green-800', em_disputa: 'bg-red-100 text-red-800' };
+  const classes = { 
+    aguardando_coleta: 'bg-yellow-100 text-yellow-800', 
+    processando_aceite: 'bg-blue-100 text-blue-800',
+    em_transito: 'bg-purple-100 text-purple-800', 
+    em_auditoria: 'bg-yellow-100 text-yellow-800',
+    entregue: 'bg-green-100 text-green-800', 
+    finalizada: 'bg-green-100 text-green-800',
+    em_disputa: 'bg-red-100 text-red-800' 
+  };
   return classes[status] || 'bg-gray-100 text-gray-800';
 };
 
 const fetchMinhasCargas = async () => {
   loading.value = true;
   try {
-    const response = await axios.get('/api/cargas/motorista/minhas');
+    const response = await axios.get('/api/v1/motorista/cargas/minhas');
     cargas.value = response.data.data ? response.data.data : response.data;
   } catch (error) { 
     console.error('Erro:', error); 
@@ -290,10 +306,10 @@ const iniciarViagemEAbrirRastreador = async (id) => {
   if (!confirm('Confirma que iniciou o deslocamento? A sua localização começará a ser transmitida para o Embarcador.')) return;
   actionLoading.value = id;
   try {
-    await axios.post(`/api/cargas/${id}/iniciar-viagem`);
+    await axios.post(`/api/v1/motorista/cargas/${id}/iniciar-viagem`);
     router.push({ name: 'RastreadorFrete', params: { id: id } });
   } catch (error) { 
-    alert('Erro ao iniciar viagem.'); 
+    alert(error.response?.data?.message || 'Erro ao iniciar viagem.'); 
   } finally { 
     actionLoading.value = false; 
   }
@@ -303,9 +319,13 @@ const cancelarAceite = async (id) => {
   if (!confirm('Tem certeza que deseja desistir? O contrato de aceite gerado será anulado.')) return;
   actionLoading.value = id;
   try {
-    await axios.post(`/api/cargas/${id}/cancelar-aceite`);
+    await axios.post(`/api/v1/motorista/cargas/${id}/cancelar-aceite`);
     fetchMinhasCargas();
-  } catch (error) { alert('Erro ao cancelar o frete.'); } finally { actionLoading.value = false; }
+  } catch (error) { 
+    alert(error.response?.data?.message || 'Erro ao cancelar o frete.'); 
+  } finally { 
+    actionLoading.value = false; 
+  }
 };
 
 const abrirModalContrato = (carga, tipo) => {
@@ -420,7 +440,7 @@ const submitFinalizacao = async () => {
 
   try {
     const position = await getGeolocation();
-    const resCanhoto = await axios.post(`/api/motorista/cargas/${cargaSelecionada.value.id}/pod/url`);
+    const resCanhoto = await axios.post(`/api/v1/motorista/cargas/${cargaSelecionada.value.id}/pod/url`);
     const signCanhoto = resCanhoto.data;
     uploadProgress.value = 30;
 
@@ -433,7 +453,7 @@ const submitFinalizacao = async () => {
 
     uploadProgress.value = 90;
 
-    await axios.post(`/api/motorista/cargas/${cargaSelecionada.value.id}/pod/confirmar`, {
+    await axios.post(`/api/v1/motorista/cargas/${cargaSelecionada.value.id}/pod/confirmar`, {
         file_path: signCanhoto.file_path,
         latitude_entrega: position.coords.latitude,
         longitude_entrega: position.coords.longitude
@@ -464,7 +484,8 @@ const fecharModalTicket = () => {
   if (!showModalFinalizacao.value && !showModalContrato.value) cargaSelecionada.value = null;
 };
 const enviarTicket = async () => {
-  if (!cargaSelecionada.value) return;
+  if (!cargaSelecionada.value?.id) return;
+  
   ticketLoading.value = true;
   try {
     const payload = {
@@ -473,17 +494,22 @@ const enviarTicket = async () => {
       carga_id: cargaSelecionada.value.id,
       mensagem: ticketForm.value.mensagem
     };
-    await axios.post('/api/suporte/tickets', payload);
+
+    const response = await axios.post('/api/v1/suporte/tickets', payload);
+    
+    alert(response.data.message || 'Chamado aberto com sucesso! Nossa equipe retornará em breve.');
     fecharModalTicket();
-    router.push({ name: 'MotoristaMeusChamados' });
   } catch (error) {
+    console.error('Erro ao abrir ticket:', error);
     alert(error.response?.data?.message || 'Falha de comunicação ao tentar abrir o chamado.');
   } finally {
     ticketLoading.value = false;
   }
 };
 
-onMounted(() => fetchMinhasCargas());
+onMounted(() => {
+  fetchMinhasCargas();
+});
 </script>
 
 <style>
