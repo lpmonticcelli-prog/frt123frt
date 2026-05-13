@@ -43,6 +43,10 @@ const routes = [
             { path: 'painel', name: 'MotoristaMural', component: () => import('../views/Motorista/Dashboard.vue'), meta: { title: 'Mural de Fretes' } },
             { path: 'minhas-cargas', name: 'MotoristaMeusFretes', component: () => import('../views/Motorista/MeusFretes.vue'), meta: { title: 'Meus Fretes Alocados' } },
             { path: 'rastreamento/:id', name: 'RastreadorFrete', component: () => import('../views/Motorista/RastreadorFrete.vue'), meta: { title: 'Painel de Viagem Ativa' } },
+            
+            // CIRURGIA: Nova rota injetada para a Carteira Digital do Motorista
+            { path: 'carteira', name: 'MotoristaCarteira', component: () => import('../views/Motorista/Carteira.vue'), meta: { title: 'Minha Carteira' } },
+            
             { path: 'suporte', name: 'MotoristaMeusChamados', component: () => import('../views/Motorista/MeusChamados.vue'), meta: { title: 'Central de Suporte (SAC)' } },
             { path: 'perfil', name: 'MotoristaPerfil', component: () => import('../views/Motorista/Perfil.vue'), meta: { title: 'Minha Conta' } },
             { path: 'faq', name: 'MotoristaFaq', component: () => import('../views/Hub/FaqView.vue'), meta: { title: 'Central de Ajuda (FAQ)' } },

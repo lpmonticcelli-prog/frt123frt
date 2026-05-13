@@ -8,7 +8,6 @@
       </div>
       
       <nav class="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
-        <!-- SEÇÃO CORE: OPERAÇÃO LOGÍSTICA -->
         <span class="block px-4 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">Operação</span>
         
         <router-link :to="{ name: 'MotoristaMural' }" class="block px-4 py-2 rounded text-sm font-medium transition-colors hover:bg-gray-100" active-class="bg-blue-50 text-blue-700">
@@ -19,6 +18,10 @@
           Meus Fretes (Alocados)
         </router-link>
 
+        <router-link :to="{ name: 'MotoristaCarteira' }" class="block px-4 py-2 rounded text-sm font-medium transition-colors hover:bg-gray-100" active-class="bg-blue-50 text-blue-700">
+          Minha Carteira
+        </router-link>
+
         <router-link :to="{ name: 'MotoristaMeusChamados' }" class="block px-4 py-2 rounded text-sm font-medium transition-colors hover:bg-gray-100" active-class="bg-blue-50 text-blue-700">
           Central de Suporte (SAC)
         </router-link>
@@ -27,7 +30,6 @@
           Minha Conta
         </router-link>
 
-        <!-- SEÇÃO HUB: SERVIÇOS COMPARTILHADOS -->
         <div class="pt-6 mt-2">
           <span class="block px-4 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">Hub 123fretei</span>
           

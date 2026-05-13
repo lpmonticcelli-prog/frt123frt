@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\Ciot;
+use App\Models\Transacao;
 use App\Contracts\PefGatewayInterface;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -28,34 +29,39 @@ class LiquidarFreteJob implements ShouldQueue
 
     public function handle(PefGatewayInterface $pefGateway): void
     {
-        // Travamento na transação para evitar "Race Condition" de liquidação múltipla
         DB::transaction(function () use ($pefGateway) {
-            $ciot = Ciot::where('codigo_ciot', $this->codigoCiot)->lockForUpdate()->first();
+            // Eager load da carga para acedermos ao ID do motorista
+            $ciot = Ciot::with('carga')->where('codigo_ciot', $this->codigoCiot)->lockForUpdate()->first();
 
             if (!$ciot) {
-                Log::error("[Worker] CIOT {$this->codigoCiot} não localizado. Abortando liquidação.");
+                Log::error("[Worker] CIOT {$this->codigoCiot} não localizado.");
                 return;
             }
 
-            // Defesa 1: Controle local de idempotência
             if ($ciot->status === 'liquidado') {
-                Log::info("[Worker] CIOT {$this->codigoCiot} já consta como liquidado no 123fretei. Ignorando chamada duplicada ao PEF.");
-                return;
+                return; // Idempotência
             }
 
             try {
-                // Defesa 2: O PEF Gateway deve usar a $ciot->idempotency_key no seu Header de requisição (Idempotency-Key)
+                // Em laboratório, o Mock do PEF deve retornar true.
                 $sucesso = $pefGateway->liquidarFrete($this->codigoCiot);
                 
                 if ($sucesso) {
                     $ciot->update(['status' => 'liquidado']);
-                    Log::info("[Worker] CIOT {$this->codigoCiot} liquidado no Gateway PEF e sincronizado com sucesso.");
-                } else {
-                    Log::warning("[Worker] Gateway PEF recusou a liquidação do CIOT {$this->codigoCiot}. Analisar regras de negócio externas.");
+                    
+                    // CIRURGIA: Depósito automático na Carteira do Motorista (Valor Líquido)
+                    Transacao::create([
+                        'motorista_id' => $ciot->carga->motorista_id,
+                        'carga_id' => $ciot->carga_id,
+                        'tipo' => 'credito',
+                        'valor' => $ciot->valor_frete_liquido,
+                        'descricao' => "Liquidação PEF - CIOT: {$ciot->codigo_ciot}"
+                    ]);
+
+                    Log::info("[Worker] CIOT {$this->codigoCiot} liquidado. R$ {$ciot->valor_frete_liquido} creditados na carteira do motorista.");
                 }
             } catch (\Exception $e) {
-                Log::error("[Worker] Falha de comunicação/liquidação do CIOT {$this->codigoCiot}: " . $e->getMessage());
-                // Propaga a exceção para que a fila acione as regras de backoff de forma segura
+                Log::error("[Worker] Falha na liquidação do CIOT {$this->codigoCiot}: " . $e->getMessage());
                 throw $e;
             }
         }, 3);
