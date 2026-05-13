@@ -142,63 +142,120 @@
       </template>
     </div>
 
+    <div v-if="showModalContrato" class="fixed inset-0 z-50 overflow-y-auto print:static print:z-auto print:inset-auto" aria-labelledby="modal-contrato-title" role="dialog" aria-modal="true">
+      <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0 print:block print:p-0 print:min-h-0">
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity print:hidden" @click="fecharModalContrato"></div>
+        <span class="hidden sm:inline-block sm:align-middle sm:h-screen print:hidden" aria-hidden="true">&#8203;</span>
+        
+        <div id="print-area" class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl w-full print:shadow-none print:w-full print:max-w-full print:rounded-none border border-gray-200">
+          <div class="bg-white px-6 pt-6 pb-6 print:p-0">
+            
+            <div class="hidden print:block mb-8 border-b-4 border-gray-900 pb-4">
+              <h1 class="text-2xl font-black text-gray-900 uppercase">123Fretei - Documento de Auditoria Logística</h1>
+              <p class="text-sm text-gray-600 mt-1">Validação Criptográfica e Pagamento Eletrônico de Frete (PEF)</p>
+            </div>
+
+            <h3 class="text-lg leading-6 font-bold text-gray-900 border-b pb-2 mb-4 print:text-xl print:mt-4" id="modal-contrato-title">
+              Certificado de Publicação (Embarcador)
+            </h3>
+            
+            <div class="space-y-6">
+              <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 print:bg-white print:border-gray-400 print:border">
+                <p class="text-sm text-yellow-800 font-medium print:text-gray-800">
+                  Este certificado possui validade jurídica e serve como prova imutável da oferta de carga e condições comerciais estabelecidas pelo Embarcador.
+                </p>
+              </div>
+
+              <div class="bg-gray-900 p-4 rounded-md text-xs font-mono text-green-400 space-y-2 break-all shadow-inner print:bg-white print:text-black print:border print:border-gray-300">
+                <p><span class="text-gray-400 font-bold print:text-gray-600">ID DA CARGA:</span> {{ cargaSelecionada?.id }}</p>
+                <p><span class="text-gray-400 font-bold print:text-gray-600">DATA/HORA DO EVENTO (UTC):</span> {{ getLogSelecionado()?.data_evento }}</p>
+                <p><span class="text-gray-400 font-bold print:text-gray-600">ENDEREÇO IP DO ASSINANTE:</span> {{ getLogSelecionado()?.ip_address }}</p>
+                <p><span class="text-gray-400 font-bold print:text-gray-600">DISPOSITIVO:</span> {{ getLogSelecionado()?.user_agent }}</p>
+                <p class="mt-3 pt-3 border-t border-gray-700 print:border-gray-300">
+                  <span class="text-gray-400 font-bold block mb-1 print:text-gray-600">CHAVE CRIPTOGRÁFICA (SHA-256):</span> 
+                  {{ getLogSelecionado()?.termo_hash }}
+                </p>
+              </div>
+
+              <div class="text-xs text-gray-600 text-justify p-4 bg-gray-50 border border-gray-200 rounded-md print:bg-white print:border-gray-400">
+                <strong class="block mb-2 text-gray-800">TERMO ASSINADO:</strong> 
+                {{ extrairTextoOriginal() }}
+              </div>
+
+              <div v-if="cargaSelecionada?.ciot" class="border-t-2 border-dashed border-gray-300 pt-6 mt-6 print:break-inside-avoid">
+                <h3 class="text-lg leading-6 font-black text-gray-900 mb-4 uppercase">Espelho de Pagamento de Frete (CIOT)</h3>
+                
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                  <div class="p-3 bg-blue-50 border border-blue-200 rounded print:bg-white print:border-gray-400">
+                    <span class="block text-[10px] font-bold text-gray-500 uppercase">Código CIOT (ANTT)</span>
+                    <strong class="text-lg text-blue-900">{{ cargaSelecionada.ciot.codigo_ciot || 'Em Processamento' }}</strong>
+                  </div>
+                  <div class="p-3 bg-gray-50 border border-gray-200 rounded print:bg-white print:border-gray-400">
+                    <span class="block text-[10px] font-bold text-gray-500 uppercase">Status Operacional</span>
+                    <strong class="text-lg text-gray-900 uppercase">{{ cargaSelecionada.ciot.status }}</strong>
+                  </div>
+                </div>
+
+                <table class="min-w-full divide-y divide-gray-200 border border-gray-200 rounded overflow-hidden print:border-gray-400 text-sm">
+                  <tbody class="bg-white divide-y divide-gray-200">
+                    <tr>
+                      <td class="px-4 py-2 font-bold text-gray-700 bg-gray-50 print:bg-white">Valor Bruto do Frete</td>
+                      <td class="px-4 py-2 text-right font-mono">{{ formatMoney(cargaSelecionada.ciot.valor_frete_bruto) }}</td>
+                    </tr>
+                    <tr>
+                      <td class="px-4 py-2 font-bold text-gray-700 bg-gray-50 print:bg-white">(-) Retenção INSS</td>
+                      <td class="px-4 py-2 text-right text-red-600 font-mono">{{ formatMoney(cargaSelecionada.ciot.imposto_inss) }}</td>
+                    </tr>
+                    <tr>
+                      <td class="px-4 py-2 font-bold text-gray-700 bg-gray-50 print:bg-white">(-) Retenção SEST/SENAT</td>
+                      <td class="px-4 py-2 text-right text-red-600 font-mono">{{ formatMoney(cargaSelecionada.ciot.imposto_sest_senat) }}</td>
+                    </tr>
+                    <tr>
+                      <td class="px-4 py-2 font-bold text-gray-700 bg-gray-50 print:bg-white">(-) Retenção IRRF</td>
+                      <td class="px-4 py-2 text-right text-red-600 font-mono">{{ formatMoney(cargaSelecionada.ciot.imposto_irrf) }}</td>
+                    </tr>
+                    <tr>
+                      <td class="px-4 py-2 font-bold text-gray-700 bg-gray-50 print:bg-white">(-) Taxa Operacional 123fretei</td>
+                      <td class="px-4 py-2 text-right text-red-600 font-mono">{{ formatMoney(cargaSelecionada.ciot.taxa_123fretei) }}</td>
+                    </tr>
+                    <tr>
+                      <td class="px-4 py-2 font-bold text-gray-700 bg-blue-50 print:bg-white">Vale Pedágio Obrigatório</td>
+                      <td class="px-4 py-2 text-right text-blue-600 font-mono">{{ formatMoney(cargaSelecionada.ciot.valor_vale_pedagio) }}</td>
+                    </tr>
+                    <tr class="bg-green-50 print:bg-white border-t-2 border-green-200 print:border-gray-800">
+                      <td class="px-4 py-3 font-black text-green-900 uppercase">VALOR LÍQUIDO A RECEBER (MOTORISTA)</td>
+                      <td class="px-4 py-3 text-right font-black text-green-700 text-lg font-mono">{{ formatMoney(cargaSelecionada.ciot.valor_frete_liquido) }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+            </div>
+          </div>
+          <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse border-t border-gray-200 print:hidden">
+            <button type="button" @click="fecharModalContrato" class="w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-bold text-gray-700 hover:bg-gray-50 sm:ml-3 sm:w-auto sm:text-sm transition-colors">
+              Fechar
+            </button>
+            <button type="button" @click="imprimirCertificado" class="mt-3 w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-bold text-white hover:bg-blue-700 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm transition-colors">
+              🖨️ Imprimir PDF (CIOT)
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
     <div v-if="showModalPod" class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-pod-title" role="dialog" aria-modal="true">
       <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
         <div class="fixed inset-0 bg-slate-900 bg-opacity-75 transition-opacity backdrop-blur-sm" @click="fecharModalPod"></div>
         <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-        
-        <div class="inline-block align-bottom bg-white rounded-xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl w-full border border-gray-200">
-          <div class="bg-white px-6 pt-5 pb-4 sm:p-8 sm:pb-6">
-            <div class="sm:flex sm:items-start w-full">
-              <div class="mt-3 text-center sm:mt-0 sm:text-left w-full">
-                <div class="flex justify-between items-center border-b border-gray-100 pb-3">
-                  <h3 class="text-xl font-bold text-slate-900" id="modal-pod-title">
-                    Auditoria de Entrega - {{ cargaSelecionada?.cidade_destino }}/{{ cargaSelecionada?.uf_destino }}
-                  </h3>
-                  <span :class="getStatusClass(cargaSelecionada?.status)" class="px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider border">
-                    {{ cargaSelecionada?.status?.replace('_', ' ') }}
-                  </span>
-                </div>
-                
-                <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <div class="flex flex-col items-center bg-slate-50 p-6 rounded-xl border border-slate-200">
-                    <span class="font-black text-slate-700 uppercase text-xs tracking-wider mb-3">Canhoto Assinado</span>
-                    <a v-if="cargaSelecionada?.foto_canhoto" :href="getImageUrl(cargaSelecionada.foto_canhoto)" target="_blank" class="block w-full">
-                      <img :src="getImageUrl(cargaSelecionada.foto_canhoto)" alt="Foto do Canhoto" class="w-full h-72 object-contain rounded-lg border border-slate-300 hover:opacity-90 transition-opacity cursor-pointer bg-white shadow-sm" />
-                    </a>
-                    <div v-else class="h-72 flex items-center justify-center text-gray-400 italic text-sm">Arquivo não encontrado</div>
-                  </div>
-                  <div class="flex flex-col items-center bg-slate-50 p-6 rounded-xl border border-slate-200">
-                    <span class="font-black text-slate-700 uppercase text-xs tracking-wider mb-3">Carga no Destino (GPS)</span>
-                    <div v-if="cargaSelecionada?.latitude_entrega" class="w-full text-xs font-mono text-center text-blue-600 mb-2">
-                      LAT: {{ cargaSelecionada.latitude_entrega }} | LNG: {{ cargaSelecionada.longitude_entrega }}
-                    </div>
-                    <a v-if="cargaSelecionada?.foto_carga" :href="getImageUrl(cargaSelecionada.foto_carga)" target="_blank" class="block w-full">
-                      <img :src="getImageUrl(cargaSelecionada.foto_carga)" alt="Foto da Carga" class="w-full h-64 object-contain rounded-lg border border-slate-300 hover:opacity-90 transition-opacity cursor-pointer bg-white shadow-sm" />
-                    </a>
-                    <div v-else class="h-64 flex items-center justify-center text-gray-400 italic text-sm">Arquivo não encontrado</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          
+        <div class="inline-block align-bottom bg-white rounded-xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl w-full border border-gray-200">
           <div class="bg-slate-50 px-6 py-4 flex items-center justify-between border-t border-slate-200">
-            <div class="text-xs text-gray-500 font-medium">
-              A liquidação do CIOT é acionada automaticamente após a aprovação.
-            </div>
+            <div class="text-xs text-gray-500 font-medium">A liquidação do CIOT é acionada automaticamente após a aprovação.</div>
             <div class="flex gap-3">
               <template v-if="cargaSelecionada?.status === 'em_auditoria'">
-                <button type="button" @click="abrirDisputa" :disabled="actionLoading" class="inline-flex justify-center rounded-lg border border-red-300 shadow-sm px-5 py-2.5 bg-red-50 text-sm font-bold text-red-700 hover:bg-red-100 focus:outline-none transition-colors disabled:opacity-50">
-                  ⚠️ Reprovar / Disputa
-                </button>
-                <button type="button" @click="aprovarPagamento" :disabled="actionLoading" class="inline-flex justify-center rounded-lg border border-transparent shadow-sm px-5 py-2.5 bg-green-600 text-sm font-bold text-white hover:bg-green-700 focus:outline-none transition-colors disabled:opacity-50">
-                  ✅ Aprovar & Pagar
-                </button>
+                <button type="button" @click="abrirDisputa" class="bg-red-50 text-red-700 border border-red-300 px-5 py-2.5 rounded-lg font-bold text-sm">⚠️ Reprovar / Disputa</button>
+                <button type="button" @click="aprovarPagamento" class="bg-green-600 text-white px-5 py-2.5 rounded-lg font-bold text-sm">✅ Aprovar & Pagar</button>
               </template>
-              <button type="button" @click="fecharModalPod" :disabled="actionLoading" class="inline-flex justify-center rounded-lg border border-gray-300 shadow-sm px-5 py-2.5 bg-white text-sm font-bold text-slate-700 hover:bg-gray-50 focus:outline-none transition-colors">
-                Fechar
-              </button>
+              <button type="button" @click="fecharModalPod" class="bg-white text-slate-700 border border-gray-300 px-5 py-2.5 rounded-lg font-bold text-sm">Fechar</button>
             </div>
           </div>
         </div>
@@ -208,19 +265,20 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onBeforeUnmount } from 'vue';
 import axios from 'axios';
+import { useAuthStore } from '../../stores/auth'; 
 
+const auth = useAuthStore();
 const cargas = ref([]);
 const loading = ref(true);
-const actionLoading = ref(false);
-
 const pagination = ref({ current_page: 1, last_page: 1, total: 0 });
 
+// Lógica de Modais
 const showModalPod = ref(false);
-const showModalContrato = ref(false);
+const showModalContrato = ref(false); 
 const cargaSelecionada = ref(null); 
-const tipoCertificadoSelecionado = ref('motorista');
+const tipoCertificadoSelecionado = ref('embarcador');
 
 const getStatusClass = (status) => {
   const classes = {
@@ -236,11 +294,47 @@ const getStatusClass = (status) => {
   return classes[status] || 'bg-gray-50 text-gray-700 border-gray-200';
 };
 
-const getImageUrl = (path) => {
-  if (!path) return '';
-  if (path.startsWith('http')) return path;
-  return `${import.meta.env.VITE_STORAGE_URL || ''}/storage/${path}`;
+// --- FUNÇÕES DE AUDITORIA E CIOT INJETADAS ---
+const formatMoney = (value) => {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 };
+
+const abrirModalContrato = (carga, tipo) => {
+  cargaSelecionada.value = carga;
+  tipoCertificadoSelecionado.value = tipo;
+  showModalContrato.value = true;
+};
+
+const fecharModalContrato = () => {
+  showModalContrato.value = false;
+  if (!showModalPod.value) cargaSelecionada.value = null;
+};
+
+const imprimirCertificado = () => window.print();
+
+const getLogSelecionado = () => {
+  if (!cargaSelecionada.value) return null;
+  if (tipoCertificadoSelecionado.value === 'embarcador') {
+    const log = cargaSelecionada.value.publicacao_log;
+    if(log) log.data_evento = log.publicado_em; 
+    return log;
+  } else {
+    const log = cargaSelecionada.value.aceite_log;
+    if(log) log.data_evento = log.aceito_em;
+    return log;
+  }
+};
+
+const extrairTextoOriginal = () => {
+    if (!cargaSelecionada.value) return '';
+    const c = cargaSelecionada.value;
+    if (tipoCertificadoSelecionado.value === 'embarcador') {
+        const log = c.publicacao_log;
+        if (!log) return "Registro de publicação indisponível.";
+        return `TERMO PUBLICAÇÃO. O Embarcador declara a veracidade dos dados da carga ID ${c.id}, de ${c.cidade_origem} para ${c.cidade_destino}, referente ao produto ${c.produto} (${c.peso_kg}kg), pelo valor de R$ ${c.valor_frete}.`;
+    }
+};
+// ----------------------------------------------
 
 const fetchCargas = async (page = 1) => {
   loading.value = true;
@@ -266,40 +360,65 @@ const cancelarCarga = async (id) => {
 };
 
 const abrirModalPod = (carga) => { cargaSelecionada.value = carga; showModalPod.value = true; };
-const fecharModalPod = () => { showModalPod.value = false; if (!showModalContrato.value) cargaSelecionada.value = null; };
+const fecharModalPod = () => { showModalPod.value = false; if(!showModalContrato.value) cargaSelecionada.value = null; };
 
 const aprovarPagamento = async () => {
-  if (!confirm('ATENÇÃO: Ao aprovar a entrega, o frete será enviado para liquidação e o CIOT será finalizado. Confirma?')) return;
-  
-  actionLoading.value = true;
+  if (!confirm('Confirma aprovação do pagamento?')) return;
   try {
     await axios.post(`/api/v1/embarcador/cargas/${cargaSelecionada.value.id}/aprovar`);
-    alert('✅ Sucesso! Pagamento aprovado. A carga agora será liquidada na Pamcard/NDD.');
     fecharModalPod();
     fetchCargas(pagination.value.current_page);
-  } catch (error) {
-    alert(error.response?.data?.message || 'Erro ao aprovar o pagamento.');
-  } finally {
-    actionLoading.value = false;
-  }
+  } catch (e) { alert('Erro ao aprovar.'); }
 };
 
 const abrirDisputa = async () => {
-  const motivo = prompt('Descreva o motivo da reprovação (Ex: Canhoto rasurado, Carga Avariada):');
-  if (!motivo) return; 
-
-  actionLoading.value = true;
+  const motivo = prompt('Motivo da disputa:');
+  if (!motivo) return;
   try {
     await axios.post(`/api/v1/embarcador/cargas/${cargaSelecionada.value.id}/disputa`, { motivo });
-    alert('⚠️ Carga bloqueada. Uma disputa foi aberta na Mesa de Operações (SAC).');
     fecharModalPod();
     fetchCargas(pagination.value.current_page);
-  } catch (error) {
-    alert(error.response?.data?.message || 'Erro ao abrir disputa.');
-  } finally {
-    actionLoading.value = false;
-  }
+  } catch (e) { alert('Erro ao abrir disputa.'); }
 };
 
-onMounted(() => fetchCargas());
+onMounted(() => {
+  fetchCargas();
+
+  if (window.Echo && auth.user?.embarcador?.id) {
+    window.Echo.channel(`embarcador.${auth.user.embarcador.id}`)
+      .listen('.CargaAtualizada', (e) => {
+        if (!cargas.value) return;
+
+        const index = cargas.value.findIndex(c => c.id === e.carga.id);
+        if (index !== -1) {
+          cargas.value[index] = e.carga;
+        } else {
+          cargas.value.unshift(e.carga);
+        }
+      });
+  }
+});
+
+onBeforeUnmount(() => {
+  if (window.Echo && auth.user?.embarcador?.id) {
+    window.Echo.leaveChannel(`embarcador.${auth.user.embarcador.id}`);
+  }
+});
 </script>
+
+<style>
+/* Estilos para ocultar o sistema e forçar apenas a impressão do modal */
+@media print {
+  body * { visibility: hidden; }
+  #print-area, #print-area * { visibility: visible; }
+  #print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+  }
+  @page { margin: 0.5cm; }
+}
+</style>

@@ -43,11 +43,7 @@
               </div>
               
               <button v-if="carga.aceite_log" @click="abrirModalContrato(carga, 'motorista')" class="inline-flex items-center px-2 py-1 bg-gray-800 text-white font-bold text-[10px] rounded hover:bg-gray-900 transition-colors shadow-sm mr-2 mt-1">
-                📄 Meu Certificado
-              </button>
-
-              <button v-if="carga.publicacao_log" @click="abrirModalContrato(carga, 'embarcador')" class="inline-flex items-center px-2 py-1 bg-blue-50 text-blue-700 border border-blue-200 font-bold text-[10px] rounded hover:bg-blue-100 transition-colors shadow-sm mt-1">
-                📄 Certificado Embarcador
+                🖨️ Documento & CIOT
               </button>
             </td>
             <td class="px-6 py-4 whitespace-nowrap text-right space-x-2">
@@ -97,19 +93,19 @@
         <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity print:hidden" @click="fecharModalContrato"></div>
         <span class="hidden sm:inline-block sm:align-middle sm:h-screen print:hidden" aria-hidden="true">&#8203;</span>
         
-        <div id="print-area" class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl w-full print:shadow-none print:w-full print:max-w-full">
-          <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+        <div id="print-area" class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl w-full print:shadow-none print:w-full print:max-w-full print:rounded-none border border-gray-200">
+          <div class="bg-white px-6 pt-6 pb-6 print:p-0">
             
-            <div class="hidden print:block mb-8 border-b-2 border-gray-800 pb-4">
+            <div class="hidden print:block mb-8 border-b-4 border-gray-900 pb-4">
               <h1 class="text-2xl font-black text-gray-900 uppercase">123Fretei - Documento de Auditoria Logística</h1>
-              <p class="text-sm text-gray-600 mt-1">Validação Criptográfica de Eventos</p>
+              <p class="text-sm text-gray-600 mt-1">Validação Criptográfica e Pagamento Eletrônico de Frete (PEF)</p>
             </div>
 
-            <h3 class="text-lg leading-6 font-bold text-gray-900 border-b pb-2 mb-4 print:text-xl" id="modal-contrato-title">
-              Certificado de Assinatura Eletrônica ({{ tipoCertificadoSelecionado === 'embarcador' ? 'Publicação' : 'Aceite/Transporte' }})
+            <h3 class="text-lg leading-6 font-bold text-gray-900 border-b pb-2 mb-4 print:text-xl print:mt-4" id="modal-contrato-title">
+              Certificado de Assinatura Eletrônica (Transporte)
             </h3>
             
-            <div class="space-y-4">
+            <div class="space-y-6">
               <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 print:bg-white print:border-gray-400 print:border">
                 <p class="text-sm text-yellow-800 font-medium print:text-gray-800">
                   Este certificado possui validade jurídica e serve como prova imutável. A autenticidade foi validada sistemicamente mediante login seguro pelo usuário responsável.
@@ -120,25 +116,74 @@
                 <p><span class="text-gray-400 font-bold print:text-gray-600">ID DA CARGA:</span> {{ cargaSelecionada?.id }}</p>
                 <p><span class="text-gray-400 font-bold print:text-gray-600">DATA/HORA DO EVENTO (UTC):</span> {{ getLogSelecionado()?.data_evento }}</p>
                 <p><span class="text-gray-400 font-bold print:text-gray-600">ENDEREÇO IP DO ASSINANTE:</span> {{ getLogSelecionado()?.ip_address }}</p>
-                <p><span class="text-gray-400 font-bold print:text-gray-600">DISPOSITIVO DO ASSINANTE:</span> {{ getLogSelecionado()?.user_agent }}</p>
+                <p><span class="text-gray-400 font-bold print:text-gray-600">DISPOSITIVO:</span> {{ getLogSelecionado()?.user_agent }}</p>
                 <p class="mt-3 pt-3 border-t border-gray-700 print:border-gray-300">
                   <span class="text-gray-400 font-bold block mb-1 print:text-gray-600">CHAVE CRIPTOGRÁFICA (SHA-256):</span> 
                   {{ getLogSelecionado()?.termo_hash }}
                 </p>
               </div>
 
-              <div class="text-xs text-gray-600 mt-4 text-justify p-4 bg-gray-50 border border-gray-200 rounded-md print:bg-white">
+              <div class="text-xs text-gray-600 text-justify p-4 bg-gray-50 border border-gray-200 rounded-md print:bg-white print:border-gray-400">
                 <strong class="block mb-2 text-gray-800">TERMO ASSINADO:</strong> 
                 {{ extrairTextoOriginal() }}
               </div>
+
+              <div v-if="cargaSelecionada?.ciot" class="border-t-2 border-dashed border-gray-300 pt-6 mt-6 print:break-inside-avoid">
+                <h3 class="text-lg leading-6 font-black text-gray-900 mb-4 uppercase">Espelho de Pagamento de Frete (CIOT)</h3>
+                
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                  <div class="p-3 bg-blue-50 border border-blue-200 rounded print:bg-white print:border-gray-400">
+                    <span class="block text-[10px] font-bold text-gray-500 uppercase">Código CIOT (ANTT)</span>
+                    <strong class="text-lg text-blue-900">{{ cargaSelecionada.ciot.codigo_ciot || 'Em Processamento' }}</strong>
+                  </div>
+                  <div class="p-3 bg-gray-50 border border-gray-200 rounded print:bg-white print:border-gray-400">
+                    <span class="block text-[10px] font-bold text-gray-500 uppercase">Status Operacional</span>
+                    <strong class="text-lg text-gray-900 uppercase">{{ cargaSelecionada.ciot.status }}</strong>
+                  </div>
+                </div>
+
+                <table class="min-w-full divide-y divide-gray-200 border border-gray-200 rounded overflow-hidden print:border-gray-400 text-sm">
+                  <tbody class="bg-white divide-y divide-gray-200">
+                    <tr>
+                      <td class="px-4 py-2 font-bold text-gray-700 bg-gray-50 print:bg-white">Valor Bruto do Frete</td>
+                      <td class="px-4 py-2 text-right font-mono">{{ formatMoney(cargaSelecionada.ciot.valor_frete_bruto) }}</td>
+                    </tr>
+                    <tr>
+                      <td class="px-4 py-2 font-bold text-gray-700 bg-gray-50 print:bg-white">(-) Retenção INSS</td>
+                      <td class="px-4 py-2 text-right text-red-600 font-mono">{{ formatMoney(cargaSelecionada.ciot.imposto_inss) }}</td>
+                    </tr>
+                    <tr>
+                      <td class="px-4 py-2 font-bold text-gray-700 bg-gray-50 print:bg-white">(-) Retenção SEST/SENAT</td>
+                      <td class="px-4 py-2 text-right text-red-600 font-mono">{{ formatMoney(cargaSelecionada.ciot.imposto_sest_senat) }}</td>
+                    </tr>
+                    <tr>
+                      <td class="px-4 py-2 font-bold text-gray-700 bg-gray-50 print:bg-white">(-) Retenção IRRF</td>
+                      <td class="px-4 py-2 text-right text-red-600 font-mono">{{ formatMoney(cargaSelecionada.ciot.imposto_irrf) }}</td>
+                    </tr>
+                    <tr>
+                      <td class="px-4 py-2 font-bold text-gray-700 bg-gray-50 print:bg-white">(-) Taxa Operacional 123fretei</td>
+                      <td class="px-4 py-2 text-right text-red-600 font-mono">{{ formatMoney(cargaSelecionada.ciot.taxa_123fretei) }}</td>
+                    </tr>
+                    <tr>
+                      <td class="px-4 py-2 font-bold text-gray-700 bg-blue-50 print:bg-white">Vale Pedágio Obrigatório</td>
+                      <td class="px-4 py-2 text-right text-blue-600 font-mono">{{ formatMoney(cargaSelecionada.ciot.valor_vale_pedagio) }}</td>
+                    </tr>
+                    <tr class="bg-green-50 print:bg-white border-t-2 border-green-200 print:border-gray-800">
+                      <td class="px-4 py-3 font-black text-green-900 uppercase">VALOR LÍQUIDO A RECEBER</td>
+                      <td class="px-4 py-3 text-right font-black text-green-700 text-lg font-mono">{{ formatMoney(cargaSelecionada.ciot.valor_frete_liquido) }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
             </div>
           </div>
           <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse border-t border-gray-200 print:hidden">
-            <button type="button" @click="fecharModalContrato" class="w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 sm:ml-3 sm:w-auto sm:text-sm font-bold transition-colors">
+            <button type="button" @click="fecharModalContrato" class="w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-bold text-gray-700 hover:bg-gray-50 sm:ml-3 sm:w-auto sm:text-sm transition-colors">
               Fechar
             </button>
-            <button type="button" @click="imprimirCertificado" class="mt-3 w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm font-bold transition-colors">
-              🖨️ Imprimir PDF
+            <button type="button" @click="imprimirCertificado" class="mt-3 w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-bold text-white hover:bg-blue-700 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm transition-colors">
+              🖨️ Imprimir PDF (CIOT)
             </button>
           </div>
         </div>
@@ -255,7 +300,6 @@ const actionLoading = ref(false);
 const ticketLoading = ref(false);
 const uploadProgress = ref(0);
 
-const showModalAceite = ref(false);
 const showModalTicket = ref(false);
 const showModalFinalizacao = ref(false); 
 const showModalContrato = ref(false); 
@@ -288,6 +332,10 @@ const getStatusClass = (status) => {
     em_disputa: 'bg-red-100 text-red-800' 
   };
   return classes[status] || 'bg-gray-100 text-gray-800';
+};
+
+const formatMoney = (value) => {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 };
 
 const fetchMinhasCargas = async () => {
@@ -407,7 +455,6 @@ const handleImageUpload = async (event, tipo) => {
       }
     };
     reader.readAsDataURL(finalFile);
-
   } catch (error) {
     alert("Erro ao comprimir imagem. Tente outra foto.");
   } finally {
@@ -522,8 +569,8 @@ onMounted(() => {
     top: 0;
     width: 100%;
     margin: 0;
-    padding: 20px;
+    padding: 0;
   }
-  @page { margin: 1.5cm; }
+  @page { margin: 0.5cm; }
 }
 </style>

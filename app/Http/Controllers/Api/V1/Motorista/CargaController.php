@@ -5,11 +5,8 @@ namespace App\Http\Controllers\Api\V1\Motorista;
 use App\Http\Controllers\Controller;
 use App\Models\Carga;
 use App\Models\Ciot;
-use App\Contracts\PefGatewayInterface;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
 use App\Jobs\ProcessarAceiteCarga;
 
 class CargaController extends Controller
@@ -18,8 +15,10 @@ class CargaController extends Controller
     {
         return response()->json([
             'status' => 'success',
-            // CIRURGIA APLICADA: Sincronizado para "publicada"
-            'data' => Carga::where('status', 'publicada')->orderBy('created_at', 'desc')->paginate(20)
+            'data' => Carga::with(['embarcador.user:id,name,email'])
+                ->where('status', 'publicada')
+                ->orderBy('created_at', 'desc')
+                ->paginate(20)
         ], 200);
     }
 
@@ -30,72 +29,40 @@ class CargaController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'data' => Carga::with(['embarcador', 'aceite_log', 'publicacao_log'])->where('motorista_id', $motoristaId)->orderBy('created_at', 'desc')->paginate(15)
+            // CIRURGIA: Adicionado relacionamento 'ciot' para espelhar os valores do frete no documento de impressão.
+            'data' => Carga::with(['embarcador', 'aceite_log', 'publicacao_log', 'ciot'])
+                ->where('motorista_id', $motoristaId)
+                ->orderBy('created_at', 'desc')
+                ->paginate(15)
         ], 200);
     }
 
-    public function aceitar(Request $request, $id, PefGatewayInterface $pefGateway)
+    public function aceitar(Request $request, $id)
     {
         $user = $request->user();
         if (!$user->motorista) return response()->json(['error' => 'Acesso negado. Crie seu perfil.'], 403);
 
-        // CIRURGIA APLICADA: Otimização brutal de Banco de Dados. Impede Deadlock com a API.
-        $carga = DB::transaction(function () use ($id, $user) {
+        DB::transaction(function () use ($id, $user, $request) {
             $carga = Carga::lockForUpdate()->findOrFail($id);
 
             if ($carga->status !== 'publicada') {
                 abort(409, 'Carga indisponível ou assumida por outro motorista.');
             }
 
-            $carga->update(['status' => 'processando_aceite', 'motorista_id' => $user->motorista->id]);
-            return $carga;
+            $carga->update([
+                'status' => 'processando_aceite', 
+                'motorista_id' => $user->motorista->id
+            ]);
+
+            ProcessarAceiteCarga::dispatch($carga->id, $user->id, $request->ip(), $request->userAgent())->onQueue('default');
         });
 
-        try {
-            // CIRURGIA APLICADA: Chave UUID gerada corretamente antes do CIOT
-            $idempotencyKey = (string) Str::uuid();
-
-            // Chamada de API Externa isolada e Segura
-            $respostaPef = $pefGateway->emitirCiot($carga);
-            
-            if (!$respostaPef->sucesso) {
-                $carga->update(['status' => 'publicada', 'motorista_id' => null]);
-                abort(422, 'Erro na emissão do CIOT: ' . $respostaPef->mensagemErro);
-            }
-
-            DB::transaction(function () use ($carga, $user, $respostaPef, $idempotencyKey, $request) {
-                Ciot::create([
-                    'idempotency_key' => $idempotencyKey,
-                    'carga_id' => $carga->id,
-                    'embarcador_id' => $carga->embarcador_id,
-                    'motorista_id' => $user->motorista->id,
-                    'codigo_ciot' => $respostaPef->codigoCiot,
-                    'status' => 'processando', // Nasce como processando para engatilhar o Webhook
-                    'valor_frete_bruto' => $respostaPef->bruto,
-                    'imposto_inss' => $respostaPef->inss,
-                    'imposto_sest_senat' => $respostaPef->sestSenat,
-                    'imposto_irrf' => $respostaPef->irrf,
-                    'valor_vale_pedagio' => $respostaPef->valePedagio,
-                    'taxa_123fretei' => $respostaPef->taxa123fretei,
-                    'valor_frete_liquido' => $respostaPef->liquidoMotorista,
-                    'pef_payload_response' => $respostaPef->payloadOriginal,
-                ]);
-
-                ProcessarAceiteCarga::dispatch($carga->id, $user->id, $request->ip(), $request->userAgent());
-            });
-
-            return response()->json(['message' => 'Frete assinado. CIOT solicitado. Aguardando processamento da ANTT.'], 200);
-
-        } catch (\Exception $e) {
-            $carga->update(['status' => 'publicada', 'motorista_id' => null]);
-            Log::error('[CRÍTICO] Falha no aceite da carga ID ' . $id . ': ' . $e->getMessage());
-            return response()->json(['error' => 'Falha de comunicação com o sistema ANTT.'], 500);
-        }
+        return response()->json(['message' => 'Frete assinado. Gerando contrato e CIOT em background...'], 200);
     }
 
-    public function cancelarAceite(Request $request, $id, PefGatewayInterface $pefGateway)
+    public function cancelarAceite(Request $request, $id)
     {
-        DB::transaction(function () use ($request, $id, $pefGateway) {
+        DB::transaction(function () use ($request, $id) {
             $carga = Carga::lockForUpdate()->findOrFail($id);
 
             if ($carga->motorista_id !== $request->user()->motorista->id) abort(403, 'Operação negada.');
@@ -103,7 +70,6 @@ class CargaController extends Controller
 
             $ciot = Ciot::where('carga_id', $carga->id)->first();
             if ($ciot) {
-                $pefGateway->cancelarCiot($ciot->codigo_ciot);
                 $ciot->update(['status' => 'cancelado']);
                 $ciot->delete();
             }

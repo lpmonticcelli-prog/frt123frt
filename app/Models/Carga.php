@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use App\Events\CargaAtualizada; // Injeção do Evento Real-time
 
 class Carga extends Model
 {
@@ -36,4 +37,18 @@ class Carga extends Model
     
     // CIRURGIA: Relacionamento de Pagamento criado para evitar Fatal Error
     public function ciot() { return $this->hasOne(Ciot::class, 'carga_id', 'id'); }
+
+    /**
+     * ==========================================
+     * BLINDAGEM DE EVENTOS (OBSERVER NATIVO)
+     * ==========================================
+     * Ouve automaticamente qualquer criação ou atualização nesta tabela 
+     * e dispara a mensagem via WebSockets para o front-end.
+     */
+    protected static function booted()
+    {
+        static::saved(function ($carga) {
+            CargaAtualizada::dispatch($carga);
+        });
+    }
 }

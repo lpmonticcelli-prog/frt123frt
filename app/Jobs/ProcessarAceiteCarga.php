@@ -36,16 +36,15 @@ class ProcessarAceiteCarga implements ShouldQueue
         DB::transaction(function () {
             $carga = Carga::where('id', $this->cargaId)->lockForUpdate()->first();
 
-            if (!$carga || $carga->status !== 'disponivel') {
-                Log::warning("[Worker] Processamento cancelado: Carga {$this->cargaId} não encontrada ou já alocada.");
+            if (!$carga || $carga->status !== 'processando_aceite') {
+                Log::warning("[Worker] Processamento cancelado: Carga {$this->cargaId} não se encontra em processamento.");
                 return;
             }
 
             $motoristaUser = User::with('motorista')->findOrFail($this->motoristaUserId);
             
-            // Validação Clínica de Domínio: Bloqueia motoristas sem perfil ou com status de sistema inativo/suspenso
-            if (!$motoristaUser->motorista || $motoristaUser->status !== 'ativo') {
-                Log::error("[Worker] Processamento abortado: Usuário {$this->motoristaUserId} não possui perfil de motorista ou está bloqueado no sistema.");
+            if (!$motoristaUser->motorista || $motoristaUser->status !== 'active') {
+                Log::error("[Worker] Processamento abortado: Usuário bloqueado.");
                 return;
             }
 
@@ -56,16 +55,9 @@ class ProcessarAceiteCarga implements ShouldQueue
                            . "aceita realizar o transporte da carga ID {$carga->id}, "
                            . "com origem em {$carga->cidade_origem}/{$carga->uf_origem} e destino a {$carga->cidade_destino}/{$carga->uf_destino}, "
                            . "referente ao produto {$carga->produto} ({$carga->peso_kg}kg), "
-                           . "pelo valor acordado de R$ {$valorFormatado}. "
-                           . "O motorista declara que possui CNH e RNTRC válidos, assume a responsabilidade civil sobre a mercadoria "
-                           . "a partir do momento da coleta e isenta a plataforma intermediadora de qualquer vínculo empregatício.";
+                           . "pelo valor acordado de R$ {$valorFormatado}.";
 
             $termoHash = hash('sha256', $termoContrato);
-
-            $carga->update([
-                'status' => 'alocada',
-                'motorista_id' => $motoristaUser->motorista->id
-            ]);
 
             DB::table('carga_aceites_log')->insert([
                 'carga_id' => $carga->id,
@@ -78,6 +70,7 @@ class ProcessarAceiteCarga implements ShouldQueue
                 'updated_at' => now(),
             ]);
 
+            // Cria o registo base do CIOT. Os impostos serão preenchidos no próximo passo.
             $ciot = Ciot::create([
                 'idempotency_key' => (string) Str::uuid(),
                 'carga_id' => $carga->id,
@@ -89,9 +82,10 @@ class ProcessarAceiteCarga implements ShouldQueue
                 'taxa_123fretei' => $carga->taxa_plataforma,
             ]);
 
+            // Despacha o Job final para gerar o CIOT
             SolicitarEmissaoCiotJob::dispatch($ciot->id)->onQueue('default');
 
-            Log::info("[Worker] Carga {$carga->id} alocada com sucesso pelo Motorista {$motoristaUser->id}. CIOT {$ciot->id} enfileirado.");
+            Log::info("[Worker] Contrato assinado. Carga {$carga->id} preparada. CIOT enfileirado.");
         }, 3);
     }
 }

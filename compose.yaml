@@ -3,7 +3,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    # [SECURITY] Força o container a operar com o seu usuário do WSL, evitando arquivos travados como 'root'
     user: "${WWWUSER:-1000}:${WWWGROUP:-1000}"
     ports:
       - "8000:8000"
@@ -17,7 +16,6 @@ services:
       - DB_DATABASE=fretei
       - DB_USERNAME=postgres
       - DB_PASSWORD=postgres
-      # Gestão de Estado delegada ao Redis
       - CACHE_STORE=redis
       - SESSION_DRIVER=redis
       - QUEUE_CONNECTION=redis
@@ -34,6 +32,92 @@ services:
         condition: service_healthy
     networks:
       - fretei_net
+
+  # [INFRA] Worker responsável por consumir as filas assíncronas (CIOT e Publicação)
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    user: "${WWWUSER:-1000}:${WWWGROUP:-1000}"
+    command: php artisan queue:work redis --sleep=3 --tries=3 --max-time=3600
+    environment:
+      - APP_ENV=local
+      - DB_CONNECTION=pgsql
+      - DB_HOST=pgsql
+      - DB_PORT=5432
+      - DB_DATABASE=fretei
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=postgres
+      - CACHE_STORE=redis
+      - QUEUE_CONNECTION=redis
+      - REDIS_HOST=redis
+    volumes:
+      - .:/app
+    depends_on:
+      redis:
+        condition: service_healthy
+      pgsql:
+        condition: service_healthy
+    networks:
+      - fretei_net
+    healthcheck:
+      disable: true
+
+  # [INFRA] Scheduler responsável por disparar as auto-liquidações e regras temporais
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    user: "${WWWUSER:-1000}:${WWWGROUP:-1000}"
+    command: php artisan schedule:work
+    environment:
+      - APP_ENV=local
+      - DB_CONNECTION=pgsql
+      - DB_HOST=pgsql
+      - DB_PORT=5432
+      - DB_DATABASE=fretei
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=postgres
+      - REDIS_HOST=redis
+    volumes:
+      - .:/app
+    depends_on:
+      redis:
+        condition: service_healthy
+      pgsql:
+        condition: service_healthy
+    networks:
+      - fretei_net
+    healthcheck:
+      disable: true
+
+  # [INFRA] Malha de Eventos WebSockets (Laravel Reverb)
+  reverb:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    user: "${WWWUSER:-1000}:${WWWGROUP:-1000}"
+    command: php artisan reverb:start --host="0.0.0.0" --port=8082
+    ports:
+      - "8082:8082"
+    environment:
+      - APP_ENV=local
+      - DB_CONNECTION=pgsql
+      - DB_HOST=pgsql
+      - DB_PORT=5432
+      - DB_DATABASE=fretei
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=postgres
+      - REDIS_HOST=redis
+    depends_on:
+      redis:
+        condition: service_healthy
+      pgsql:
+        condition: service_healthy
+    networks:
+      - fretei_net
+    healthcheck:
+      disable: true
 
   redis:
     image: 'redis:alpine'
@@ -66,16 +150,12 @@ services:
     networks:
       - fretei_net
 
-  # =========================================================
   # MICROSERVIÇO DE RASTREAMENTO EM TEMPO REAL (GO)
-  # =========================================================
   tracking:
     build:
       context: ./tracking-service
       dockerfile: Dockerfile
     ports:
-      # [INFRA] Evasão de porta: O host acessa na 8081, o container escuta na 8080.
-      # Isso libera a 8080 para o seu uso nativo ou outros serviços.
       - "8081:8080" 
     depends_on:
       redis:

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/redis/go-redis/v9"
@@ -14,15 +14,15 @@ import (
 
 var ctx = context.Background()
 
-// Conexão com o Redis (Aponta para o container do Docker)
+// Ligação com o Redis (Aponta para o container do Docker)
 var rdb = redis.NewClient(&redis.Options{
-	Addr: "redis:6379", 
+	Addr: "redis:6379",
 })
 
-// Upgrader do WebSocket para aceitar conexões do Frontend (Vue.js)
+// Upgrader do WebSocket para aceitar ligações do Frontend (Vue.js)
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
-		return true // Em produção, restringir ao domínio da 123fretei
+		return true // Em produção, aplicar restrição de domínio CORS (123fretei.com.br)
 	},
 }
 
@@ -32,27 +32,23 @@ type LocationData struct {
 	CargaID  int     `json:"carga_id"`
 	Lat      float64 `json:"lat"`
 	Lng      float64 `json:"lng"`
+	Heading  float64 `json:"heading"` // Rotação do vetor veicular
 }
 
-// Gestor de conexões dos Embarcadores (quem está assistindo o mapa)
-var shippers = make(map[*websocket.Conn]int) // Conn -> CargaID
-var mutex = &sync.Mutex{}
-
 func main() {
-	// Endpoint para o Motorista enviar a localização
+	// Endpoints da Arquitetura
 	http.HandleFunc("/ws/driver", handleDriverPing)
-	
-	// Endpoint para o Embarcador receber a localização
 	http.HandleFunc("/ws/shipper", handleShipperWatch)
 
-	fmt.Println("🚀 Microserviço de Rastreamento (Go) rodando na porta 8080...")
+	log.Println("🚀 Microserviço de Rastreamento (GO) a operar na porta 8080...")
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
 
+// O Motorista emite o sinal e grava na infraestrutura de fila rápida (Redis)
 func handleDriverPing(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Println("Erro no upgrade do Motorista:", err)
+		log.Println("[CRÍTICO] Falha no handshake do Driver:", err)
 		return
 	}
 	defer conn.Close()
@@ -60,7 +56,7 @@ func handleDriverPing(w http.ResponseWriter, r *http.Request) {
 	for {
 		_, msg, err := conn.ReadMessage()
 		if err != nil {
-			break
+			break // Sai do loop e encerra a goroutine quando o sinal do motorista cai
 		}
 
 		var loc LocationData
@@ -68,62 +64,76 @@ func handleDriverPing(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		// 1. Salva a última localização no Redis (Comando Geoespacial)
+		// 1. Grava a coordenada exata com geolocalização nativa do Redis
 		rdb.GeoAdd(ctx, "cargas_ativas", &redis.GeoLocation{
 			Name:      fmt.Sprintf("%d", loc.DriverID),
 			Longitude: loc.Lng,
 			Latitude:  loc.Lat,
 		})
 
-		// 2. Publica a localização num canal específico da Carga (Pub/Sub)
+		// 2. Transmite via Pub/Sub para que o Embarcador intercete o sinal
 		channelName := fmt.Sprintf("carga_tracking_%d", loc.CargaID)
 		rdb.Publish(ctx, channelName, msg)
 	}
 }
 
+// O Embarcador consome o sinal num circuito hermético livre de Memory Leaks
 func handleShipperWatch(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Println("Erro no upgrade do Embarcador:", err)
+		log.Println("[CRÍTICO] Falha no handshake do Shipper:", err)
 		return
 	}
+	defer conn.Close()
 
-	// Lê o CargaID que o embarcador quer vigiar (enviado na 1ª mensagem)
+	// Interceta a carga subscrita no primeiro envio
 	_, msg, err := conn.ReadMessage()
 	if err != nil {
 		return
 	}
+
 	var initData struct {
 		CargaID int `json:"carga_id"`
 	}
-	json.Unmarshal(msg, &initData)
+	if err := json.Unmarshal(msg, &initData); err != nil {
+		return
+	}
 
-	// Registra a conexão
-	mutex.Lock()
-	shippers[conn] = initData.CargaID
-	mutex.Unlock()
-
-	defer func() {
-		mutex.Lock()
-		delete(shippers, conn)
-		mutex.Unlock()
-		conn.Close()
-	}()
-
-	// Inscreve no canal do Redis para esta Carga específica
 	channelName := fmt.Sprintf("carga_tracking_%d", initData.CargaID)
 	pubsub := rdb.Subscribe(ctx, channelName)
-	defer pubsub.Close()
+	defer pubsub.Close() // Fecha o canal do Redis quando a função morre
 
 	ch := pubsub.Channel()
+	ticker := time.NewTicker(50 * time.Second) // Ping interval para estabilidade TCP
+	defer ticker.Stop()
 
-	// Loop infinito escutando o Redis e enviando para o WebSocket do Vue.js
-	for msg := range ch {
-		mutex.Lock()
-		err := conn.WriteMessage(websocket.TextMessage, []byte(msg.Payload))
-		mutex.Unlock()
-		if err != nil {
-			break
+	// Canal local de controlo para detetar a morte prematura do cliente
+	clientGone := make(chan struct{})
+	go func() {
+		defer close(clientGone)
+		for {
+			if _, _, err := conn.ReadMessage(); err != nil {
+				break
+			}
+		}
+	}()
+
+	// Loop multiplexado anti-Memory Leak
+	for {
+		select {
+		case <-clientGone:
+			// O navegador do Embarcador foi fechado ou a rede caiu. Purga a memória de imediato.
+			return
+		case msg := <-ch:
+			// Sinal recebido do Pub/Sub. Repassa ao Embarcador via WebSocket.
+			if err := conn.WriteMessage(websocket.TextMessage, []byte(msg.Payload)); err != nil {
+				return
+			}
+		case <-ticker.C:
+			// Heartbeat para prevenir timeout dos load balancers (AWS ELB)
+			if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				return
+			}
 		}
 	}
 }

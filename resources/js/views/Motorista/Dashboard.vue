@@ -210,7 +210,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
 
@@ -340,5 +340,35 @@ const enviarTicket = async () => {
 
 onMounted(() => {
   fetchCargas();
+
+  // MALHA DE EVENTOS REAL-TIME (Eliminação de Race Conditions)
+  if (window.Echo) {
+    window.Echo.channel('mural.fretes')
+      .listen('.CargaAtualizada', (e) => {
+        if (!cargas.value) return;
+        
+        const index = cargas.value.findIndex(c => c.id === e.carga.id);
+        
+        if (e.carga.status === 'publicada') {
+          if (index !== -1) {
+            cargas.value[index] = e.carga;
+          } else {
+            // Nova carga ou regressou ao status publicada, coloca no topo da lista
+            cargas.value.unshift(e.carga);
+          }
+        } else {
+          // Se a carga foi assumida por outro motorista, cancelada, etc... desaparece do mural instantaneamente
+          if (index !== -1) {
+            cargas.value.splice(index, 1);
+          }
+        }
+      });
+  }
+});
+
+onBeforeUnmount(() => {
+  if (window.Echo) {
+    window.Echo.leaveChannel('mural.fretes');
+  }
 });
 </script>
