@@ -29,3 +29,13 @@ frankenphp-worker.php
 .env
 .env.backup
 123fretei_*.txt
+
+# Segurança: Dumps, Scripts de extração e Logs
+*.txt
+*.sh
+map.php
+root.php
+seed_e2e.php
+stress.js
+stress-pub.js
+.env
