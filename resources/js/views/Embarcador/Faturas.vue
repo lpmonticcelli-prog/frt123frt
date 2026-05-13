@@ -3,7 +3,7 @@
     
     <div class="flex justify-between items-center bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
       <div>
-        <h2 class="text-xl font-bold text-slate-900 tracking-tight">Painel Financeiro</h2>
+        <h2 class="text-xl font-bold text-slate-900 tracking-tight">Gestão Financeira & Faturamento</h2>
         <p class="text-sm text-slate-500 mt-1">Gira as faturas consolidadas e repasses da plataforma.</p>
       </div>
       <button @click="fetchFaturas" :disabled="loading" class="px-4 py-2 border border-slate-300 rounded-lg text-sm font-bold text-slate-700 bg-white hover:bg-slate-50 transition-colors disabled:opacity-50 flex items-center shadow-sm">
@@ -28,11 +28,11 @@
     </div>
 
     <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-      <div v-if="loading && faturas?.length === 0" class="p-12 text-center text-slate-500 font-medium text-sm">
+      <div v-if="loading && (!faturas || faturas.length === 0)" class="p-12 text-center text-slate-500 font-medium text-sm">
         A carregar dados financeiros...
       </div>
 
-      <div v-else-if="!faturas || faturas?.length === 0" class="p-16 text-center">
+      <div v-else-if="!faturas || faturas.length === 0" class="p-16 text-center">
         <div class="mx-auto w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4 border border-slate-100">
           <svg class="w-8 h-8 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
         </div>
@@ -46,7 +46,6 @@
             <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Referência</th>
             <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Período / Emissão</th>
             <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Vencimento</th>
-            <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Volume</th>
             <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Valor Total</th>
             <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
             <th class="px-6 py-4 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Ações</th>
@@ -55,7 +54,7 @@
         <tbody class="bg-white divide-y divide-gray-100" :class="{ 'opacity-50 pointer-events-none': loading }">
           <tr v-for="fatura in faturas" :key="fatura.id" class="hover:bg-slate-50/50 transition-colors">
             <td class="px-6 py-4 whitespace-nowrap">
-              <div class="text-sm font-black text-slate-900 font-mono">{{ fatura.codigo_referencia }}</div>
+              <div class="text-sm font-black text-slate-900 font-mono">Comp. {{ fatura.mes_referencia }}</div>
             </td>
             <td class="px-6 py-4 whitespace-nowrap">
               <div class="text-sm font-bold text-slate-700">{{ formatarData(fatura.created_at) }}</div>
@@ -63,11 +62,6 @@
             <td class="px-6 py-4 whitespace-nowrap">
               <div :class="['text-sm font-bold', isVencida(fatura) ? 'text-red-600' : 'text-slate-900']">
                 {{ formatarData(fatura.data_vencimento) }}
-              </div>
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap">
-              <div class="text-xs font-bold text-slate-600 bg-slate-100 px-2 py-1 rounded inline-block">
-                {{ fatura.cargas_count || 0 }} Fretes
               </div>
             </td>
             <td class="px-6 py-4 whitespace-nowrap text-sm font-black text-slate-900">
@@ -83,7 +77,7 @@
                 Detalhes
               </button>
               <button 
-                v-if="fatura.status === 'aberta'" 
+                v-if="fatura.status === 'pendente'" 
                 @click="abrirPagamento(fatura)" 
                 class="inline-flex items-center px-4 py-1.5 bg-slate-900 text-white text-xs font-bold rounded shadow-sm hover:bg-slate-800 transition-colors"
               >
@@ -91,11 +85,11 @@
               </button>
               <a 
                 v-if="fatura.status === 'paga'" 
-                :href="fatura.nfe_url || '#'" 
+                :href="fatura.link_boleto || '#'" 
                 target="_blank"
                 class="inline-flex items-center px-3 py-1.5 bg-green-50 border border-green-200 text-green-700 font-bold text-xs rounded hover:bg-green-100 transition-colors"
               >
-                Baixar NF-e
+                Baixar Boleto/Recibo
               </a>
             </td>
           </tr>
@@ -113,7 +107,7 @@
             <div class="flex justify-between items-start border-b border-slate-100 pb-4 mb-6">
               <div>
                 <h3 class="text-xl font-black text-slate-900 uppercase">Composição da Fatura</h3>
-                <p class="text-sm text-slate-500 font-mono mt-1">REF: {{ faturaSelecionada?.codigo_referencia }}</p>
+                <p class="text-sm text-slate-500 font-mono mt-1">Competência: {{ faturaSelecionada?.mes_referencia }}</p>
               </div>
               <span :class="['px-3 py-1 text-[10px] font-black uppercase tracking-wider rounded border', getStatusClass(faturaSelecionada)]">
                 {{ faturaSelecionada?.status }}
@@ -121,41 +115,39 @@
             </div>
             
             <div class="bg-slate-50 p-5 rounded-lg border border-slate-200 mb-6">
-              <h4 class="text-xs font-black text-slate-400 uppercase tracking-wider mb-3">Resumo de Custos</h4>
+              <h4 class="text-xs font-black text-slate-400 uppercase tracking-wider mb-3">Resumo de Custos (Taxa 123fretei)</h4>
               <div class="flex justify-between text-sm font-bold text-slate-700 mb-2">
-                <span>Soma dos Fretes (Repasse Motoristas)</span>
-                <span>{{ formatarMoeda(faturaSelecionada?.valor_fretes) }}</span>
+                <span>Mensalidade Fixa SaaS</span>
+                <span>{{ formatarMoeda(faturaSelecionada?.detalhes_cargas?.resumo?.mensalidade_fixa || 0) }}</span>
               </div>
               <div class="flex justify-between text-sm font-bold text-slate-700 mb-4 border-b border-slate-200 pb-4">
-                <span>Taxa da Plataforma 123Fretei</span>
-                <span>{{ formatarMoeda(faturaSelecionada?.valor_taxas) }}</span>
+                <span>Total Taxas Variáveis (Comissões de Carga)</span>
+                <span>{{ formatarMoeda(faturaSelecionada?.detalhes_cargas?.resumo?.total_taxas_variaveis || 0) }}</span>
               </div>
               <div class="flex justify-between text-lg font-black text-slate-900">
-                <span>TOTAL DA FATURA</span>
+                <span>TOTAL A PAGAR</span>
                 <span>{{ formatarMoeda(faturaSelecionada?.valor_total) }}</span>
               </div>
             </div>
 
-            <h4 class="text-xs font-black text-slate-400 uppercase tracking-wider mb-3">Relação de Cargas Entregues</h4>
+            <h4 class="text-xs font-black text-slate-400 uppercase tracking-wider mb-3">Relação de Cargas Entregues no Mês</h4>
             <div class="max-h-64 overflow-y-auto border border-slate-200 rounded-lg">
               <table class="min-w-full divide-y divide-slate-100 text-sm">
                 <thead class="bg-slate-50 sticky top-0">
                   <tr>
                     <th class="px-4 py-2 font-bold text-slate-600">Carga ID</th>
                     <th class="px-4 py-2 font-bold text-slate-600">Rota</th>
-                    <th class="px-4 py-2 font-bold text-slate-600 text-right">Frete</th>
-                    <th class="px-4 py-2 font-bold text-slate-600 text-right">Taxa</th>
+                    <th class="px-4 py-2 font-bold text-slate-600 text-right">Taxa Cobrada</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
-                  <tr v-for="carga in faturaSelecionada?.cargas" :key="carga.id" class="hover:bg-slate-50">
+                  <tr v-for="carga in faturaSelecionada?.detalhes_cargas?.cargas" :key="carga.id" class="hover:bg-slate-50">
                     <td class="px-4 py-3 font-mono font-bold text-slate-800">#{{ carga.id }}</td>
-                    <td class="px-4 py-3 text-slate-600">{{ carga.cidade_origem }} → {{ carga.cidade_destino }}</td>
-                    <td class="px-4 py-3 text-right font-medium">{{ formatarMoeda(carga.valor_frete) }}</td>
-                    <td class="px-4 py-3 text-right font-medium text-orange-600">{{ formatarMoeda(carga.taxa_plataforma) }}</td>
+                    <td class="px-4 py-3 text-slate-600">{{ carga.rota }}</td>
+                    <td class="px-4 py-3 text-right font-medium text-orange-600">{{ formatarMoeda(carga.taxa_cobrada) }}</td>
                   </tr>
-                  <tr v-if="!faturaSelecionada?.cargas || faturaSelecionada.cargas?.length === 0">
-                    <td colspan="4" class="px-4 py-6 text-center text-slate-400 italic">Lista de cargas detalhadas indisponível.</td>
+                  <tr v-if="!faturaSelecionada?.detalhes_cargas?.cargas || faturaSelecionada.detalhes_cargas.cargas.length === 0">
+                    <td colspan="3" class="px-4 py-6 text-center text-slate-400 italic">Esta fatura não possui cargas variáveis vinculadas.</td>
                   </tr>
                 </tbody>
               </table>
@@ -181,7 +173,7 @@
               <svg class="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
             </div>
             <h3 class="text-xl font-black text-slate-900 mb-1">Pagamento via PIX</h3>
-            <p class="text-sm text-slate-500 mb-6">Fatura {{ faturaSelecionada?.codigo_referencia }} • Valor: <strong class="text-slate-900">{{ formatarMoeda(faturaSelecionada?.valor_total) }}</strong></p>
+            <p class="text-sm text-slate-500 mb-6">Competência {{ faturaSelecionada?.mes_referencia }} • Valor: <strong class="text-slate-900">{{ formatarMoeda(faturaSelecionada?.valor_total) }}</strong></p>
             
             <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-6">
               <img src="https://upload.wikimedia.org/wikipedia/commons/d/d0/QR_code_for_mobile_English_Wikipedia.svg" alt="QR Code PIX Mock" class="w-40 h-40 mx-auto mb-4 opacity-80 mix-blend-multiply" />
@@ -193,7 +185,7 @@
             </div>
 
             <p class="text-xs text-slate-500 italic mb-6">
-              A baixa desta fatura ocorre em até 5 minutos após o pagamento. As Notas Fiscais serão geradas automaticamente.
+              A baixa desta fatura ocorre em até 5 minutos após o pagamento.
             </p>
 
             <button @click="simularPagamentoAprovado" :disabled="simulandoPagamento" class="w-full bg-slate-900 text-white font-black py-3 rounded-lg hover:bg-slate-800 transition-colors disabled:opacity-50">
@@ -230,7 +222,7 @@ const resumo = computed(() => {
   let totalPago = 0;
 
   faturas.value.forEach(f => {
-    if (f.status === 'aberta' || f.status === 'vencida') {
+    if (f.status === 'pendente' || f.status === 'vencida') {
       totalAberto += parseFloat(f.valor_total || 0);
       qtdAbertas++;
     } else if (f.status === 'paga') {
@@ -267,19 +259,10 @@ const getStatusClass = (fatura) => {
 const fetchFaturas = async () => {
   loading.value = true;
   try {
-    // API endpoint esperado para a listagem de faturas do Embarcador logado
-    const response = await axios.get('/api/embarcador/faturas');
+    const response = await axios.get('/api/v1/embarcador/faturas');
     faturas.value = response.data.data || response.data;
   } catch (error) {
     console.error('Erro ao buscar faturas:', error);
-    // Dados Mock para homologação caso a API backend ainda não esteja pronta
-    if (error.response?.status === 404) {
-       console.warn("Rota API /api/embarcador/faturas não encontrada. Usando Mocks.");
-       faturas.value = [
-         { id: 1, codigo_referencia: 'FAT-202604-001', data_vencimento: '2026-05-10', valor_fretes: 15000, valor_taxas: 750, valor_total: 15750, status: 'aberta', cargas_count: 5, created_at: '2026-04-25' },
-         { id: 2, codigo_referencia: 'FAT-202603-089', data_vencimento: '2026-04-10', valor_fretes: 28000, valor_taxas: 1400, valor_total: 29400, status: 'paga', cargas_count: 8, created_at: '2026-03-25', nfe_url: '#' }
-       ];
-    }
   } finally {
     loading.value = false;
   }
@@ -288,14 +271,6 @@ const fetchFaturas = async () => {
 const abrirDetalhes = async (fatura) => {
   faturaSelecionada.value = fatura;
   showModalDetalhes.value = true;
-  
-  // Buscar detalhes das cargas se a API estiver disponível
-  try {
-    const response = await axios.get(`/api/embarcador/faturas/${fatura.id}`);
-    faturaSelecionada.value = response.data;
-  } catch (error) {
-    // Mantém os dados básicos se falhar
-  }
 };
 
 const fecharModalDetalhes = () => {
@@ -328,13 +303,14 @@ const simularPagamentoAprovado = async () => {
     // Simula tempo de processamento
     await new Promise(r => setTimeout(r, 1500));
     
-    // Altera o status no frontend
+    // Altera o status no frontend 
+    // NOTA: Na vida real, o backend dispararia o Webhook de pagamento aprovado
     const index = faturas.value.findIndex(f => f.id === faturaSelecionada.value.id);
     if (index !== -1) {
       faturas.value[index].status = 'paga';
     }
     
-    alert('✅ Pagamento Confirmado com Sucesso! NF-e em processo de emissão.');
+    alert('✅ Pagamento Confirmado com Sucesso! Recibo em processo de emissão.');
     fecharModalPagamento();
   } catch (e) {
     alert('Erro ao processar.');

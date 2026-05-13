@@ -18,7 +18,10 @@ class CargaController extends Controller
         $user = $request->user();
 
         $carga = DB::transaction(function () use ($validated, $user, $request) {
-            $taxaPlataforma = round($validated['valor_frete'] * 0.05, 2);
+            
+            // CIRURGIA FINANCEIRA: Busca a taxa negociada do Embarcador. Se for null, aplica 5% global.
+            $percentualTaxa = $user->embarcador->taxa_frete_percentual ?? 5.00;
+            $taxaPlataforma = round($validated['valor_frete'] * ($percentualTaxa / 100), 2);
 
             $novaCarga = Carga::create([
                 'embarcador_id' => $user->embarcador->id,
@@ -34,13 +37,13 @@ class CargaController extends Controller
                 'uf_destino' => strtoupper($validated['uf_destino']),
                 'distancia_km' => $validated['distancia_km'] ?? null,
                 'valor_frete' => $validated['valor_frete'],
-                'taxa_plataforma' => $taxaPlataforma,
+                'taxa_plataforma' => $taxaPlataforma, // Grava a taxa inteligente
                 'data_coleta' => $validated['data_coleta'],
                 'data_entrega_prevista' => $validated['data_entrega_prevista'] ?? null,
                 'status' => 'publicada'
             ]);
 
-            $termo = "TERMO DE PUBLICAÇÃO DE FRETE. O Embarcador ID {$user->embarcador->id} declara a veracidade dos dados da carga ID {$novaCarga->id}, com origem em {$novaCarga->cidade_origem}/{$novaCarga->uf_origem} e destino a {$novaCarga->cidade_destino}/{$novaCarga->uf_destino}, referente ao produto {$novaCarga->produto} ({$novaCarga->peso_kg}kg), oferecendo o valor de R$ " . number_format($novaCarga->valor_frete, 2, ',', '.') . " e concorda com a taxa de intermediação de R$ " . number_format($taxaPlataforma, 2, ',', '.') . ".";
+            $termo = "TERMO DE PUBLICAÇÃO DE FRETE. O Embarcador ID {$user->embarcador->id} declara a veracidade dos dados da carga ID {$novaCarga->id}, com origem em {$novaCarga->cidade_origem}/{$novaCarga->uf_origem} e destino a {$novaCarga->cidade_destino}/{$novaCarga->uf_destino}, referente ao produto {$novaCarga->produto} ({$novaCarga->peso_kg}kg), oferecendo o valor de R$ " . number_format($novaCarga->valor_frete, 2, ',', '.') . " e concorda com a taxa de intermediação de R$ " . number_format($taxaPlataforma, 2, ',', '.') . " ({$percentualTaxa}%).";
 
             $hashTermo = hash('sha256', $termo);
 
@@ -108,7 +111,10 @@ class CargaController extends Controller
         }
 
         $validated = $request->validated();
-        $taxaPlataforma = round($validated['valor_frete'] * 0.05, 2);
+        
+        // CIRURGIA FINANCEIRA: Aplica a mesma regra inteligente na edição do frete
+        $percentualTaxa = $user->embarcador->taxa_frete_percentual ?? 5.00;
+        $taxaPlataforma = round($validated['valor_frete'] * ($percentualTaxa / 100), 2);
 
         $carga->update([
             'produto' => $validated['produto'],
@@ -123,7 +129,7 @@ class CargaController extends Controller
             'uf_destino' => strtoupper($validated['uf_destino']),
             'distancia_km' => $validated['distancia_km'] ?? null,
             'valor_frete' => $validated['valor_frete'],
-            'taxa_plataforma' => $taxaPlataforma,
+            'taxa_plataforma' => $taxaPlataforma, // Grava a taxa inteligente na atualização
             'data_coleta' => $validated['data_coleta'],
             'data_entrega_prevista' => $validated['data_entrega_prevista'] ?? null,
         ]);
