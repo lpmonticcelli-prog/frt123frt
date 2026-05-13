@@ -39,3 +39,11 @@ seed_e2e.php
 stress.js
 stress-pub.js
 .env
+*.txt
+*.sh
+def
+map.php
+root.php
+seed_e2e.php
+stress.js
+stress-pub.js
