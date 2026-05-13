@@ -149,23 +149,19 @@
         
         <div id="print-area" class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl w-full print:shadow-none print:w-full print:max-w-full print:rounded-none border border-gray-200">
           <div class="bg-white px-6 pt-6 pb-6 print:p-0">
-            
             <div class="hidden print:block mb-8 border-b-4 border-gray-900 pb-4">
               <h1 class="text-2xl font-black text-gray-900 uppercase">123Fretei - Documento de Auditoria Logística</h1>
               <p class="text-sm text-gray-600 mt-1">Validação Criptográfica e Pagamento Eletrônico de Frete (PEF)</p>
             </div>
-
             <h3 class="text-lg leading-6 font-bold text-gray-900 border-b pb-2 mb-4 print:text-xl print:mt-4" id="modal-contrato-title">
               Certificado de Publicação (Embarcador)
             </h3>
-            
             <div class="space-y-6">
               <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 print:bg-white print:border-gray-400 print:border">
                 <p class="text-sm text-yellow-800 font-medium print:text-gray-800">
                   Este certificado possui validade jurídica e serve como prova imutável da oferta de carga e condições comerciais estabelecidas pelo Embarcador.
                 </p>
               </div>
-
               <div class="bg-gray-900 p-4 rounded-md text-xs font-mono text-green-400 space-y-2 break-all shadow-inner print:bg-white print:text-black print:border print:border-gray-300">
                 <p><span class="text-gray-400 font-bold print:text-gray-600">ID DA CARGA:</span> {{ cargaSelecionada?.id }}</p>
                 <p><span class="text-gray-400 font-bold print:text-gray-600">DATA/HORA DO EVENTO (UTC):</span> {{ getLogSelecionado()?.data_evento }}</p>
@@ -176,15 +172,12 @@
                   {{ getLogSelecionado()?.termo_hash }}
                 </p>
               </div>
-
               <div class="text-xs text-gray-600 text-justify p-4 bg-gray-50 border border-gray-200 rounded-md print:bg-white print:border-gray-400">
                 <strong class="block mb-2 text-gray-800">TERMO ASSINADO:</strong> 
                 {{ extrairTextoOriginal() }}
               </div>
-
               <div v-if="cargaSelecionada?.ciot" class="border-t-2 border-dashed border-gray-300 pt-6 mt-6 print:break-inside-avoid">
                 <h3 class="text-lg leading-6 font-black text-gray-900 mb-4 uppercase">Espelho de Pagamento de Frete (CIOT)</h3>
-                
                 <div class="grid grid-cols-2 gap-4 mb-4">
                   <div class="p-3 bg-blue-50 border border-blue-200 rounded print:bg-white print:border-gray-400">
                     <span class="block text-[10px] font-bold text-gray-500 uppercase">Código CIOT (ANTT)</span>
@@ -195,7 +188,6 @@
                     <strong class="text-lg text-gray-900 uppercase">{{ cargaSelecionada.ciot.status }}</strong>
                   </div>
                 </div>
-
                 <table class="min-w-full divide-y divide-gray-200 border border-gray-200 rounded overflow-hidden print:border-gray-400 text-sm">
                   <tbody class="bg-white divide-y divide-gray-200">
                     <tr>
@@ -229,33 +221,71 @@
                   </tbody>
                 </table>
               </div>
-
             </div>
           </div>
           <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse border-t border-gray-200 print:hidden">
-            <button type="button" @click="fecharModalContrato" class="w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-bold text-gray-700 hover:bg-gray-50 sm:ml-3 sm:w-auto sm:text-sm transition-colors">
-              Fechar
-            </button>
-            <button type="button" @click="imprimirCertificado" class="mt-3 w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-bold text-white hover:bg-blue-700 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm transition-colors">
-              🖨️ Imprimir PDF (CIOT)
-            </button>
+            <button type="button" @click="fecharModalContrato" class="w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-bold text-gray-700 hover:bg-gray-50 sm:ml-3 sm:w-auto sm:text-sm transition-colors">Fechar</button>
+            <button type="button" @click="imprimirCertificado" class="mt-3 w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-bold text-white hover:bg-blue-700 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm transition-colors">🖨️ Imprimir PDF (CIOT)</button>
           </div>
         </div>
       </div>
     </div>
+
     <div v-if="showModalPod" class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-pod-title" role="dialog" aria-modal="true">
       <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-        <div class="fixed inset-0 bg-slate-900 bg-opacity-75 transition-opacity backdrop-blur-sm" @click="fecharModalPod"></div>
+        <div class="fixed inset-0 bg-slate-900 bg-opacity-80 transition-opacity backdrop-blur-sm" @click="fecharModalPod"></div>
         <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-        <div class="inline-block align-bottom bg-white rounded-xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl w-full border border-gray-200">
-          <div class="bg-slate-50 px-6 py-4 flex items-center justify-between border-t border-slate-200">
-            <div class="text-xs text-gray-500 font-medium">A liquidação do CIOT é acionada automaticamente após a aprovação.</div>
+        
+        <div class="inline-block align-bottom bg-white rounded-xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl w-full border border-slate-200">
+          <div class="bg-white px-8 py-6">
+            <div class="flex justify-between items-start mb-6 border-b border-slate-100 pb-4">
+              <div>
+                <h3 class="text-xl font-black text-slate-900" id="modal-pod-title">Auditoria de Comprovativos (PoD)</h3>
+                <p class="text-sm text-slate-500 mt-1">Carga #{{ cargaSelecionada?.id }} • Verifique se a mercadoria chegou em perfeitas condições.</p>
+              </div>
+              <span class="bg-yellow-100 text-yellow-800 text-xs font-black uppercase tracking-wider px-3 py-1 rounded-full border border-yellow-200 animate-pulse">
+                Aguardando sua Análise
+              </span>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-6">
+              <div class="space-y-2">
+                <h4 class="text-sm font-bold text-slate-700 flex items-center">
+                  <svg class="w-4 h-4 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                  Canhoto Físico Assinado
+                </h4>
+                <div class="bg-slate-50 border-2 border-dashed border-slate-300 rounded-lg h-64 flex items-center justify-center overflow-hidden group">
+                  <img :src="cargaSelecionada?.foto_canhoto ? 'https://via.placeholder.com/600x400/1e293b/ffffff?text=SIMULAÇÃO:+CANHOTO+ASSINADO' : 'https://via.placeholder.com/600x400/f8fafc/94a3b8?text=Sem+Imagem'" class="object-cover w-full h-full transition-transform group-hover:scale-105" alt="Canhoto">
+                </div>
+              </div>
+              <div class="space-y-2">
+                <h4 class="text-sm font-bold text-slate-700 flex items-center">
+                  <svg class="w-4 h-4 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                  Estado da Carga (Destino)
+                </h4>
+                <div class="bg-slate-50 border-2 border-dashed border-slate-300 rounded-lg h-64 flex items-center justify-center overflow-hidden group">
+                   <img :src="cargaSelecionada?.foto_carga ? 'https://via.placeholder.com/600x400/1e293b/ffffff?text=SIMULAÇÃO:+FOTO+DA+CARGA' : 'https://via.placeholder.com/600x400/f8fafc/94a3b8?text=Sem+Imagem'" class="object-cover w-full h-full transition-transform group-hover:scale-105" alt="Carga">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-slate-50 px-8 py-5 flex items-center justify-between border-t border-slate-200">
+            <div class="text-xs text-slate-500 font-bold max-w-sm leading-relaxed">
+              ⚠️ Aviso Legal: A liquidação do CIOT e o pagamento ao motorista serão disparados automaticamente após a aprovação.
+            </div>
             <div class="flex gap-3">
               <template v-if="cargaSelecionada?.status === 'em_auditoria'">
-                <button type="button" @click="abrirDisputa" class="bg-red-50 text-red-700 border border-red-300 px-5 py-2.5 rounded-lg font-bold text-sm">⚠️ Reprovar / Disputa</button>
-                <button type="button" @click="aprovarPagamento" class="bg-green-600 text-white px-5 py-2.5 rounded-lg font-bold text-sm">✅ Aprovar & Pagar</button>
+                <button type="button" @click="abrirDisputa" class="bg-white text-red-600 border border-red-200 px-6 py-2.5 rounded-lg font-bold text-sm hover:bg-red-50 transition-colors shadow-sm">
+                  Reprovar (Disputa)
+                </button>
+                <button type="button" @click="aprovarPagamento" class="bg-green-600 text-white px-6 py-2.5 rounded-lg font-bold text-sm hover:bg-green-700 transition-colors shadow-md">
+                  ✅ Aprovar & Liberar Pagamento
+                </button>
               </template>
-              <button type="button" @click="fecharModalPod" class="bg-white text-slate-700 border border-gray-300 px-5 py-2.5 rounded-lg font-bold text-sm">Fechar</button>
+              <button type="button" @click="fecharModalPod" class="bg-white text-slate-700 border border-slate-300 px-5 py-2.5 rounded-lg font-bold text-sm hover:bg-slate-50 transition-colors">
+                Cancelar
+              </button>
             </div>
           </div>
         </div>
@@ -294,7 +324,6 @@ const getStatusClass = (status) => {
   return classes[status] || 'bg-gray-50 text-gray-700 border-gray-200';
 };
 
-// --- FUNÇÕES DE AUDITORIA E CIOT INJETADAS ---
 const formatMoney = (value) => {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 };
@@ -334,7 +363,6 @@ const extrairTextoOriginal = () => {
         return `TERMO PUBLICAÇÃO. O Embarcador declara a veracidade dos dados da carga ID ${c.id}, de ${c.cidade_origem} para ${c.cidade_destino}, referente ao produto ${c.produto} (${c.peso_kg}kg), pelo valor de R$ ${c.valor_frete}.`;
     }
 };
-// ----------------------------------------------
 
 const fetchCargas = async (page = 1) => {
   loading.value = true;
@@ -363,7 +391,7 @@ const abrirModalPod = (carga) => { cargaSelecionada.value = carga; showModalPod.
 const fecharModalPod = () => { showModalPod.value = false; if(!showModalContrato.value) cargaSelecionada.value = null; };
 
 const aprovarPagamento = async () => {
-  if (!confirm('Confirma aprovação do pagamento?')) return;
+  if (!confirm('Confirma a aprovação desta entrega e a liberação do pagamento para o Motorista?')) return;
   try {
     await axios.post(`/api/v1/embarcador/cargas/${cargaSelecionada.value.id}/aprovar`);
     fecharModalPod();
@@ -372,7 +400,7 @@ const aprovarPagamento = async () => {
 };
 
 const abrirDisputa = async () => {
-  const motivo = prompt('Motivo da disputa:');
+  const motivo = prompt('Por favor, informe o motivo da disputa (Avaria, Atraso, etc):');
   if (!motivo) return;
   try {
     await axios.post(`/api/v1/embarcador/cargas/${cargaSelecionada.value.id}/disputa`, { motivo });
@@ -407,7 +435,6 @@ onBeforeUnmount(() => {
 </script>
 
 <style>
-/* Estilos para ocultar o sistema e forçar apenas a impressão do modal */
 @media print {
   body * { visibility: hidden; }
   #print-area, #print-area * { visibility: visible; }

@@ -12,21 +12,14 @@ use App\Jobs\LiquidarFreteJob;
 
 class CargaController extends Controller
 {
-    /**
-     * CIRURGIA APLICADA: Criação atómica síncrona.
-     * Abortamos o uso de Job para criar a carga inicial. O Embarcador precisa de garantia I/O imediata.
-     */
     public function store(StoreCargaRequest $request)
     {
         $validated = $request->validated();
         $user = $request->user();
 
-        // Operação ACID: Ou grava tudo, ou falha tudo e devolve erro 500 para o Vue.js
         $carga = DB::transaction(function () use ($validated, $user, $request) {
-            
             $taxaPlataforma = round($validated['valor_frete'] * 0.05, 2);
 
-            // 1. Cria a Carga Oficialmente no PostgreSQL
             $novaCarga = Carga::create([
                 'embarcador_id' => $user->embarcador->id,
                 'produto' => $validated['produto'],
@@ -47,7 +40,6 @@ class CargaController extends Controller
                 'status' => 'publicada'
             ]);
 
-            // 2. Gera a Assinatura Criptográfica do Termo de Publicação (Legalidade/Compliance)
             $termo = "TERMO DE PUBLICAÇÃO DE FRETE. O Embarcador ID {$user->embarcador->id} declara a veracidade dos dados da carga ID {$novaCarga->id}, com origem em {$novaCarga->cidade_origem}/{$novaCarga->uf_origem} e destino a {$novaCarga->cidade_destino}/{$novaCarga->uf_destino}, referente ao produto {$novaCarga->produto} ({$novaCarga->peso_kg}kg), oferecendo o valor de R$ " . number_format($novaCarga->valor_frete, 2, ',', '.') . " e concorda com a taxa de intermediação de R$ " . number_format($taxaPlataforma, 2, ',', '.') . ".";
 
             $hashTermo = hash('sha256', $termo);
@@ -66,7 +58,6 @@ class CargaController extends Controller
             return $novaCarga;
         });
 
-        // Retorna a Carga criada. O Observer nativo (que já criamos) disparará o WebSockets para os Motoristas.
         return response()->json([
             'message' => 'Carga publicada e certificada com sucesso.',
             'carga' => $carga
@@ -184,6 +175,39 @@ class CargaController extends Controller
         return response()->json([
             'message' => 'Auditoria aprovada. Ordem de pagamento enviada para a fila de processamento.',
             'carga' => $carga
+        ], 200);
+    }
+
+    public function abrirDisputa(Request $request, Carga $carga)
+    {
+        $request->validate([
+            'motivo' => 'required|string|max:1000'
+        ]);
+
+        $user = $request->user();
+        $user->loadMissing('role', 'embarcador');
+
+        if ($user->role && $user->role->slug === 'embarcador' && $carga->embarcador_id !== $user->embarcador->id) {
+            return response()->json(['message' => 'Acesso negado.'], 403);
+        }
+
+        if ($carga->status !== 'em_auditoria') {
+            return response()->json(['error' => 'Ação inválida. A carga não está em auditoria.'], 400);
+        }
+
+        DB::transaction(function () use ($carga) {
+            // 1. Congela a carga com o status de disputa
+            $carga->update(['status' => 'em_disputa']);
+
+            // 2. Trava o CIOT para impedir o motor financeiro de libertar o pagamento
+            $ciot = Ciot::where('carga_id', $carga->id)->lockForUpdate()->first();
+            if ($ciot) {
+                $ciot->update(['status' => 'bloqueado_disputa']);
+            }
+        });
+
+        return response()->json([
+            'message' => 'Disputa aberta com sucesso. O pagamento do motorista foi retido administrativamente.'
         ], 200);
     }
 }

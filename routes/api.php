@@ -8,7 +8,6 @@ use App\Http\Controllers\Api\V1\Auth\AuthController;
 use App\Http\Controllers\Api\V1\Embarcador\CargaController as EmbarcadorCargaController;
 use App\Http\Controllers\Api\V1\Embarcador\FaturaController;
 use App\Http\Controllers\Api\V1\Embarcador\PerfilController as EmbarcadorPerfilController;
-use App\Http\Controllers\Api\V1\Embarcador\AuditoriaController; 
 use App\Http\Controllers\Api\V1\Motorista\CargaController as MotoristaCargaController;
 use App\Http\Controllers\Api\V1\Motorista\PerfilController as MotoristaPerfilController;
 use App\Http\Controllers\Api\V1\Motorista\PodController; 
@@ -47,9 +46,9 @@ Route::prefix('v1')->group(function () {
             Route::get('/cargas', [EmbarcadorCargaController::class, 'index']); 
             Route::get('/cargas/{carga}', [EmbarcadorCargaController::class, 'show']); 
             
-            // CIRURGIA APLICADA: Rotas que garantem o andamento financeiro e auditoria
+            // CIRURGIA APLICADA: Rotas apontadas para o CargaController correto
             Route::post('/cargas/{carga}/aprovar', [EmbarcadorCargaController::class, 'aprovarEntrega']);
-            Route::post('/cargas/{carga}/disputa', [AuditoriaController::class, 'abrirDisputa']);
+            Route::post('/cargas/{carga}/disputa', [EmbarcadorCargaController::class, 'abrirDisputa']);
 
             Route::get('/perfil', [EmbarcadorPerfilController::class, 'show']);
             Route::put('/perfil', [EmbarcadorPerfilController::class, 'update']);
@@ -64,7 +63,7 @@ Route::prefix('v1')->group(function () {
             Route::post('/cargas/{id}/cancelar-aceite', [MotoristaCargaController::class, 'cancelarAceite']); 
             Route::post('/cargas/{id}/iniciar-viagem', [MotoristaCargaController::class, 'iniciarViagem']); 
             
-            // CIRURGIA APLICADA: Rotas de POD vinculadas para o Upload e Finalização da entrega
+            // Rotas de POD vinculadas para o Upload e Finalização da entrega
             Route::post('/cargas/{carga}/pod/url', [PodController::class, 'gerarUrlUpload']);
             Route::post('/cargas/{carga}/pod/confirmar', [PodController::class, 'confirmarEntrega']);
             
