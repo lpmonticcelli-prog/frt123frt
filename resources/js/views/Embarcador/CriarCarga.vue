@@ -130,7 +130,7 @@
             <label class="block text-sm font-bold text-gray-700 mb-1">UF Origem</label>
             <select v-model="form.uf_origem" @change="carregarCidades('origem')" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm bg-white" required>
               <option value="" disabled>Estado</option>
-              <option v-for="uf in ufs" :key="uf.sigla" :value="uf.sigla">{{ uf.sigla }}</option>
+              <option v-for="uf in ufs" :key="uf.uf" :value="uf.uf">{{ uf.nome }} ({{ uf.uf }})</option>
             </select>
           </div>
           <div class="md:col-span-2">
@@ -147,7 +147,7 @@
             <label class="block text-sm font-bold text-gray-700 mb-1">UF Destino</label>
             <select v-model="form.uf_destino" @change="carregarCidades('destino')" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm bg-white" required>
               <option value="" disabled>Estado</option>
-              <option v-for="uf in ufs" :key="uf.sigla" :value="uf.sigla">{{ uf.sigla }}</option>
+              <option v-for="uf in ufs" :key="uf.uf" :value="uf.uf">{{ uf.nome }} ({{ uf.uf }})</option>
             </select>
           </div>
           <div class="md:col-span-2">
@@ -193,7 +193,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 import { useAuthStore } from '../../stores/auth';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
@@ -201,7 +201,7 @@ import axios from 'axios';
 const auth = useAuthStore();
 const router = useRouter();
 
-// Campos sem máscara
+// Payload Base
 const form = ref({
   produto: '',
   especie: '',
@@ -216,105 +216,85 @@ const form = ref({
   distancia_km: null,
 });
 
-// Campos com máscara (O que aparece pro usuário, ex: "4.500,00")
-const formVisual = ref({
-  peso_kg: '',
-  cubagem_m3: '',
-  valor_frete: ''
-});
-
-// Dados capturados sem a formatação visual
-const formUnmasked = ref({
-  peso_kg: '',
-  cubagem_m3: '',
-  valor_frete: ''
-});
-
+// UI State para Máscaras
+const formVisual = ref({ peso_kg: '', cubagem_m3: '', valor_frete: '' });
+const formUnmasked = ref({ peso_kg: '', cubagem_m3: '', valor_frete: '' });
 const isSubmitting = ref(false);
 
-// ==========================================
-// 1. DADOS ESTÁTICOS (ESTADOS) CHUMBADOS NA MEMÓRIA
-// ==========================================
-const ufs = [
-  { sigla: 'AC' }, { sigla: 'AL' }, { sigla: 'AP' }, { sigla: 'AM' }, { sigla: 'BA' },
-  { sigla: 'CE' }, { sigla: 'DF' }, { sigla: 'ES' }, { sigla: 'GO' }, { sigla: 'MA' },
-  { sigla: 'MT' }, { sigla: 'MS' }, { sigla: 'MG' }, { sigla: 'PA' }, { sigla: 'PB' },
-  { sigla: 'PR' }, { sigla: 'PE' }, { sigla: 'PI' }, { sigla: 'RJ' }, { sigla: 'RN' },
-  { sigla: 'RS' }, { sigla: 'RO' }, { sigla: 'RR' }, { sigla: 'SC' }, { sigla: 'SP' },
-  { sigla: 'SE' }, { sigla: 'TO' }
-];
-
+// Localidades Dinâmicas
+const ufs = ref([]);
 const cidadesOrigem = ref([]);
 const cidadesDestino = ref([]);
 const loadingCidadesOrigem = ref(false);
 const loadingCidadesDestino = ref(false);
 
-// ==========================================
-// 2. BUSCA DE CIDADES COM FETCH NATIVO E CACHE
-// ==========================================
+/**
+ * 1. Inicialização: Busca UFs da base local
+ */
+onMounted(async () => {
+  try {
+    const res = await axios.get('/api/v1/localidades/estados');
+    ufs.value = res.data;
+  } catch (e) {
+    console.error('Erro crítico ao carregar estados:', e);
+  }
+});
+
+/**
+ * 2. Busca de Cidades (Cache em SessionStorage para performance extrema)
+ */
 const carregarCidades = async (tipo) => {
   const isOrigem = tipo === 'origem';
-  const ufSelecionada = isOrigem ? form.value.uf_origem : form.value.uf_destino;
+  const uf = isOrigem ? form.value.uf_origem : form.value.uf_destino;
   
-  if (!ufSelecionada) return;
+  if (!uf) return;
 
-  // Limpa a cidade anterior ao trocar de estado
+  // Reset do campo cidade
   if (isOrigem) form.value.cidade_origem = '';
   else form.value.cidade_destino = '';
 
-  const cacheKey = `cidades_ibge_${ufSelecionada}`;
-  const cachedData = sessionStorage.getItem(cacheKey);
+  const cacheKey = `cidades_local_${uf}`;
+  const cached = sessionStorage.getItem(cacheKey);
 
-  // Se já buscou essa UF nesta sessão, pega da memória (0 ms de latência)
-  if (cachedData) {
-    if (isOrigem) cidadesOrigem.value = JSON.parse(cachedData);
-    else cidadesDestino.value = JSON.parse(cachedData);
+  if (cached) {
+    if (isOrigem) cidadesOrigem.value = JSON.parse(cached);
+    else cidadesDestino.value = JSON.parse(cached);
     return;
   }
 
-  // Se não tem no cache, bate no IBGE com Fetch nativo
   try {
     if (isOrigem) loadingCidadesOrigem.value = true;
     else loadingCidadesDestino.value = true;
 
-    const response = await fetch(`/api/v1/localidades/estados/${ufSelecionada}/municipios`);
-    
-    if (!response.ok) throw new Error('Falha na resposta do IBGE');
-    
-    const data = await response.json();
-    const cidadesMapeadas = data?.map(c => c.nome).sort(); // Extrai apenas os nomes e organiza em ordem alfabética
+    // Bate na API local (ajustada para o seu LocalidadeController)
+    const res = await axios.get(`/api/v1/localidades/estados/${uf}/municipios`);
+    const nomes = res.data.map(c => c.nome).sort();
 
-    if (isOrigem) cidadesOrigem.value = cidadesMapeadas;
-    else cidadesDestino.value = cidadesMapeadas;
+    if (isOrigem) cidadesOrigem.value = nomes;
+    else cidadesDestino.value = nomes;
 
-    // Guarda na memória do navegador para a próxima vez
-    sessionStorage.setItem(cacheKey, JSON.stringify(cidadesMapeadas));
-
+    sessionStorage.setItem(cacheKey, JSON.stringify(nomes));
   } catch (error) {
-    console.error(`Erro ao carregar cidades de ${ufSelecionada}:`, error);
-    alert('O sistema do IBGE está indisponível no momento. Tente selecionar o estado novamente em alguns segundos.');
+    console.error(`Erro ao carregar cidades de ${uf}:`, error);
   } finally {
     if (isOrigem) loadingCidadesOrigem.value = false;
     else loadingCidadesDestino.value = false;
   }
 };
 
-// Função para converter o padrão BR de moeda para o Float do Banco de Dados
-const formatStringToFloat = (stringNumber) => {
-  if (!stringNumber) return null;
-  // Divide o "unmasked" (ex: 450000) por 100 para chegar a 4500.00
-  return parseFloat(stringNumber) / 100;
-};
+/**
+ * 3. Sanitização de Valores para o Banco de Dados (Float/Decimal)
+ */
+const formatStringToFloat = (val) => val ? parseFloat(val) / 100 : null;
 
+/**
+ * 4. Submissão Atómica
+ */
 const submitCarga = async () => {
-  if (auth.user?.status === 'pending') {
-    alert('Ação bloqueada: Sua conta não está aprovada para publicação.');
-    return;
-  }
+  if (auth.user?.status === 'pending') return;
 
   isSubmitting.value = true;
   
-  // Monta o Payload convertendo as strings capturadas do Maska para Decimais
   const payload = {
     ...form.value,
     peso_kg: formatStringToFloat(formUnmasked.value.peso_kg),
@@ -323,30 +303,16 @@ const submitCarga = async () => {
   };
 
   try {
-    // Interceptador para rotas protegidas
     await axios.get('/sanctum/csrf-cookie');
-    
-    // Dispara a requisição de publicação
     await axios.post('/api/v1/embarcador/cargas', payload);
     
-    alert('Carga publicada com sucesso no Mural de Fretes!');
+    alert('Carga publicada com sucesso!');
     router.push({ name: 'EmbarcadorDashboard' });
-
   } catch (error) {
-    console.error('Erro ao salvar carga:', error);
-    
-    // Captura Erros de Validação do Backend (422 Unprocessable Entity)
-    if (error.response && error.response.status === 422) {
-      const errosDeValidacao = error.response.data.errors;
-      let mensagemErro = 'Verifique os seguintes campos:\n';
-      
-      // Mapeia e junta todos os erros retornados pelo Laravel
-      for (const campo in errosDeValidacao) {
-        mensagemErro += `- ${errosDeValidacao[campo][0]}\n`;
-      }
-      alert(mensagemErro);
+    if (error.response?.status === 422) {
+      alert('Erro de Validação: ' + Object.values(error.response.data.errors).flat().join('\n'));
     } else {
-      alert(error.response?.data?.message || 'Falha ao publicar carga. Erro de conexão com o servidor.');
+      alert(error.response?.data?.message || 'Falha na comunicação com o servidor.');
     }
   } finally {
     isSubmitting.value = false;
