@@ -12,7 +12,7 @@ use App\Http\Controllers\Api\V1\Motorista\CargaController as MotoristaCargaContr
 use App\Http\Controllers\Api\V1\Motorista\PerfilController as MotoristaPerfilController;
 use App\Http\Controllers\Api\V1\Motorista\PodController; 
 use App\Http\Controllers\Api\V1\Admin\AdminController;
-use App\Http\Controllers\Api\V1\Admin\ParceiroController; // <== CONTROLLER DE PARCEIROS
+use App\Http\Controllers\Api\V1\Admin\ParceiroController;
 use App\Http\Controllers\Api\V1\Support\TicketController;
 use App\Http\Controllers\Api\V1\Support\FaqController;
 use App\Http\Controllers\Api\V1\Webhooks\PefWebhookController; 
@@ -36,7 +36,7 @@ Route::prefix('v1')->group(function () {
         // HUB: Rotas de consumo (Motoristas e Embarcadores)
         // =========================================================
         Route::get('/hub/parceiros', [ParceiroController::class, 'listarPorPublico']);
-        Route::post('/hub/parceiros/{parceiro}/clique', [ParceiroController::class, 'registrarClique']); // <== ROTA DE TRACKING DE CLIQUES INJETADA
+        Route::post('/hub/parceiros/{parceiro}/clique', [ParceiroController::class, 'registrarClique']);
 
         Route::prefix('suporte')->group(function () {
             Route::get('/faqs', [FaqController::class, 'index']);
@@ -69,6 +69,10 @@ Route::prefix('v1')->group(function () {
             Route::post('/cargas/{id}/iniciar-viagem', [MotoristaCargaController::class, 'iniciarViagem']); 
             Route::post('/cargas/{carga}/pod/url', [PodController::class, 'gerarUrlUpload']);
             Route::post('/cargas/{carga}/pod/confirmar', [PodController::class, 'confirmarEntrega']);
+            
+            // === ROTA DA CARTEIRA INJETADA AQUI ===
+            Route::get('/carteira/extrato', [\App\Http\Controllers\Api\V1\Motorista\CarteiraController::class, 'extrato']);
+            
             Route::get('/perfil', [MotoristaPerfilController::class, 'show']);
             Route::post('/perfil/documentos', [MotoristaPerfilController::class, 'uploadDocumentos']);
         });
