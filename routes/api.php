@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\V1\Motorista\PerfilController as MotoristaPerfilCon
 use App\Http\Controllers\Api\V1\Motorista\PodController; 
 use App\Http\Controllers\Api\V1\Admin\AdminController;
 use App\Http\Controllers\Api\V1\Admin\ParceiroController;
+use App\Http\Controllers\Api\V1\Admin\FaturamentoController as AdminFaturamentoController; // Injeção do Motor Financeiro
 use App\Http\Controllers\Api\V1\Support\TicketController;
 use App\Http\Controllers\Api\V1\Support\FaqController;
 use App\Http\Controllers\Api\V1\Webhooks\PefWebhookController; 
@@ -57,6 +58,8 @@ Route::prefix('v1')->group(function () {
 
             Route::get('/perfil', [EmbarcadorPerfilController::class, 'show']);
             Route::put('/perfil', [EmbarcadorPerfilController::class, 'update']);
+            
+            // Faturamento B2B do Embarcador
             Route::get('/faturas', [FaturaController::class, 'index']);
             Route::get('/faturas/{id}', [FaturaController::class, 'show']);
         });
@@ -70,7 +73,7 @@ Route::prefix('v1')->group(function () {
             Route::post('/cargas/{carga}/pod/url', [PodController::class, 'gerarUrlUpload']);
             Route::post('/cargas/{carga}/pod/confirmar', [PodController::class, 'confirmarEntrega']);
             
-            // === ROTA DA CARTEIRA INJETADA AQUI ===
+            // Extrato e Carteira
             Route::get('/carteira/extrato', [\App\Http\Controllers\Api\V1\Motorista\CarteiraController::class, 'extrato']);
             
             Route::get('/perfil', [MotoristaPerfilController::class, 'show']);
@@ -101,6 +104,12 @@ Route::prefix('v1')->group(function () {
 
             Route::get('/crm/motoristas', [AdminController::class, 'listarMotoristas']);
             Route::get('/crm/embarcadores', [AdminController::class, 'listarEmbarcadores']);
+            
+            // --- MALHA DE TELEMETRIA B2B ---
+            Route::get('/faturamento/radar', [AdminFaturamentoController::class, 'radar']);
+            // Restrição de Segurança: Somente ADMIN pode disparar bloqueios financeiros
+            Route::post('/embarcadores/{id}/congelar', [AdminFaturamentoController::class, 'congelar'])->middleware('role:admin');
+            
             Route::get('/financeiro/extrato', [AdminController::class, 'extratoTaxas']);
             Route::get('/financeiro/faturamento', [AdminController::class, 'relatorioFaturamento']);
             
@@ -130,6 +139,7 @@ Route::prefix('v1')->group(function () {
         });
     });
 
+    // Endpoint Dummy para testes
     Route::put('/upload-mock', function() { return response()->json(['ok' => true]); });
 });
 

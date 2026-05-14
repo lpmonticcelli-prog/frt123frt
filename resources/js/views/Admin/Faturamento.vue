@@ -1,34 +1,96 @@
 <template>
   <div class="space-y-6 max-w-7xl mx-auto">
     
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-      <div class="px-6 py-5 border-b border-gray-200 bg-gray-900 flex justify-between items-center">
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+      <div class="px-6 py-5 border-b border-slate-200 bg-slate-900 flex justify-between items-center">
         <div>
-          <h2 class="text-2xl font-black text-white tracking-tight">Faturamento de Indústrias</h2>
-          <p class="text-sm text-gray-400">Emissão de boletos e cobrança consolidada de embarcadores.</p>
+          <h2 class="text-2xl font-black text-white tracking-tight">Radar de Faturamento & Inadimplência</h2>
+          <p class="text-sm text-slate-400">Controle de recebíveis, taxas SaaS e bloqueio de Embarcadores.</p>
         </div>
+        <button @click="fetchMetrics" :disabled="loading" class="px-4 py-2 border border-slate-700 rounded-lg text-sm font-bold text-white bg-slate-800 hover:bg-slate-700 transition-colors disabled:opacity-50 flex items-center">
+          <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+          Sincronizar Motor
+        </button>
       </div>
     </div>
 
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-12 flex flex-col items-center justify-center animate-fade-in text-center">
-      <div class="w-24 h-24 bg-blue-50 rounded-full flex items-center justify-center mb-6">
-        <svg class="w-12 h-12 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
-        </svg>
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-center">
+        <span class="text-xs font-black text-slate-400 uppercase tracking-wider mb-1">Receita Prevista (Mês)</span>
+        <span class="text-2xl font-black text-slate-900">{{ formatarMoeda(metrics.receita_prevista) }}</span>
       </div>
-      
-      <h3 class="text-2xl font-black text-gray-900 mb-2">Módulo Restrito (Fase 2)</h3>
-      
-      <p class="text-gray-500 max-w-md bg-gray-50 p-4 rounded border border-gray-200 font-mono text-sm">
-        > {{ serverMessage }}
-      </p>
-      
-      <div class="mt-8 space-y-2 text-sm text-gray-400 max-w-lg">
-        <p>A arquitetura de faturamento (integração bancária, PIX automatizado e emissão de NFe) está agendada para a próxima fase do roadmap da 123fretei.</p>
-        <p>A arrecadação de taxas atualmente é monitorizada em tempo real pela aba <strong>Extrato & Taxas</strong>.</p>
+      <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-center">
+        <span class="text-xs font-black text-slate-400 uppercase tracking-wider mb-1">Receita Realizada (Paga)</span>
+        <span class="text-2xl font-black text-green-600">{{ formatarMoeda(metrics.receita_realizada) }}</span>
+      </div>
+      <div class="bg-red-50 p-5 rounded-xl border border-red-200 shadow-sm flex flex-col justify-center">
+        <span class="text-xs font-black text-red-400 uppercase tracking-wider mb-1">Risco Absoluto (Inadimplência)</span>
+        <span class="text-2xl font-black text-red-600">{{ formatarMoeda(metrics.total_inadimplencia) }}</span>
+      </div>
+      <div class="bg-slate-900 p-5 rounded-xl border border-slate-800 shadow-sm flex flex-col justify-center">
+        <span class="text-xs font-black text-slate-400 uppercase tracking-wider mb-1">Contas Congeladas</span>
+        <span class="text-2xl font-black text-white">{{ metrics.contas_congeladas }}</span>
       </div>
     </div>
 
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+      <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+        <h3 class="text-sm font-black text-slate-800 uppercase tracking-wider">Radar de Embarcadores com Débito</h3>
+      </div>
+      
+      <div v-if="loading" class="p-12 text-center text-slate-500 font-medium text-sm">
+        Sincronizando com o pool de banco de dados...
+      </div>
+      
+      <table v-else class="min-w-full divide-y divide-slate-200 text-left">
+        <thead class="bg-white">
+          <tr>
+            <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Embarcador</th>
+            <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Referência</th>
+            <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Valor</th>
+            <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Vencimento</th>
+            <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
+            <th class="px-6 py-4 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Ações Críticas</th>
+          </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-slate-100">
+          <tr v-for="fatura in faturasComRisco" :key="fatura.id" class="hover:bg-slate-50 transition-colors">
+            <td class="px-6 py-4 whitespace-nowrap">
+              <div class="text-sm font-bold text-slate-900">{{ fatura.embarcador.razao_social }}</div>
+              <div class="text-xs text-slate-500 font-mono">{{ fatura.embarcador.cnpj }}</div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-700 font-mono">
+              {{ fatura.mes_referencia }}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-black text-slate-900">
+              {{ formatarMoeda(fatura.valor_total) }}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+              <div :class="['text-sm font-bold', isVencida(fatura) ? 'text-red-600' : 'text-slate-700']">
+                {{ formatarData(fatura.data_vencimento) }}
+              </div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+              <span :class="['px-3 py-1 text-[10px] font-black uppercase tracking-wider rounded-md border', getStatusClass(fatura)]">
+                {{ isVencida(fatura) ? 'VENCIDA' : fatura.status }}
+              </span>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-right">
+              <button 
+                @click="congelarEmbarcador(fatura.embarcador_id)" 
+                :disabled="fatura.embarcador.status === 'congelado' || processandoAcao"
+                class="inline-flex items-center px-4 py-2 bg-red-600 text-white text-xs font-bold rounded shadow-sm hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {{ fatura.embarcador.status === 'congelado' ? 'Já Congelado' : 'Congelar Conta' }}
+              </button>
+            </td>
+          </tr>
+          <tr v-if="faturasComRisco.length === 0">
+             <td colspan="6" class="px-6 py-12 text-center text-slate-400 font-medium">Nenhum risco de inadimplência detectado na malha financeira.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 </template>
 
@@ -36,21 +98,65 @@
 import { ref, onMounted } from 'vue';
 import axios from 'axios';
 
-const serverMessage = ref('A carregar status da API...');
+const loading = ref(true);
+const processandoAcao = ref(false);
 
-const verificarStatusModulo = async () => {
+const metrics = ref({
+  receita_prevista: 0,
+  receita_realizada: 0,
+  total_inadimplencia: 0,
+  contas_congeladas: 0
+});
+
+const faturasComRisco = ref([]);
+
+const formatarMoeda = (valor) => {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor || 0);
+};
+
+const formatarData = (dataString) => {
+  if (!dataString) return '--';
+  return new Date(dataString).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+};
+
+const isVencida = (fatura) => {
+  if (fatura.status === 'paga') return false;
+  return new Date(fatura.data_vencimento) < new Date();
+};
+
+const getStatusClass = (fatura) => {
+  if (isVencida(fatura)) return 'bg-red-50 text-red-700 border-red-200';
+  if (fatura.status === 'pendente') return 'bg-amber-50 text-amber-700 border-amber-200';
+  return 'bg-slate-100 text-slate-500 border-slate-200';
+};
+
+const fetchMetrics = async () => {
+  loading.value = true;
   try {
-    const res = await axios.get('/api/admin/financeiro/faturamento');
-    serverMessage.value = res.data.message || 'Módulo em Desenvolvimento.';
+    const response = await axios.get('/api/v1/admin/faturamento/radar');
+    metrics.value = response.data.metrics;
+    faturasComRisco.value = response.data.faturas_risco;
   } catch (error) {
-    serverMessage.value = 'Erro ao consultar status do motor de faturamento.';
+    console.error('Falha de I/O na API Admin Faturamento', error);
+  } finally {
+    loading.value = false;
   }
 };
 
-onMounted(verificarStatusModulo);
-</script>
+const congelarEmbarcador = async (embarcadorId) => {
+  if(!confirm('OPERAÇÃO CRÍTICA: Bloquear a conta deste embarcador irá paralisar a postagem de novos fretes imediatamente. Proceder?')) return;
+  
+  processandoAcao.value = true;
+  try {
+    await axios.post(`/api/v1/admin/embarcadores/${embarcadorId}/congelar`);
+    alert('✅ Intervenção Executada: Conta do Embarcador suspensa por quebra contratual (Inadimplência).');
+    await fetchMetrics();
+  } catch (error) {
+    alert('Erro ao aplicar lock no banco de dados para congelamento.');
+  } finally {
+    processandoAcao.value = false;
+  }
+};
 
-<style scoped>
-.animate-fade-in { animation: fadeIn 0.4s ease-out; }
-@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-</style>
+onMounted(fetchMetrics);
+</script>
