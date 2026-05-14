@@ -122,7 +122,8 @@ const menuItens = [
     submenus: [
       { label: 'Auditoria KYC', route: 'AdminAuditoria', roles: ['admin', 'compliance'] },
       { label: 'Base de Motoristas', route: 'AdminMotoristas', roles: ['admin'] },
-      { label: 'Base de Embarcadores', route: 'AdminEmbarcadores', roles: ['admin'] }
+      { label: 'Base de Embarcadores', route: 'AdminEmbarcadores', roles: ['admin'] },
+      { label: 'Rede de Parceiros', route: 'AdminParceiros', roles: ['admin'] } // <== NOVO BOTÃO INJETADO
     ]
   },
   {

@@ -70,6 +70,10 @@ const routes = [
             { path: 'auditoria', name: 'AdminAuditoria', component: () => import('../views/Admin/Kyc.vue'), meta: { title: 'Auditoria KYC', role: ['admin', 'compliance'] } },
             { path: 'motoristas', name: 'AdminMotoristas', component: () => import('../views/Admin/BaseMotoristas.vue'), meta: { title: 'Base de Motoristas', role: ['admin'] } },
             { path: 'embarcadores', name: 'AdminEmbarcadores', component: () => import('../views/Admin/BaseEmbarcadores.vue'), meta: { title: 'Base de Embarcadores', role: ['admin'] } },
+            
+            // NOVA ROTA: CMS DE PARCEIROS E ADS
+            { path: 'parceiros', name: 'AdminParceiros', component: () => import('../views/Admin/Parceiros.vue'), meta: { title: 'Rede de Parceiros (CMS)', role: ['admin'] } },
+            
             { path: 'extrato', name: 'AdminExtrato', component: () => import('../views/Admin/ExtratoTaxas.vue'), meta: { title: 'Extrato & Taxas', role: ['admin'] } },
             { path: 'faturamento', name: 'AdminFaturamento', component: () => import('../views/Admin/Faturamento.vue'), meta: { title: 'Faturamento', role: ['admin'] } },
             { path: 'staff', name: 'AdminStaff', component: () => import('../views/Admin/Staff.vue'), meta: { title: 'Staff & Permissões', role: ['admin'] } },
