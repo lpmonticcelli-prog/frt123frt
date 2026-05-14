@@ -25,7 +25,7 @@
       <div v-if="activeTab === 'overview'" class="space-y-6 animate-fade-in">
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <div class="bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl p-6 shadow-lg border border-gray-700 text-white">
-            <h3 class="text-gray-400 text-sm font-bold uppercase tracking-wider">Receita (Taxa 5%)</h3>
+            <h3 class="text-gray-400 text-sm font-bold uppercase tracking-wider">Receita (Taxas Retidas)</h3>
             <p class="text-3xl font-black mt-2 text-green-400">{{ formatMoney(stats.receita_plataforma) }}</p>
             <p class="text-xs text-gray-400 mt-2">Transacionado: {{ formatMoney(stats.volume_transacionado) }}</p>
           </div>
@@ -152,7 +152,7 @@
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-right">
                 <div class="text-sm font-bold text-gray-900">{{ formatMoney(carga.valor_frete) }}</div>
-                <div class="text-xs font-bold text-green-600" title="Lucro da Plataforma (5%)">Fee: {{ formatMoney(carga.taxa_plataforma) }}</div>
+                <div class="text-xs font-bold text-green-600" title="Lucro da Plataforma">Fee: {{ formatMoney(carga.taxa_plataforma) }}</div>
               </td>
             </tr>
           </tbody>

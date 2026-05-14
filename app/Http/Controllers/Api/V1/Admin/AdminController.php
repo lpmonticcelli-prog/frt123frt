@@ -6,11 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\Carga;
 use App\Models\Role;
+use App\Models\Embarcador;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Log; // Injetado para auditoria real de segurança
+use Illuminate\Support\Facades\Log; 
 
 class AdminController extends Controller
 {
@@ -22,17 +23,14 @@ class AdminController extends Controller
         $roleMotoristaId = Role::where('slug', 'motorista')->value('id');
         $roleEmbarcadorId = Role::where('slug', 'embarcador')->value('id');
 
-        // Em cenários de altíssima volumetria, considere mover esses aggregates para uma tabela de OLAP ou cacheá-los.
         $fretesConcluidos = Carga::whereIn('status', ['entregue', 'finalizada'])->count();
         $fretesAtivos = Carga::whereIn('status', ['publicada', 'aceita', 'em_transito', 'coletada'])->count();
 
         $volumeTransacionado = Carga::where('status', '!=', 'cancelada')->sum('valor_frete');
         
-        $taxaAtual = Cache::rememberForever('global_settings', function () {
-            return DB::table('settings')->pluck('value', 'key')->toArray();
-        })['taxa_plataforma'] ?? 5.00;
-        
-        $receitaPlataforma = $volumeTransacionado * ($taxaAtual / 100); 
+        // CORREÇÃO CIRÚRGICA: Soma as taxas reais gravadas no momento da publicação.
+        // Isso respeita as taxas individuais de contratos antigos e novos.
+        $receitaPlataforma = Carga::where('status', '!=', 'cancelada')->sum('taxa_plataforma');
 
         return response()->json([
             'fretes_concluidos' => $fretesConcluidos,
@@ -52,7 +50,7 @@ class AdminController extends Controller
         $pendentes = User::with(['role', 'motorista', 'embarcador'])
             ->whereIn('status', ['pending', 'em_analise'])
             ->orderBy('created_at', 'asc')
-            ->paginate(50); // Blindagem contra OOM
+            ->paginate(50); 
 
         return response()->json($pendentes);
     }
@@ -86,7 +84,7 @@ class AdminController extends Controller
         $usuarios = User::with('role')
             ->where('role_id', '!=', $roleAdminId)
             ->orderBy('created_at', 'desc')
-            ->paginate(50); // Blindagem contra OOM
+            ->paginate(50); 
 
         return response()->json($usuarios);
     }
@@ -97,11 +95,15 @@ class AdminController extends Controller
             'status' => 'required|in:active,banned'
         ]);
 
+        if ($usuario->id === 1 || ($usuario->role && $usuario->role->slug === 'admin' && $request->user()->role->slug !== 'admin')) {
+            abort(403, 'Tentativa de violação de hierarquia bloqueada. Você não pode alterar o status de um Administrador Root.');
+        }
+
         $usuario->status = $request->status;
         $usuario->save();
 
         if ($request->status === 'banned') {
-            $usuario->tokens()->delete(); // Revogação imediata de acesso (Zero Trust)
+            $usuario->tokens()->delete(); 
         }
 
         $estado = $request->status === 'banned' ? 'banido' : 'restaurado';
@@ -142,7 +144,7 @@ class AdminController extends Controller
         $cargas = Carga::with(['embarcador', 'motorista.user'])
             ->whereNotIn('status', ['entregue', 'cancelada'])
             ->orderBy('created_at', 'desc')
-            ->paginate(50); // Blindagem contra OOM
+            ->paginate(50); 
             
         return response()->json($cargas);
     }
@@ -151,7 +153,7 @@ class AdminController extends Controller
     {
         $disputas = Carga::with(['embarcador', 'motorista.user'])
             ->where('status', 'em_disputa')
-            ->paginate(50); // Blindagem contra OOM
+            ->paginate(50); 
             
         return response()->json($disputas);
     }
@@ -169,11 +171,21 @@ class AdminController extends Controller
         $novoStatus = $request->acao === 'cancelar' ? 'cancelada' : 'finalizada';
         
         DB::transaction(function () use ($carga, $novoStatus) {
-            // Pessimistic Locking aplicado para evitar Race Conditions financeiras
             $lockedCarga = Carga::where('id', $carga->id)->lockForUpdate()->firstOrFail();
             $lockedCarga->update(['status' => $novoStatus]);
             
-            // Disparo assíncrono recomendado: Dispatch Job para conciliação financeira aqui.
+            if ($novoStatus === 'finalizada') {
+                $ciot = \App\Models\Ciot::where('carga_id', $lockedCarga->id)->lockForUpdate()->first();
+                if ($ciot && $ciot->status === 'bloqueado_disputa') {
+                    $ciot->update(['status' => 'processando_liquidacao']);
+                    \App\Jobs\LiquidarFreteJob::dispatch($ciot->codigo_ciot)->onQueue('financeiro');
+                }
+            } else if ($novoStatus === 'cancelada') {
+                $ciot = \App\Models\Ciot::where('carga_id', $lockedCarga->id)->first();
+                if ($ciot) {
+                    $ciot->update(['status' => 'cancelado']);
+                }
+            }
         });
 
         Log::info("Disputa Resolvida: Carga ID {$carga->id} alterada para {$novoStatus} pelo Admin ID " . auth()->id());
@@ -210,6 +222,29 @@ class AdminController extends Controller
         return response()->json($embarcadores);
     }
 
+    // NOVA FUNÇÃO: Atualizar contrato individual do Embarcador
+    public function atualizarContratoEmbarcador(Request $request, Embarcador $embarcador)
+    {
+        // DEFESA: Apenas Admin Root pode negociar contratos financeiros
+        if ($request->user()->role->slug !== 'admin') {
+            abort(403, 'Ação restrita. Apenas administradores raiz podem alterar as taxas financeiras de um cliente.');
+        }
+
+        $validated = $request->validate([
+            'taxa_frete_percentual' => 'nullable|numeric|min:0|max:100',
+            'mensalidade_fixa' => 'nullable|numeric|min:0'
+        ]);
+
+        $embarcador->update([
+            'taxa_frete_percentual' => $validated['taxa_frete_percentual'],
+            'mensalidade_fixa' => $validated['mensalidade_fixa']
+        ]);
+
+        Log::notice("CRM Financeiro: Contrato do Embarcador ID {$embarcador->id} alterado pelo Admin ID " . auth()->id());
+
+        return response()->json(['message' => 'Contrato financeiro atualizado com sucesso.']);
+    }
+
     // ==========================================
     // NOVOS MÓDULOS: FINANCEIRO E EXTRATOS
     // ==========================================
@@ -238,10 +273,6 @@ class AdminController extends Controller
         ]);
     }
 
-    /**
-     * Faturamento Consolidado. 
-     * Agregação realizada direto no banco (Performance Extrema).
-     */
     public function relatorioFaturamento()
     {
         $faturamentoAgregado = Carga::with('embarcador.user:id,name,email')
@@ -270,11 +301,15 @@ class AdminController extends Controller
 
     public function criarStaff(Request $request)
     {
+        if ($request->user()->role->slug !== 'admin') {
+            abort(403, 'Ação restrita. Apenas administradores raiz podem criar membros da equipe.');
+        }
+
         $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
             'phone' => 'required|string|max:20|unique:users,phone',
-            'password' => 'required|string|min:8|regex:/^(?=.*[A-Z])(?=.*[!@#$&*])(?=.*[0-9]).{8,}$/', // Política de senha rígida
+            'password' => 'required|string|min:8|regex:/^(?=.*[A-Z])(?=.*[!@#$&*])(?=.*[0-9]).{8,}$/', 
             'role_slug' => 'required|in:admin,manager,compliance,suporte_n1'
         ]);
 
@@ -299,6 +334,10 @@ class AdminController extends Controller
 
     public function atualizarStaff(Request $request, User $usuario)
     {
+        if ($request->user()->role->slug !== 'admin') {
+            abort(403, 'Ação restrita.');
+        }
+
         $request->validate([
             'role_slug' => 'required|in:admin,manager,compliance,suporte_n1',
             'status' => 'required|in:active,suspended,banned'
@@ -339,6 +378,10 @@ class AdminController extends Controller
 
     public function atualizarVariaveis(Request $request)
     {
+        if ($request->user()->role->slug !== 'admin') {
+            abort(403, 'Ação restrita.');
+        }
+
         $validated = $request->validate([
             'taxa_plataforma' => 'required|numeric|min:0|max:100',
             'tempo_limite_aceite_minutos' => 'required|integer|min:1',

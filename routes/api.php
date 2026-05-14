@@ -2,12 +2,12 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\App;
 
 use App\Http\Controllers\Api\V1\Auth\AuthController;
 use App\Http\Controllers\Api\V1\Embarcador\CargaController as EmbarcadorCargaController;
 use App\Http\Controllers\Api\V1\Embarcador\FaturaController;
 use App\Http\Controllers\Api\V1\Embarcador\PerfilController as EmbarcadorPerfilController;
+use App\Http\Controllers\Api\V1\Embarcador\AuditoriaController; 
 use App\Http\Controllers\Api\V1\Motorista\CargaController as MotoristaCargaController;
 use App\Http\Controllers\Api\V1\Motorista\PerfilController as MotoristaPerfilController;
 use App\Http\Controllers\Api\V1\Motorista\PodController; 
@@ -45,10 +45,8 @@ Route::prefix('v1')->group(function () {
             Route::delete('/cargas/{carga}', [EmbarcadorCargaController::class, 'destroy']); 
             Route::get('/cargas', [EmbarcadorCargaController::class, 'index']); 
             Route::get('/cargas/{carga}', [EmbarcadorCargaController::class, 'show']); 
-            
-            // CIRURGIA APLICADA: Rotas apontadas para o CargaController correto
             Route::post('/cargas/{carga}/aprovar', [EmbarcadorCargaController::class, 'aprovarEntrega']);
-            Route::post('/cargas/{carga}/disputa', [EmbarcadorCargaController::class, 'abrirDisputa']);
+            Route::post('/cargas/{carga}/disputa', [AuditoriaController::class, 'abrirDisputa']);
 
             Route::get('/perfil', [EmbarcadorPerfilController::class, 'show']);
             Route::put('/perfil', [EmbarcadorPerfilController::class, 'update']);
@@ -62,15 +60,15 @@ Route::prefix('v1')->group(function () {
             Route::post('/cargas/{id}/aceitar', [MotoristaCargaController::class, 'aceitar'])->middleware('throttle:10,1'); 
             Route::post('/cargas/{id}/cancelar-aceite', [MotoristaCargaController::class, 'cancelarAceite']); 
             Route::post('/cargas/{id}/iniciar-viagem', [MotoristaCargaController::class, 'iniciarViagem']); 
-            
-            // Rotas de POD vinculadas para o Upload e Finalização da entrega
             Route::post('/cargas/{carga}/pod/url', [PodController::class, 'gerarUrlUpload']);
             Route::post('/cargas/{carga}/pod/confirmar', [PodController::class, 'confirmarEntrega']);
-            
             Route::get('/perfil', [MotoristaPerfilController::class, 'show']);
             Route::post('/perfil/documentos', [MotoristaPerfilController::class, 'uploadDocumentos']);
         });
 
+        // =========================================================
+        // BACKOFFICE: Rotas Gerais (Equipa Operacional)
+        // =========================================================
         Route::middleware('role:admin,manager,compliance,suporte_n1')->prefix('admin')->group(function () {
             Route::get('/dashboard-stats', [AdminController::class, 'getDashboardStats']);
             Route::get('/usuarios-pendentes', [AdminController::class, 'usuariosPendentes']);
@@ -94,15 +92,25 @@ Route::prefix('v1')->group(function () {
             Route::get('/crm/embarcadores', [AdminController::class, 'listarEmbarcadores']);
             Route::get('/financeiro/extrato', [AdminController::class, 'extratoTaxas']);
             Route::get('/financeiro/faturamento', [AdminController::class, 'relatorioFaturamento']);
+            
+            // Leitura de Staff/Config para exibição
             Route::get('/config/staff', [AdminController::class, 'listarStaff']);
-            Route::post('/config/staff', [AdminController::class, 'criarStaff']); 
-            Route::put('/config/staff/{usuario}', [AdminController::class, 'atualizarStaff']); 
             Route::get('/config/variaveis', [AdminController::class, 'listarVariaveis']);
-            Route::put('/config/variaveis', [AdminController::class, 'atualizarVariaveis']);
+        });
+
+        // =========================================================
+        // BACKOFFICE: Rotas Críticas (Acesso EXCLUSIVO Admin Root)
+        // =========================================================
+        Route::middleware('role:admin')->prefix('admin/config')->group(function () {
+            Route::post('/staff', [AdminController::class, 'criarStaff']); 
+            Route::put('/staff/{usuario}', [AdminController::class, 'atualizarStaff']); 
+            Route::put('/variaveis', [AdminController::class, 'atualizarVariaveis']);
+            
+            // CRM Financeiro: Atualizar contrato individual do Embarcador
+            Route::put('/crm/embarcadores/{embarcador}/contrato', [AdminController::class, 'atualizarContratoEmbarcador']);
         });
     });
 
-    // Endpoint Seguro para Upload Mock 
     Route::put('/upload-mock', function() { return response()->json(['ok' => true]); });
 });
 

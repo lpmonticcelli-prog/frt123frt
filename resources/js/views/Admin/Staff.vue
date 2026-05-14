@@ -50,9 +50,12 @@
               </span>
             </td>
             <td class="px-6 py-4 whitespace-nowrap text-right">
-               <button @click="abrirModalEdicao(admin)" class="px-3 py-1.5 bg-gray-200 text-gray-800 hover:bg-gray-300 text-xs font-bold rounded shadow-sm transition-colors">
+               <button v-if="admin.id !== authStore.user?.id" @click="abrirModalEdicao(admin)" class="px-3 py-1.5 bg-gray-200 text-gray-800 hover:bg-gray-300 text-xs font-bold rounded shadow-sm transition-colors">
                  Editar Permissão
                </button>
+               <span v-else class="px-3 py-1.5 bg-blue-100 text-blue-800 text-xs font-bold rounded">
+                 Sua Conta
+               </span>
             </td>
           </tr>
         </tbody>
@@ -132,14 +135,15 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import axios from 'axios';
+import { useAuthStore } from '../../stores/auth'; // Importado para proteção anti-self-lockout
 
+const authStore = useAuthStore();
 const staff = ref([]);
 const loading = ref(true);
 const showModal = ref(false);
 const isSaving = ref(false);
-const isEditing = ref(false); // Nova variável para controlar o modo do modal
+const isEditing = ref(false); 
 
-// O formulário agora inclui ID e Status para suportar a edição
 const form = ref({
   id: null,
   name: '',
@@ -164,7 +168,7 @@ const carregarStaff = async () => {
   loading.value = true;
   try {
     const res = await axios.get('/api/admin/config/staff');
-    staff.value = res.data;
+    staff.value = res.data.data ? res.data.data : res.data; // Compatibilidade com paginação
   } catch (error) {
     console.error('Erro ao carregar staff:', error);
   } finally {
@@ -172,14 +176,12 @@ const carregarStaff = async () => {
   }
 };
 
-// Abre o modal limpo para criação
 const abrirModalCriacao = () => {
   isEditing.value = false;
   form.value = { id: null, name: '', email: '', phone: '', role_slug: '', password: '', status: 'active' };
   showModal.value = true;
 };
 
-// Abre o modal preenchido para edição
 const abrirModalEdicao = (adminUser) => {
   isEditing.value = true;
   form.value = { 
@@ -188,18 +190,16 @@ const abrirModalEdicao = (adminUser) => {
     email: adminUser.email, 
     phone: adminUser.phone, 
     role_slug: adminUser.role?.slug || '', 
-    password: '', // Senha não é editada aqui
+    password: '',
     status: adminUser.status || 'active'
   };
   showModal.value = true;
 };
 
-// Processa o salvamento (tanto POST quanto PUT)
 const salvarStaff = async () => {
   isSaving.value = true;
   try {
     if (isEditing.value) {
-      // MODO EDIÇÃO (PUT)
       if (!form.value.role_slug || !form.value.status) {
         alert("Preencha o cargo e o status.");
         isSaving.value = false;
@@ -211,7 +211,6 @@ const salvarStaff = async () => {
       });
       alert(res.data.message);
     } else {
-      // MODO CRIAÇÃO (POST)
       if (!form.value.name || !form.value.email || !form.value.role_slug || !form.value.password) {
         alert("Preencha todos os campos obrigatórios.");
         isSaving.value = false;
@@ -222,7 +221,7 @@ const salvarStaff = async () => {
     }
     
     showModal.value = false;
-    carregarStaff(); // Atualiza a tabela imediatamente após salvar
+    carregarStaff();
   } catch (error) {
     const msg = error.response?.data?.message || 'Erro ao processar a requisição.';
     alert(msg);

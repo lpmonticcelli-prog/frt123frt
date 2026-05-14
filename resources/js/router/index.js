@@ -43,10 +43,7 @@ const routes = [
             { path: 'painel', name: 'MotoristaMural', component: () => import('../views/Motorista/Dashboard.vue'), meta: { title: 'Mural de Fretes' } },
             { path: 'minhas-cargas', name: 'MotoristaMeusFretes', component: () => import('../views/Motorista/MeusFretes.vue'), meta: { title: 'Meus Fretes Alocados' } },
             { path: 'rastreamento/:id', name: 'RastreadorFrete', component: () => import('../views/Motorista/RastreadorFrete.vue'), meta: { title: 'Painel de Viagem Ativa' } },
-            
-            // CIRURGIA: Nova rota injetada para a Carteira Digital do Motorista
             { path: 'carteira', name: 'MotoristaCarteira', component: () => import('../views/Motorista/Carteira.vue'), meta: { title: 'Minha Carteira' } },
-            
             { path: 'suporte', name: 'MotoristaMeusChamados', component: () => import('../views/Motorista/MeusChamados.vue'), meta: { title: 'Central de Suporte (SAC)' } },
             { path: 'perfil', name: 'MotoristaPerfil', component: () => import('../views/Motorista/Perfil.vue'), meta: { title: 'Minha Conta' } },
             { path: 'faq', name: 'MotoristaFaq', component: () => import('../views/Hub/FaqView.vue'), meta: { title: 'Central de Ajuda (FAQ)' } },
@@ -65,17 +62,18 @@ const routes = [
         meta: { requiresAuth: true, role: ['admin', 'manager', 'compliance', 'suporte_n1'] },
         children: [
             { path: '', redirect: '/admin/dashboard' },
-            { path: 'dashboard', name: 'AdminDashboard', component: () => import('../views/Admin/Dashboard.vue'), meta: { title: 'Centro de Comando' } },
-            { path: 'suporte', name: 'AdminSuporte', component: () => import('../views/Admin/MesaOperacoes.vue'), meta: { title: 'Mesa de Operações (SAC)' } },
-            { path: 'fretes', name: 'AdminFretes', component: () => import('../views/Admin/MuralFretes.vue'), meta: { title: 'Mural de Fretes' } },
-            { path: 'disputas', name: 'AdminDisputas', component: () => import('../views/Admin/Disputas.vue'), meta: { title: 'Resolução de Disputas' } },
-            { path: 'auditoria', name: 'AdminAuditoria', component: () => import('../views/Admin/Kyc.vue'), meta: { title: 'Auditoria KYC' } },
-            { path: 'motoristas', name: 'AdminMotoristas', component: () => import('../views/Admin/BaseMotoristas.vue'), meta: { title: 'Base de Motoristas' } },
-            { path: 'embarcadores', name: 'AdminEmbarcadores', component: () => import('../views/Admin/BaseEmbarcadores.vue'), meta: { title: 'Base de Embarcadores' } },
-            { path: 'extrato', name: 'AdminExtrato', component: () => import('../views/Admin/ExtratoTaxas.vue'), meta: { title: 'Extrato & Taxas' } },
-            { path: 'faturamento', name: 'AdminFaturamento', component: () => import('../views/Admin/Faturamento.vue'), meta: { title: 'Faturamento' } },
-            { path: 'staff', name: 'AdminStaff', component: () => import('../views/Admin/Staff.vue'), meta: { title: 'Staff & Permissões' } },
-            { path: 'config', name: 'AdminConfig', component: () => import('../views/Admin/VariaveisGlobais.vue'), meta: { title: 'Variáveis Globais' } }
+            // CADEADOS INDIVIDUAIS DE ROTA APLICADOS (ZERO TRUST)
+            { path: 'dashboard', name: 'AdminDashboard', component: () => import('../views/Admin/Dashboard.vue'), meta: { title: 'Centro de Comando', role: ['admin', 'manager'] } },
+            { path: 'suporte', name: 'AdminSuporte', component: () => import('../views/Admin/MesaOperacoes.vue'), meta: { title: 'Mesa de Operações (SAC)', role: ['admin', 'manager', 'compliance', 'suporte_n1'] } },
+            { path: 'fretes', name: 'AdminFretes', component: () => import('../views/Admin/MuralFretes.vue'), meta: { title: 'Mural de Fretes', role: ['admin', 'manager'] } },
+            { path: 'disputas', name: 'AdminDisputas', component: () => import('../views/Admin/Disputas.vue'), meta: { title: 'Resolução de Disputas', role: ['admin', 'manager', 'compliance'] } },
+            { path: 'auditoria', name: 'AdminAuditoria', component: () => import('../views/Admin/Kyc.vue'), meta: { title: 'Auditoria KYC', role: ['admin', 'compliance'] } },
+            { path: 'motoristas', name: 'AdminMotoristas', component: () => import('../views/Admin/BaseMotoristas.vue'), meta: { title: 'Base de Motoristas', role: ['admin'] } },
+            { path: 'embarcadores', name: 'AdminEmbarcadores', component: () => import('../views/Admin/BaseEmbarcadores.vue'), meta: { title: 'Base de Embarcadores', role: ['admin'] } },
+            { path: 'extrato', name: 'AdminExtrato', component: () => import('../views/Admin/ExtratoTaxas.vue'), meta: { title: 'Extrato & Taxas', role: ['admin'] } },
+            { path: 'faturamento', name: 'AdminFaturamento', component: () => import('../views/Admin/Faturamento.vue'), meta: { title: 'Faturamento', role: ['admin'] } },
+            { path: 'staff', name: 'AdminStaff', component: () => import('../views/Admin/Staff.vue'), meta: { title: 'Staff & Permissões', role: ['admin'] } },
+            { path: 'config', name: 'AdminConfig', component: () => import('../views/Admin/VariaveisGlobais.vue'), meta: { title: 'Variáveis Globais', role: ['admin'] } }
         ]
     }
 ];
