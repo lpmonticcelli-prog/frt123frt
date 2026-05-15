@@ -65,13 +65,17 @@ const routes = [
             // CADEADOS INDIVIDUAIS DE ROTA APLICADOS (ZERO TRUST)
             { path: 'dashboard', name: 'AdminDashboard', component: () => import('../views/Admin/Dashboard.vue'), meta: { title: 'Centro de Comando', role: ['admin', 'manager'] } },
             { path: 'suporte', name: 'AdminSuporte', component: () => import('../views/Admin/MesaOperacoes.vue'), meta: { title: 'Mesa de Operações (SAC)', role: ['admin', 'manager', 'compliance', 'suporte_n1'] } },
+            
             { path: 'fretes', name: 'AdminFretes', component: () => import('../views/Admin/MuralFretes.vue'), meta: { title: 'Mural de Fretes', role: ['admin', 'manager'] } },
+            // NOVA ROTA: AUDITORIA 360º DE FRETES CONCLUÍDOS
+            { path: 'historico-fretes', name: 'AdminHistoricoFretes', component: () => import('../views/Admin/HistoricoFretes.vue'), meta: { title: 'Arquivo Morto (Auditoria)', role: ['admin', 'manager', 'compliance'] } },
+            
             { path: 'disputas', name: 'AdminDisputas', component: () => import('../views/Admin/Disputas.vue'), meta: { title: 'Resolução de Disputas', role: ['admin', 'manager', 'compliance'] } },
             { path: 'auditoria', name: 'AdminAuditoria', component: () => import('../views/Admin/Kyc.vue'), meta: { title: 'Auditoria KYC', role: ['admin', 'compliance'] } },
             { path: 'motoristas', name: 'AdminMotoristas', component: () => import('../views/Admin/BaseMotoristas.vue'), meta: { title: 'Base de Motoristas', role: ['admin'] } },
             { path: 'embarcadores', name: 'AdminEmbarcadores', component: () => import('../views/Admin/BaseEmbarcadores.vue'), meta: { title: 'Base de Embarcadores', role: ['admin'] } },
             
-            // NOVA ROTA: CMS DE PARCEIROS E ADS
+            // CMS DE PARCEIROS E ADS
             { path: 'parceiros', name: 'AdminParceiros', component: () => import('../views/Admin/Parceiros.vue'), meta: { title: 'Rede de Parceiros (CMS)', role: ['admin'] } },
             
             { path: 'extrato', name: 'AdminExtrato', component: () => import('../views/Admin/ExtratoTaxas.vue'), meta: { title: 'Extrato & Taxas', role: ['admin'] } },

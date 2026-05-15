@@ -5,13 +5,12 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use App\Events\CargaAtualizada; // Injeção do Evento Real-time
+use App\Events\CargaAtualizada;
 
 class Carga extends Model
 {
     use HasFactory, SoftDeletes;
 
-    // CIRURGIA: fatura_id liberado para o Mass Assignment
     protected $fillable = [
         'embarcador_id', 'motorista_id', 'fatura_id',
         'produto', 'especie', 'peso_kg', 'cubagem_m3', 'tipo_veiculo',      
@@ -34,17 +33,15 @@ class Carga extends Model
     public function motorista() { return $this->belongsTo(Motorista::class); }
     public function aceite_log() { return $this->hasOne(CargaAceiteLog::class, 'carga_id', 'id'); }
     public function publicacao_log() { return $this->hasOne(CargaPublicacaoLog::class, 'carga_id', 'id'); }
-    
-    // CIRURGIA: Relacionamento de Pagamento criado para evitar Fatal Error
     public function ciot() { return $this->hasOne(Ciot::class, 'carga_id', 'id'); }
 
-    /**
-     * ==========================================
-     * BLINDAGEM DE EVENTOS (OBSERVER NATIVO)
-     * ==========================================
-     * Ouve automaticamente qualquer criação ou atualização nesta tabela 
-     * e dispara a mensagem via WebSockets para o front-end.
-     */
+    // =========================================================
+    // INJEÇÃO DA AUDITORIA 360º (PLURAL - HAS MANY)
+    // Permite que o AdminController extraia todos os eventos do frete
+    // =========================================================
+    public function aceitesLog() { return $this->hasMany(CargaAceiteLog::class, 'carga_id', 'id'); }
+    public function publicacoesLog() { return $this->hasMany(CargaPublicacaoLog::class, 'carga_id', 'id'); }
+
     protected static function booted()
     {
         static::saved(function ($carga) {

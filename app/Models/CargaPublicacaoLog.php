@@ -15,4 +15,15 @@ class CargaPublicacaoLog extends Model
     protected $casts = [
         'publicado_em' => 'datetime',
     ];
+
+    // INJEÇÃO RELACIONAL: Permite saber qual embarcador publicou a carga
+    public function embarcador() 
+    { 
+        return $this->belongsTo(Embarcador::class, 'embarcador_id', 'id'); 
+    }
+
+    public function carga() 
+    { 
+        return $this->belongsTo(Carga::class, 'carga_id', 'id'); 
+    }
 }

@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log; 
+use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AdminController extends Controller
 {
@@ -27,9 +29,6 @@ class AdminController extends Controller
         $fretesAtivos = Carga::whereIn('status', ['publicada', 'aceita', 'em_transito', 'coletada'])->count();
 
         $volumeTransacionado = Carga::where('status', '!=', 'cancelada')->sum('valor_frete');
-        
-        // CORREÇÃO CIRÚRGICA: Soma as taxas reais gravadas no momento da publicação.
-        // Isso respeita as taxas individuais de contratos antigos e novos.
         $receitaPlataforma = Carga::where('status', '!=', 'cancelada')->sum('taxa_plataforma');
 
         return response()->json([
@@ -196,6 +195,149 @@ class AdminController extends Controller
     }
 
     // ==========================================
+    // ARQUIVO MORTO E AUDITORIA (TELEMETRIA B2B)
+    // ==========================================
+    
+    public function fretesConcluidos(Request $request)
+    {
+        $fretes = Carga::with(['embarcador', 'motorista.user'])
+            ->whereIn('status', ['entregue', 'pago', 'concluido', 'finalizada', 'em_auditoria'])
+            ->orderByDesc('updated_at')
+            ->paginate(15);
+
+        return response()->json($fretes);
+    }
+
+    public function auditoriaCarga(int $id)
+    {
+        $carga = Carga::with([
+            'embarcador.user', 
+            'motorista.user', 
+            'publicacoesLog.embarcador.user', 
+            'aceitesLog'
+        ])->findOrFail($id);
+
+        $timeline = collect();
+
+        // 1. Criação
+        $timeline->push([
+            'evento' => 'Carga Criada',
+            'data' => $carga->created_at,
+            'descricao' => "Carga registrada por " . ($carga->embarcador->razao_social ?? 'Embarcador'),
+            'icone' => 'plus',
+            'cor' => 'blue'
+        ]);
+
+        // 2. Publicações/Aprovações
+        foreach ($carga->publicacoesLog as $log) {
+            $responsavel = $log->embarcador->user->name ?? 'Sistema/Embarcador';
+            $ip = $log->ip_address ?? 'Desconhecido';
+            
+            $timeline->push([
+                'evento' => 'Carga Publicada',
+                'data' => $log->publicado_em ?? $log->created_at,
+                'descricao' => "Carga enviada para o mural de fretes por {$responsavel} (IP: {$ip})",
+                'icone' => 'bullhorn',
+                'cor' => 'indigo'
+            ]);
+        }
+
+        // 3. Aceite do Motorista
+        if ($carga->motorista_id) {
+            $primeiroAceite = collect($carga->aceitesLog)->first();
+            $dataAceite = $primeiroAceite ? $primeiroAceite->created_at : clone $carga->updated_at;
+            
+            $timeline->push([
+                'evento' => 'Motorista Atribuído',
+                'data' => $dataAceite,
+                'descricao' => "O motorista " . ($carga->motorista->user->name ?? 'N/A') . " assumiu a carga.",
+                'icone' => 'truck',
+                'cor' => 'green'
+            ]);
+        }
+
+        // 4. Início da Viagem
+        if ($carga->data_saida) {
+            $timeline->push([
+                'evento' => 'Início do Transporte',
+                'data' => $carga->data_saida,
+                'descricao' => "O motorista iniciou o deslocamento para o destino.",
+                'icone' => 'play',
+                'cor' => 'orange'
+            ]);
+        }
+
+        // 5. Entrega e POD
+        if (in_array($carga->status, ['em_auditoria', 'entregue', 'pago', 'concluido', 'finalizada']) || $carga->foto_canhoto) {
+            $timeline->push([
+                'evento' => 'Entrega Confirmada',
+                'data' => clone $carga->updated_at,
+                'descricao' => "O motorista sinalizou a entrega no destino final.",
+                'icone' => 'check-circle',
+                'cor' => 'emerald',
+                'evidencia' => $carga->foto_canhoto ? url("/api/v1/admin/auditoria/documento?path=" . urlencode($carga->foto_canhoto)) : null
+            ]);
+        }
+
+        // ==========================================
+        // EXTRAÇÃO DOS CONTRATOS DIGITAIS (ASSINATURAS)
+        // ==========================================
+        $publicacaoLog = $carga->publicacoesLog->first();
+        $aceiteLog = $carga->aceitesLog ? $carga->aceitesLog->first() : null;
+
+        $contratos = [
+            'embarcador' => [
+                'valido' => $publicacaoLog ? true : false,
+                'nome' => $carga->embarcador->razao_social ?? 'N/A',
+                'documento' => $carga->embarcador->cnpj ?? 'N/A',
+                'data_assinatura' => $publicacaoLog->publicado_em ?? $carga->created_at,
+                'ip_assinatura' => $publicacaoLog->ip_address ?? 'Registado pelo Sistema',
+                'hash_certificado' => $publicacaoLog->termo_hash ?? sha1($carga->id . $carga->created_at . 'EMB')
+            ],
+            'motorista' => [
+                'valido' => $carga->motorista_id ? true : false,
+                'nome' => $carga->motorista->user->name ?? 'N/A',
+                'documento' => $carga->motorista->cpf ?? 'N/A',
+                'data_assinatura' => $aceiteLog->created_at ?? $carga->updated_at,
+                'ip_assinatura' => $aceiteLog->ip_address ?? 'Capturado via App',
+                'hash_certificado' => $aceiteLog->termo_hash ?? sha1($carga->id . $carga->motorista_id . 'MOT')
+            ]
+        ];
+
+        return response()->json([
+            'carga' => $carga,
+            'timeline' => $timeline->sortBy('data')->values(),
+            'contratos' => $contratos
+        ]);
+    }
+
+    public function exibirDocumentoAuditoria(Request $request)
+    {
+        $path = $request->query('path');
+
+        if (!$path || !Storage::disk('local')->exists($path)) {
+            return response()->json(['error' => 'Arquivo de auditoria não localizado no cofre seguro.'], 404);
+        }
+
+        return Storage::disk('local')->response($path);
+    }
+
+    /**
+     * NOVO: Proxy Seguro para o Admin visualizar os documentos KYC (CNH, CNPJ, etc)
+     * que estão restritos no disco local (Cofre).
+     */
+    public function exibirDocumentoKyc(Request $request)
+    {
+        $path = $request->query('path');
+
+        if (!$path || !Storage::disk('local')->exists($path)) {
+            return response()->json(['error' => 'Arquivo KYC não localizado no cofre seguro.'], 404);
+        }
+
+        return Storage::disk('local')->response($path);
+    }
+
+    // ==========================================
     // NOVOS MÓDULOS: CRM ESPECÍFICO
     // ==========================================
     public function listarMotoristas()
@@ -222,10 +364,8 @@ class AdminController extends Controller
         return response()->json($embarcadores);
     }
 
-    // NOVA FUNÇÃO: Atualizar contrato individual do Embarcador
     public function atualizarContratoEmbarcador(Request $request, Embarcador $embarcador)
     {
-        // DEFESA: Apenas Admin Root pode negociar contratos financeiros
         if ($request->user()->role->slug !== 'admin') {
             abort(403, 'Ação restrita. Apenas administradores raiz podem alterar as taxas financeiras de um cliente.');
         }

@@ -13,7 +13,7 @@ use App\Http\Controllers\Api\V1\Motorista\PerfilController as MotoristaPerfilCon
 use App\Http\Controllers\Api\V1\Motorista\PodController; 
 use App\Http\Controllers\Api\V1\Admin\AdminController;
 use App\Http\Controllers\Api\V1\Admin\ParceiroController;
-use App\Http\Controllers\Api\V1\Admin\FaturamentoController as AdminFaturamentoController; // Injeção do Motor Financeiro
+use App\Http\Controllers\Api\V1\Admin\FaturamentoController as AdminFaturamentoController;
 use App\Http\Controllers\Api\V1\Support\TicketController;
 use App\Http\Controllers\Api\V1\Support\FaqController;
 use App\Http\Controllers\Api\V1\Webhooks\PefWebhookController; 
@@ -73,11 +73,12 @@ Route::prefix('v1')->group(function () {
             Route::post('/cargas/{carga}/pod/url', [PodController::class, 'gerarUrlUpload']);
             Route::post('/cargas/{carga}/pod/confirmar', [PodController::class, 'confirmarEntrega']);
             
-            // Extrato e Carteira
             Route::get('/carteira/extrato', [\App\Http\Controllers\Api\V1\Motorista\CarteiraController::class, 'extrato']);
             
             Route::get('/perfil', [MotoristaPerfilController::class, 'show']);
             Route::post('/perfil/documentos', [MotoristaPerfilController::class, 'uploadDocumentos']);
+            // ROTA DE PROXY SEGURO DE ARQUIVOS (MOTORISTA)
+            Route::get('/perfil/documento/{tipo}', [MotoristaPerfilController::class, 'exibirDocumento']);
         });
 
         // =========================================================
@@ -89,7 +90,16 @@ Route::prefix('v1')->group(function () {
             Route::post('/usuarios/{usuario}/analise', [AdminController::class, 'analisarUsuario']);
             Route::get('/usuarios', [AdminController::class, 'listarTodosUsuarios']);
             Route::post('/usuarios/{usuario}/status', [AdminController::class, 'alterarStatus']);
+            
+            // =========================================================
+            // Gestão de Fretes, Auditoria 360 e Proxies de Arquivos Seguros
+            // =========================================================
             Route::get('/fretes', [AdminController::class, 'relatorioFretes']);
+            Route::get('/fretes/concluidos', [AdminController::class, 'fretesConcluidos']);
+            Route::get('/fretes/{id}/auditoria', [AdminController::class, 'auditoriaCarga']);
+            Route::get('/auditoria/documento', [AdminController::class, 'exibirDocumentoAuditoria']); // Proxy Foto Canhoto
+            Route::get('/kyc/documento', [AdminController::class, 'exibirDocumentoKyc']); // Proxy Documentos KYC
+            
             Route::get('/operacoes/fretes', [AdminController::class, 'listarMuralFretes']);
             Route::get('/operacoes/disputas', [AdminController::class, 'listarDisputas']);
             Route::post('/operacoes/disputas/{carga}/resolver', [AdminController::class, 'resolverDisputa']);
@@ -105,19 +115,15 @@ Route::prefix('v1')->group(function () {
             Route::get('/crm/motoristas', [AdminController::class, 'listarMotoristas']);
             Route::get('/crm/embarcadores', [AdminController::class, 'listarEmbarcadores']);
             
-            // --- MALHA DE TELEMETRIA B2B ---
             Route::get('/faturamento/radar', [AdminFaturamentoController::class, 'radar']);
-            // Restrição de Segurança: Somente ADMIN pode disparar bloqueios financeiros
             Route::post('/embarcadores/{id}/congelar', [AdminFaturamentoController::class, 'congelar'])->middleware('role:admin');
             
             Route::get('/financeiro/extrato', [AdminController::class, 'extratoTaxas']);
             Route::get('/financeiro/faturamento', [AdminController::class, 'relatorioFaturamento']);
             
-            // Leitura de Staff/Config para exibição
             Route::get('/config/staff', [AdminController::class, 'listarStaff']);
             Route::get('/config/variaveis', [AdminController::class, 'listarVariaveis']);
             
-            // Leitura de Parceiros (CMS)
             Route::get('/crm/parceiros', [ParceiroController::class, 'index']);
         });
 
@@ -129,17 +135,14 @@ Route::prefix('v1')->group(function () {
             Route::put('/staff/{usuario}', [AdminController::class, 'atualizarStaff']); 
             Route::put('/variaveis', [AdminController::class, 'atualizarVariaveis']);
             
-            // CRM Financeiro: Atualizar contrato individual do Embarcador
             Route::put('/crm/embarcadores/{embarcador}/contrato', [AdminController::class, 'atualizarContratoEmbarcador']);
             
-            // Gestão de Parceiros e Anúncios (CRUD)
             Route::post('/crm/parceiros', [ParceiroController::class, 'store']);
             Route::put('/crm/parceiros/{parceiro}', [ParceiroController::class, 'update']);
             Route::delete('/crm/parceiros/{parceiro}', [ParceiroController::class, 'destroy']);
         });
     });
 
-    // Endpoint Dummy para testes
     Route::put('/upload-mock', function() { return response()->json(['ok' => true]); });
 });
 

@@ -112,7 +112,8 @@ const menuItens = [
     submenus: [
       { label: 'SAC N1 (Atendimento)', route: 'AdminSuporte', roles: ['admin', 'manager', 'suporte_n1'] },
       { label: 'Mural de Fretes', route: 'AdminFretes', roles: ['admin', 'manager'] },
-      { label: 'Resolução de Disputas', route: 'AdminDisputas', roles: ['admin', 'manager', 'compliance'] }
+      { label: 'Resolução de Disputas', route: 'AdminDisputas', roles: ['admin', 'manager', 'compliance'] },
+      { label: 'Arquivo Morto (Auditoria)', route: 'AdminHistoricoFretes', roles: ['admin', 'manager', 'compliance'] } // <== NOVA ROTA INJETADA
     ]
   },
   {
@@ -123,7 +124,7 @@ const menuItens = [
       { label: 'Auditoria KYC', route: 'AdminAuditoria', roles: ['admin', 'compliance'] },
       { label: 'Base de Motoristas', route: 'AdminMotoristas', roles: ['admin'] },
       { label: 'Base de Embarcadores', route: 'AdminEmbarcadores', roles: ['admin'] },
-      { label: 'Rede de Parceiros', route: 'AdminParceiros', roles: ['admin'] } // <== NOVO BOTÃO INJETADO
+      { label: 'Rede de Parceiros', route: 'AdminParceiros', roles: ['admin'] } 
     ]
   },
   {

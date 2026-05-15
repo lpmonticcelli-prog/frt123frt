@@ -1,32 +1,34 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Api\V1\Motorista;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
+use Symfony\Component\HttpFoundation\StreamedResponse;
+use Illuminate\Http\JsonResponse;
 
 class PerfilController extends Controller
 {
     /**
-     * Retorna os dados completos do perfil do motorista logado mapeado com URLs
+     * Retorna os dados completos do perfil do motorista logado mapeado com URLs Seguras.
      */
-    public function show(Request $request)
+    public function show(Request $request): JsonResponse
     {
         $user = $request->user();
         
-        // 1. Carregamento Explícito (Evita N+1 e Erro 500 por Lazy Load)
         $user->loadMissing(['role', 'motorista']);
 
-        // 2. Defesa contra Null Pointer e Proteção RBAC
         if (!$user->role || $user->role->slug !== 'motorista' || !$user->motorista) {
             return response()->json(['error' => 'Acesso negado ou perfil de motorista corrompido.'], 403);
         }
 
         $motorista = $user->motorista;
 
-        // 3. Mapeamento Estrito de Saída (Data Contract)
+        // Mapeamento Estrito de Saída (Data Contract)
         return response()->json([
             'id' => $motorista->id,
             'nome' => $user->name,
@@ -40,18 +42,18 @@ class PerfilController extends Controller
             'status_conta' => $user->status,
             'status_verificacao' => $motorista->status_verificacao,
             
-            // Tratamento das Imagens KYC para renderização no Frontend
-            'doc_cnh_url' => $motorista->doc_cnh ? Storage::url($motorista->doc_cnh) : null,
-            'doc_selfie_cnh_url' => $motorista->doc_selfie_cnh ? Storage::url($motorista->doc_selfie_cnh) : null,
-            'doc_rntrc_url' => $motorista->doc_rntrc ? Storage::url($motorista->doc_rntrc) : null,
-            'doc_comprovante_endereco_url' => $motorista->doc_comprovante_endereco ? Storage::url($motorista->doc_comprovante_endereco) : null,
+            // URLs SECURE: Apontam para o proxy autenticado e nunca para o disco público
+            'doc_cnh_url' => $motorista->doc_cnh ? url("/api/v1/motorista/perfil/documento/doc_cnh") : null,
+            'doc_selfie_cnh_url' => $motorista->doc_selfie_cnh ? url("/api/v1/motorista/perfil/documento/doc_selfie_cnh") : null,
+            'doc_rntrc_url' => $motorista->doc_rntrc ? url("/api/v1/motorista/perfil/documento/doc_rntrc") : null,
+            'doc_comprovante_endereco_url' => $motorista->doc_comprovante_endereco ? url("/api/v1/motorista/perfil/documento/doc_comprovante_endereco") : null,
         ]);
     }
 
     /**
-     * Recebe e processa o upload de documentos KYC
+     * Recebe e processa o upload de documentos KYC para a partição privada.
      */
-    public function uploadDocumentos(Request $request)
+    public function uploadDocumentos(Request $request): JsonResponse
     {
         $user = $request->user();
         $user->loadMissing(['role', 'motorista']);
@@ -62,7 +64,6 @@ class PerfilController extends Controller
 
         $motorista = $user->motorista;
 
-        // VALIDAÇÃO MILITAR CONTRA SHELL INJECTION E TAMANHO DE PAYLOAD
         $request->validate([
             'doc_cnh' => 'nullable|file|mimes:jpeg,png,jpg,pdf|max:10240',
             'doc_selfie_cnh' => 'nullable|file|mimes:jpeg,png,jpg|max:10240',
@@ -85,20 +86,18 @@ class PerfilController extends Controller
 
         foreach ($documentos as $doc) {
             if ($request->hasFile($doc)) {
-                // Prevenção de Custo de Servidor: Apaga arquivo órfão antes de salvar o novo
-                if ($motorista->$doc && Storage::disk('public')->exists($motorista->$doc)) {
-                    Storage::disk('public')->delete($motorista->$doc);
+                // BLINDAGEM: Utiliza o disco 'local' que está mapeado para storage/app/private (inacessível via web)
+                if ($motorista->$doc && Storage::disk('local')->exists($motorista->$doc)) {
+                    Storage::disk('local')->delete($motorista->$doc);
                 }
-                $updates[$doc] = $request->file($doc)->store($pathPrefix, 'public');
+                $updates[$doc] = $request->file($doc)->store($pathPrefix, 'local');
             }
         }
 
         if (!empty($updates)) {
             DB::transaction(function () use ($motorista, $user, $updates) {
-                
                 $motorista->update($updates);
 
-                // SINCRONIZAÇÃO DE STATUS (Correção de tipagem 'pending')
                 if (in_array($user->status, ['pending', 'rejected'])) {
                     $user->update(['status' => 'em_analise']);
                 }
@@ -110,8 +109,36 @@ class PerfilController extends Controller
         }
 
         return response()->json([
-            'message' => 'Documentos enviados com sucesso. Nossa equipe de compliance irá analisar seu perfil em breve.',
+            'message' => 'Documentos KYC criptografados e armazenados com segurança.',
             'status_conta' => $user->fresh()->status
         ], 200);
+    }
+
+    /**
+     * Proxy Autenticado: Impede o acesso direto ao arquivo.
+     * Exige token Sanctum válido para autorizar o streaming do documento (Zero Trust).
+     */
+    public function exibirDocumento(Request $request, string $tipo): StreamedResponse|JsonResponse
+    {
+        $user = $request->user();
+        if (!$user->motorista) {
+            return response()->json(['error' => 'Acesso negado. Credenciais inválidas.'], 403);
+        }
+
+        $validTypes = ['doc_cnh', 'doc_selfie_cnh', 'doc_rntrc', 'doc_comprovante_endereco'];
+        
+        if (!in_array($tipo, $validTypes)) {
+            return response()->json(['error' => 'Assinatura de documento inválida.'], 400);
+        }
+
+        $path = $user->motorista->$tipo;
+
+        // Busca estritamente na partição privada
+        if (!$path || !Storage::disk('local')->exists($path)) {
+            return response()->json(['error' => 'Arquivo não localizado no cofre seguro.'], 404);
+        }
+
+        // Devolve o arquivo via Stream, impedindo o parser do servidor web (Nginx/FrankenPHP) de expor o path absoluto.
+        return Storage::disk('local')->response($path);
     }
 }
