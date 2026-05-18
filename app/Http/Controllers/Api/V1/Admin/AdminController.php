@@ -574,6 +574,7 @@ class AdminController extends Controller
             ['email' => $validated['email_contato']],
             [
                 'name' => 'B2B - ' . $validated['nome_parceiro'],
+                'phone' => '00000000000',
                 'password' => Hash::make(Str::random(40)),
                 'role_id' => Role::where('slug', 'embarcador')->value('id') ?? 1, // Utilizador sem painel, apenas API
                 'status' => 'active'
