@@ -113,7 +113,7 @@ const menuItens = [
       { label: 'SAC N1 (Atendimento)', route: 'AdminSuporte', roles: ['admin', 'manager', 'suporte_n1'] },
       { label: 'Mural de Fretes', route: 'AdminFretes', roles: ['admin', 'manager'] },
       { label: 'Resolução de Disputas', route: 'AdminDisputas', roles: ['admin', 'manager', 'compliance'] },
-      { label: 'Arquivo Morto (Auditoria)', route: 'AdminHistoricoFretes', roles: ['admin', 'manager', 'compliance'] } // <== NOVA ROTA INJETADA
+      { label: 'Arquivo Morto (Auditoria)', route: 'AdminHistoricoFretes', roles: ['admin', 'manager', 'compliance'] }
     ]
   },
   {
@@ -142,7 +142,8 @@ const menuItens = [
     roles: ['admin'],
     submenus: [
       { label: 'Staff & Permissões', route: 'AdminStaff', roles: ['admin'] },
-      { label: 'Variáveis Globais', route: 'AdminConfig', roles: ['admin'] }
+      { label: 'Variáveis Globais', route: 'AdminConfig', roles: ['admin'] },
+      { label: 'Integrações & APIs', route: 'AdminParceirosApi', roles: ['admin'] } // <== NOVA ROTA B2B INJETADA
     ]
   }
 ];

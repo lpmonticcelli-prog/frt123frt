@@ -125,6 +125,15 @@ Route::prefix('v1')->group(function () {
             Route::get('/config/variaveis', [AdminController::class, 'listarVariaveis']);
             
             Route::get('/crm/parceiros', [ParceiroController::class, 'index']);
+
+            // =========================================================
+            // API GATEWAY (Gestão de Integrações M2M)
+            // =========================================================
+            Route::middleware('role:admin')->group(function () {
+                Route::get('/parceiros-api', [AdminController::class, 'listarParceirosApi']);
+                Route::post('/parceiros-api', [AdminController::class, 'gerarTokenParceiro']);
+                Route::post('/parceiros-api/{id}/revogar', [AdminController::class, 'revogarTokenParceiro']);
+            });
         });
 
         // =========================================================
@@ -141,6 +150,13 @@ Route::prefix('v1')->group(function () {
             Route::put('/crm/parceiros/{parceiro}', [ParceiroController::class, 'update']);
             Route::delete('/crm/parceiros/{parceiro}', [ParceiroController::class, 'destroy']);
         });
+    });
+
+    // =========================================================
+    // OPEN API B2B: PARCEIROS E GERENCIADORAS DE RISCO (GR / e3)
+    // =========================================================
+    Route::middleware(['auth:sanctum', 'ability:gr-partner'])->prefix('partners/gr')->group(function () {
+        Route::post('/analise/callback', [\App\Http\Controllers\Api\V1\Partners\GrIntegrationController::class, 'registrarAnalise']);
     });
 
     Route::put('/upload-mock', function() { return response()->json(['ok' => true]); });

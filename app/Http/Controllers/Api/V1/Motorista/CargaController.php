@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Carga;
 use App\Models\Ciot;
 use App\Contracts\PefGatewayInterface;
+use App\Jobs\SolicitarAnaliseRiscoGrJob; // Injeção do Job de Seguradora
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -41,7 +42,7 @@ class CargaController extends Controller
     public function aceitar(Request $request, $id, PefGatewayInterface $pefGateway)
     {
         $user = $request->user();
-        if (!$user->motorista) return response()->json(['error' => 'Acesso negado. Crie seu perfil.'], 403);
+        if (!$user->motorista) return response()->json(['error' => 'Acesso negado. Crie o seu perfil.'], 403);
 
         // 1. Trava da Carga (Pessimistic Locking) para evitar aceite duplo
         $carga = DB::transaction(function () use ($id, $user) {
@@ -51,68 +52,57 @@ class CargaController extends Controller
                 abort(409, 'Carga indisponível ou assumida por outro motorista.');
             }
 
-            $carga->update(['status' => 'processando_aceite', 'motorista_id' => $user->motorista->id]);
+            // BLINDAGEM: Em vez de assumir, a carga entra em Quarentena de Risco (GR)
+            $carga->update(['status' => 'em_analise_gr', 'motorista_id' => $user->motorista->id]);
             return $carga;
         });
 
         try {
-            $idempotencyKey = (string) Str::uuid();
+            // 2. Gera o Termo Jurídico de Intenção (Regra preservada integralmente)
+            $valorFormatado = number_format($carga->valor_frete, 2, ',', '.');
+            $termoContrato = "CONTRATO DE TRANSPORTE AUTÔNOMO DE CARGA. Pelo presente aceite eletrônico, o motorista {$user->name} demonstra intenção de realizar o transporte da carga ID {$carga->id}, de {$carga->cidade_origem}/{$carga->uf_origem} para {$carga->cidade_destino}/{$carga->uf_destino} pelo valor de R$ {$valorFormatado}. Este aceite está condicionado à aprovação de perfil pela Seguradora (GR).";
+            $termoHash = hash('sha256', $termoContrato);
 
-            // 2. Chamada ao PEF Gateway (No lab, usa o Mock)
-            $respostaPef = $pefGateway->emitirCiot($carga);
-            
-            if (!$respostaPef->sucesso) {
-                $carga->update(['status' => 'publicada', 'motorista_id' => null]);
-                abort(422, 'Erro na emissão do CIOT: ' . $respostaPef->mensagemErro);
-            }
+            DB::table('carga_aceites_log')->insert([
+                'carga_id' => $carga->id,
+                'motorista_id' => $user->motorista->id,
+                'ip_address' => $request->ip(),
+                'user_agent' => substr($request->userAgent() ?? 'App Motorista', 0, 255),
+                'termo_hash' => $termoHash,
+                'aceito_em' => now(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
 
-            // 3. Consolidação (Cria o CIOT, o Termo Jurídico e Avança o Status)
-            DB::transaction(function () use ($carga, $user, $respostaPef, $idempotencyKey, $request) {
-                
-                Ciot::create([
-                    'idempotency_key' => $idempotencyKey,
-                    'carga_id' => $carga->id,
-                    'embarcador_id' => $carga->embarcador_id,
-                    'motorista_id' => $user->motorista->id,
-                    'codigo_ciot' => $respostaPef->codigoCiot,
-                    // CIRURGIA: Forçamos o status para 'emitido' para simular o Webhook automático
-                    'status' => 'emitido', 
-                    'valor_frete_bruto' => $respostaPef->bruto,
-                    'imposto_inss' => $respostaPef->inss,
-                    'imposto_sest_senat' => $respostaPef->sestSenat,
-                    'imposto_irrf' => $respostaPef->irrf,
-                    'valor_vale_pedagio' => $respostaPef->valePedagio,
-                    'taxa_123fretei' => $respostaPef->taxa123fretei,
-                    'valor_frete_liquido' => $respostaPef->liquidoMotorista,
-                    'pef_payload_response' => $respostaPef->payloadOriginal,
-                ]);
+            // 3. Dispara o Job de Integração com a Seguradora (Executa em Background na Fila)
+            SolicitarAnaliseRiscoGrJob::dispatch($carga->id);
 
-                // Gera o Termo Jurídico Assinado
-                $valorFormatado = number_format($carga->valor_frete, 2, ',', '.');
-                $termoContrato = "CONTRATO DE TRANSPORTE AUTÔNOMO DE CARGA. Pelo presente aceite eletrônico, o motorista {$user->name} aceita realizar o transporte da carga ID {$carga->id}, de {$carga->cidade_origem}/{$carga->uf_origem} para {$carga->cidade_destino}/{$carga->uf_destino} pelo valor de R$ {$valorFormatado}.";
-                $termoHash = hash('sha256', $termoContrato);
+            /*
+             * =================================================================
+             * CÓDIGO PRESERVADO: EMISSÃO DE CIOT E INTEGRAÇÃO PEF
+             * =================================================================
+             * O código abaixo foi congelado nesta camada. Numa arquitetura limpa,
+             * não devemos emitir (e pagar a taxa de) um CIOT antes da seguradora
+             * aprovar o perfil do motorista. 
+             * * Este bloco exato será executado no Callback da GR ou num novo Job 
+             * 'EmitirCiotJob' assim que a e3 devolver o status 'aprovado'.
+             * * $idempotencyKey = (string) Str::uuid();
+             * $respostaPef = $pefGateway->emitirCiot($carga);
+             * if (!$respostaPef->sucesso) { ... abortar ... }
+             * Ciot::create([ ... 'codigo_ciot' => $respostaPef->codigoCiot ... ]);
+             * $carga->update(['status' => 'aguardando_coleta']);
+             * =================================================================
+             */
 
-                DB::table('carga_aceites_log')->insert([
-                    'carga_id' => $carga->id,
-                    'motorista_id' => $user->motorista->id,
-                    'ip_address' => $request->ip(),
-                    'user_agent' => substr($request->userAgent() ?? 'App Motorista', 0, 255),
-                    'termo_hash' => $termoHash,
-                    'aceito_em' => now(),
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
-
-                // CIRURGIA FINAL: Avança a carga diretamente, quebrando o ciclo de espera do Webhook
-                $carga->update(['status' => 'aguardando_coleta']);
-            });
-
-            return response()->json(['message' => 'Frete assinado e CIOT validado. Viagem liberada para iniciar!'], 200);
+            return response()->json([
+                'message' => 'Frete reservado com sucesso! O seu perfil está em análise pela Seguradora. Será notificado em instantes.'
+            ], 200);
 
         } catch (\Exception $e) {
+            // Em caso de falha catastrófica ao agendar o Job, a carga volta ao Mural
             $carga->update(['status' => 'publicada', 'motorista_id' => null]);
-            Log::error('[CRÍTICO] Falha no aceite da carga ID ' . $id . ': ' . $e->getMessage());
-            return response()->json(['error' => 'Falha de comunicação com a ANTT.'], 500);
+            Log::error('[CRÍTICO] Falha ao enviar para GR a carga ID ' . $id . ': ' . $e->getMessage());
+            return response()->json(['error' => 'Falha ao processar a análise de risco.'], 500);
         }
     }
 
@@ -122,7 +112,12 @@ class CargaController extends Controller
             $carga = Carga::lockForUpdate()->findOrFail($id);
 
             if ($carga->motorista_id !== $request->user()->motorista->id) abort(403, 'Operação negada.');
-            if (!in_array($carga->status, ['aguardando_coleta', 'processando_aceite'])) abort(400, 'Status inválido para cancelamento.');
+            
+            // BLINDAGEM: Permitir cancelamento caso o motorista esteja 'preso' na análise GR
+            $statusPermitidos = ['aguardando_coleta', 'processando_aceite', 'em_analise_gr', 'aceita'];
+            if (!in_array($carga->status, $statusPermitidos)) {
+                abort(400, 'Status inválido para cancelamento.');
+            }
 
             $ciot = Ciot::where('carga_id', $carga->id)->first();
             if ($ciot) {
@@ -142,7 +137,11 @@ class CargaController extends Controller
         DB::transaction(function () use ($request, $id) {
             $carga = Carga::lockForUpdate()->findOrFail($id);
             if ($carga->motorista_id !== $request->user()->motorista->id) abort(403, 'Operação negada.');
-            if ($carga->status !== 'aguardando_coleta') abort(400, 'Status inválido. Aguarde a liberação do CIOT.');
+            
+            // Aceita tanto 'aguardando_coleta' como 'aceita' (aprovada pela GR)
+            if (!in_array($carga->status, ['aguardando_coleta', 'aceita'])) {
+                abort(400, 'Status inválido. Aguarde a liberação do CIOT e da GR.');
+            }
 
             $carga->update(['status' => 'em_transito']);
         });

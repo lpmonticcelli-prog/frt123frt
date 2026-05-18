@@ -81,7 +81,10 @@ const routes = [
             { path: 'extrato', name: 'AdminExtrato', component: () => import('../views/Admin/ExtratoTaxas.vue'), meta: { title: 'Extrato & Taxas', role: ['admin'] } },
             { path: 'faturamento', name: 'AdminFaturamento', component: () => import('../views/Admin/Faturamento.vue'), meta: { title: 'Faturamento', role: ['admin'] } },
             { path: 'staff', name: 'AdminStaff', component: () => import('../views/Admin/Staff.vue'), meta: { title: 'Staff & Permissões', role: ['admin'] } },
-            { path: 'config', name: 'AdminConfig', component: () => import('../views/Admin/VariaveisGlobais.vue'), meta: { title: 'Variáveis Globais', role: ['admin'] } }
+            { path: 'config', name: 'AdminConfig', component: () => import('../views/Admin/VariaveisGlobais.vue'), meta: { title: 'Variáveis Globais', role: ['admin'] } },
+            
+            // NOVA ROTA: API GATEWAY (B2B)
+            { path: 'parceiros-api', name: 'AdminParceirosApi', component: () => import('../views/Admin/ParceirosApi.vue'), meta: { title: 'Integrações & APIs', role: ['admin'] } }
         ]
     }
 ];

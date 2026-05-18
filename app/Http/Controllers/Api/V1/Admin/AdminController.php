@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log; 
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AdminController extends Controller
@@ -322,10 +323,6 @@ class AdminController extends Controller
         return Storage::disk('local')->response($path);
     }
 
-    /**
-     * NOVO: Proxy Seguro para o Admin visualizar os documentos KYC (CNH, CNPJ, etc)
-     * que estão restritos no disco local (Cofre).
-     */
     public function exibirDocumentoKyc(Request $request)
     {
         $path = $request->query('path');
@@ -542,5 +539,72 @@ class AdminController extends Controller
         Log::warning("SysAdmin: Variáveis globais do sistema alteradas pelo Admin ID " . auth()->id());
 
         return response()->json(['message' => 'Variáveis operacionais atualizadas com sucesso.']);
+    }
+
+    // ==========================================
+    // NOVOS MÓDULOS: GESTÃO DE INTEGRAÇÕES (API GATEWAY)
+    // ==========================================
+    public function listarParceirosApi()
+    {
+        // Puxamos todas as chaves ativas geradas pelo sistema com os seus respectivos scopes
+        $tokens = \Laravel\Sanctum\PersonalAccessToken::with('tokenable')
+            ->where('name', 'like', 'API-%')
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return response()->json($tokens);
+    }
+
+    public function gerarTokenParceiro(Request $request)
+    {
+        if ($request->user()->role->slug !== 'admin') {
+            abort(403, 'Ação restrita. Apenas administradores raiz podem gerar chaves de integração.');
+        }
+
+        $validated = $request->validate([
+            'nome_parceiro' => 'required|string|max:255',
+            'tipo_acesso'   => 'required|in:gr-partner,seguradora-partner,erp-partner,gateway-partner',
+            'email_contato' => 'required|email'
+        ]);
+
+        // Criamos o "Utilizador Fantasma" para o parceiro, para que a chave fique vinculada a ele
+        $parceiro = User::firstOrCreate(
+            ['email' => $validated['email_contato']],
+            [
+                'name' => 'B2B - ' . $validated['nome_parceiro'],
+                'password' => Hash::make(Str::random(40)),
+                'role_id' => Role::where('slug', 'embarcador')->value('id') ?? 1, // Utilizador sem painel, apenas API
+                'status' => 'active'
+            ]
+        );
+
+        $tokenName = 'API - ' . $validated['nome_parceiro'];
+        
+        // Gera a Chave Blindada e estampa a Habilidade Específica
+        $token = $parceiro->createToken($tokenName, [$validated['tipo_acesso']])->plainTextToken;
+
+        Log::warning("API Gateway: Nova chave gerada para {$validated['nome_parceiro']} ({$validated['tipo_acesso']}) pelo Admin ID " . auth()->id());
+
+        return response()->json([
+            'message' => 'Token B2B gerado com sucesso. Copie agora, pois não será exibido novamente.',
+            'token' => $token,
+            'parceiro' => $parceiro->name,
+            'scope' => $validated['tipo_acesso']
+        ]);
+    }
+
+    public function revogarTokenParceiro(Request $request, $tokenId)
+    {
+        if ($request->user()->role->slug !== 'admin') {
+            abort(403, 'Ação restrita. Acesso negado ao Kill Switch.');
+        }
+
+        $token = \Laravel\Sanctum\PersonalAccessToken::findOrFail($tokenId);
+        $tokenName = $token->name;
+        $token->delete();
+
+        Log::warning("API Gateway: Kill Switch ativado. Integração {$tokenName} revogada pelo Admin ID " . auth()->id());
+
+        return response()->json(['message' => 'Acesso revogado com sucesso. A porta da API foi fechada para este parceiro.']);
     }
 }
