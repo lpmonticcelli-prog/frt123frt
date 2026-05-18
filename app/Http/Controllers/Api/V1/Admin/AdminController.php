@@ -13,6 +13,8 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log; 
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Mail; // INJETADO PARA O DISPARO B2B
+use App\Mail\B2bCredentialMail;      // INJETADO PARA O DISPARO B2B
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -546,9 +548,9 @@ class AdminController extends Controller
     // ==========================================
     public function listarParceirosApi()
     {
-        // Puxamos todas as chaves ativas geradas pelo sistema com os seus respectivos scopes
+        // CORREÇÃO CIRÚRGICA: Alterado de 'API-%' para 'API%' para capturar qualquer variação de espaçamento
         $tokens = \Laravel\Sanctum\PersonalAccessToken::with('tokenable')
-            ->where('name', 'like', 'API-%')
+            ->where('name', 'like', 'API%')
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -583,10 +585,23 @@ class AdminController extends Controller
         // Gera a Chave Blindada e estampa a Habilidade Específica
         $token = $parceiro->createToken($tokenName, [$validated['tipo_acesso']])->plainTextToken;
 
+        // ======================================================
+        // A INJEÇÃO DE AUTOMAÇÃO (Disparo do E-mail)
+        // ======================================================
+        try {
+            Mail::to($validated['email_contato'])->send(
+                new B2bCredentialMail($validated['nome_parceiro'], $token, $validated['tipo_acesso'])
+            );
+            Log::info("API Gateway: E-mail de credenciais enviado para {$validated['email_contato']}");
+        } catch (\Exception $e) {
+            Log::error("API Gateway: Falha ao enviar e-mail de credencial para {$validated['email_contato']} - Erro: " . $e->getMessage());
+            // Não travamos o processo se o e-mail falhar, pois o token ainda será exibido no ecrã do administrador.
+        }
+
         Log::warning("API Gateway: Nova chave gerada para {$validated['nome_parceiro']} ({$validated['tipo_acesso']}) pelo Admin ID " . auth()->id());
 
         return response()->json([
-            'message' => 'Token B2B gerado com sucesso. Copie agora, pois não será exibido novamente.',
+            'message' => 'Token B2B gerado com sucesso e enviado por e-mail para a corretora.',
             'token' => $token,
             'parceiro' => $parceiro->name,
             'scope' => $validated['tipo_acesso']
