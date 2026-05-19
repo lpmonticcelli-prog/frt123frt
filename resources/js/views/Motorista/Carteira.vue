@@ -24,7 +24,7 @@
 
       <div v-if="loading" class="p-12 text-center text-slate-500 font-bold">A carregar livro-razão...</div>
       
-      <div v-else-if="transacoes.length === 0" class="p-12 text-center">
+      <div v-else-if="!transacoes || transacoes.length === 0" class="p-12 text-center">
         <p class="text-slate-500 font-bold">Nenhuma movimentação financeira encontrada.</p>
       </div>
 
@@ -36,7 +36,7 @@
             </div>
             <div>
               <p class="text-sm font-bold text-slate-900">{{ t.descricao }}</p>
-              <p class="text-xs text-slate-500">{{ new Date(t.created_at).toLocaleString() }}</p>
+              <p class="text-xs text-slate-500">{{ new Date(t.created_at).toLocaleString('pt-BR') }}</p>
             </div>
           </div>
           <div :class="t.tipo === 'credito' ? 'text-green-600' : 'text-red-600'" class="text-base font-black text-right">
@@ -61,12 +61,18 @@ const formatMoney = (value) => {
 };
 
 const carregarExtrato = async () => {
+  loading.value = true;
   try {
     const response = await axios.get('/api/v1/motorista/carteira/extrato');
-    saldo.value = response.data.saldo_disponivel;
-    transacoes.value = response.data.transacoes;
+    
+    // CORREÇÃO CIRÚRGICA: Garantia de tipagem (Fallback para 0 e Array vazio)
+    saldo.value = response.data?.saldo_disponivel || 0;
+    transacoes.value = response.data?.transacoes || [];
+    
   } catch (error) {
     console.error('Erro ao carregar carteira', error);
+    saldo.value = 0;
+    transacoes.value = [];
   } finally {
     loading.value = false;
   }

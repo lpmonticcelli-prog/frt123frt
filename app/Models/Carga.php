@@ -29,18 +29,38 @@ class Carga extends Model
         'taxa_plataforma' => 'decimal:2',
     ];
 
-    public function embarcador() { return $this->belongsTo(Embarcador::class); }
-    public function motorista() { return $this->belongsTo(Motorista::class); }
+    public function embarcador() 
+    { 
+        return $this->belongsTo(Embarcador::class); 
+    }
+
+    public function motorista() 
+    { 
+        return $this->belongsTo(Motorista::class); 
+    }
+
+    // =========================================================
+    // RELACIONAMENTOS LEGADOS (Mesa de Operações e Auditoria)
+    // =========================================================
     public function aceite_log() { return $this->hasOne(CargaAceiteLog::class, 'carga_id', 'id'); }
     public function publicacao_log() { return $this->hasOne(CargaPublicacaoLog::class, 'carga_id', 'id'); }
     public function ciot() { return $this->hasOne(Ciot::class, 'carga_id', 'id'); }
 
-    // =========================================================
-    // INJEÇÃO DA AUDITORIA 360º (PLURAL - HAS MANY)
-    // Permite que o AdminController extraia todos os eventos do frete
-    // =========================================================
     public function aceitesLog() { return $this->hasMany(CargaAceiteLog::class, 'carga_id', 'id'); }
     public function publicacoesLog() { return $this->hasMany(CargaPublicacaoLog::class, 'carga_id', 'id'); }
+
+    // =========================================================
+    // NOVO PARADIGMA: MARKETPLACE & REPUTAÇÃO (BIDDING)
+    // =========================================================
+    public function candidaturas() 
+    { 
+        return $this->hasMany(CargaCandidatura::class, 'carga_id', 'id'); 
+    }
+
+    public function avaliacao() 
+    { 
+        return $this->hasOne(Avaliacao::class, 'carga_id', 'id'); 
+    }
 
     protected static function booted()
     {

@@ -24,12 +24,19 @@ class Motorista extends Model
         'doc_rntrc',                // KYC: Caminho do documento RNTRC
         'doc_comprovante_endereco', // KYC: Caminho do comprovante de endereço
         'status_verificacao',       // KYC: Status da análise (pendente, em_analise, aprovado, rejeitado)
+        // NOVOS CAMPOS: SISTEMA DE REPUTAÇÃO E ANTI-TRUST
+        'score_geral',
+        'total_viagens',
+        'tier_reputacao',
+        'suspenso_ate'
     ];
 
     // Casts garantem que o Laravel converta os dados para os tipos corretos na API
     protected $casts = [
         'validade_cnh' => 'date',
         'is_disponivel' => 'boolean',
+        'score_geral' => 'decimal:2',
+        'suspenso_ate' => 'datetime',
     ];
 
     /**
@@ -47,5 +54,18 @@ class Motorista extends Model
     public function cargas()
     {
         return $this->hasMany(Carga::class);
+    }
+
+    // =========================================================
+    // NOVO PARADIGMA: MARKETPLACE & REPUTAÇÃO (BIDDING)
+    // =========================================================
+    public function candidaturas()
+    {
+        return $this->hasMany(CargaCandidatura::class);
+    }
+
+    public function avaliacoes()
+    {
+        return $this->hasMany(Avaliacao::class);
     }
 }

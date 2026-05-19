@@ -52,7 +52,7 @@
                 <div class="text-sm text-gray-500 capitalize">{{ carga?.tipo_carroceria?.replace('_', ' ') || 'N/A' }}</div>
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-sm font-black text-green-700">
-                R$ {{ carga?.valor_frete || '0.00' }}
+                R$ {{ parseFloat(carga?.valor_frete || 0).toFixed(2) }}
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-right">
                 <div class="flex justify-end space-x-2">
@@ -69,7 +69,7 @@
                     :disabled="!carga?.id"
                     class="inline-flex justify-center items-center px-4 py-2 bg-blue-600 text-white font-bold rounded shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors disabled:opacity-50"
                   >
-                    Analisar
+                    Analisar Lance
                   </button>
                 </div>
               </td>
@@ -116,8 +116,8 @@
                 </svg>
               </div>
               <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
-                <h3 class="text-lg leading-6 font-black text-gray-900" id="modal-title">Assinatura de Contrato de Frete</h3>
-                <div class="mt-2 text-sm text-gray-500">Ao confirmar, você assinará digitalmente o compromisso de transporte desta carga.</div>
+                <h3 class="text-lg leading-6 font-black text-gray-900" id="modal-title">Enviar Lance (Candidatura)</h3>
+                <div class="mt-2 text-sm text-gray-500">Ao confirmar, o seu perfil entrará na fila de avaliação do Embarcador para esta carga.</div>
 
                 <div class="mt-4 bg-gray-50 border border-gray-200 rounded-lg p-4">
                   <div class="grid grid-cols-2 gap-4 text-sm">
@@ -135,20 +135,20 @@
                     </div>
                     <div class="col-span-2 border-t border-gray-200 pt-2 mt-1">
                       <span class="block text-xs font-bold text-gray-500 uppercase">Valor a Receber</span>
-                      <strong class="text-green-600 text-xl font-black">R$ {{ cargaSelecionada?.valor_frete }}</strong>
+                      <strong class="text-green-600 text-xl font-black">R$ {{ parseFloat(cargaSelecionada?.valor_frete || 0).toFixed(2) }}</strong>
                     </div>
                   </div>
                 </div>
 
                 <div class="mt-4 bg-yellow-50 p-3 rounded text-xs text-yellow-800 border border-yellow-200 text-justify">
-                  <strong>DECLARAÇÃO LEGAL:</strong> Declaro que possuo CNH e RNTRC válidos para a categoria exigida e assumo a responsabilidade civil sobre a mercadoria a partir do momento da coleta. Meu endereço IP e informações de sessão serão registrados para fins de auditoria.
+                  <strong>DECLARAÇÃO LEGAL:</strong> Declaro que possuo CNH e RNTRC válidos para a categoria exigida e assumo a responsabilidade civil sobre a mercadoria a partir do momento da coleta caso o lance seja aprovado.
                 </div>
               </div>
             </div>
           </div>
           <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse border-t border-gray-200">
             <button type="button" @click="confirmarAceite" :disabled="actionLoading" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-bold text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50">
-              {{ actionLoading ? 'Processando Assinatura...' : 'Assinar e Aceitar Frete' }}
+              {{ actionLoading ? 'Enviando...' : 'Enviar Lance' }}
             </button>
             <button type="button" @click="fecharModalAceite" :disabled="actionLoading" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-300 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
               Cancelar
@@ -220,21 +220,13 @@ const loading = ref(true);
 const actionLoading = ref(false);
 const ticketLoading = ref(false);
 
-const pagination = ref({
-  current_page: 1,
-  last_page: 1,
-  total: 0
-});
+const pagination = ref({ current_page: 1, last_page: 1, total: 0 });
 
 const showModalAceite = ref(false);
 const showModalTicket = ref(false);
 const cargaSelecionada = ref(null);
 
-const ticketForm = ref({
-  categoria: 'Dúvida Técnica',
-  assunto: '',
-  mensagem: ''
-});
+const ticketForm = ref({ categoria: 'Dúvida Técnica', assunto: '', mensagem: '' });
 
 const formatData = (dataStr) => {
   if (!dataStr) return '--';
@@ -251,14 +243,9 @@ const fetchCargas = async (page = 1) => {
   loading.value = true;
   try {
     const response = await axios.get(`/api/v1/motorista/cargas/disponiveis?page=${page}`);
-    
     if (response.data && response.data.data) {
       cargas.value = response.data.data;
-      pagination.value = {
-        current_page: response.data.current_page,
-        last_page: response.data.last_page,
-        total: response.data.total
-      };
+      pagination.value = { current_page: response.data.current_page, last_page: response.data.last_page, total: response.data.total };
     } else {
       cargas.value = response.data || [];
     }
@@ -270,68 +257,44 @@ const fetchCargas = async (page = 1) => {
   }
 };
 
-const abrirModalAceite = (carga) => {
-  cargaSelecionada.value = carga;
-  showModalAceite.value = true;
-};
-
-const fecharModalAceite = () => {
-  showModalAceite.value = false;
-  cargaSelecionada.value = null;
-};
+const abrirModalAceite = (carga) => { cargaSelecionada.value = carga; showModalAceite.value = true; };
+const fecharModalAceite = () => { showModalAceite.value = false; cargaSelecionada.value = null; };
 
 const confirmarAceite = async () => {
   if (!cargaSelecionada.value?.id) return;
-  
   actionLoading.value = true;
   try {
     const response = await axios.post(`/api/v1/motorista/cargas/${cargaSelecionada.value.id}/aceitar`);
-    alert(response.data.message || 'Frete assinado e aceito com sucesso!');
+    alert(response.data.message || 'Lance enviado com sucesso!');
     fecharModalAceite();
-    router.push({ name: 'MotoristaMeusFretes' });
+    
+    // NAVEGA PARA A TELA ONDE ELE PODE VER O STATUS DO LANCE (MeusFretes.vue)
+    router.push({ name: 'MeusFretes' }); 
   } catch (error) {
-    console.error('Erro ao aceitar:', error);
     if (error.response?.status === 409) {
-      alert('Infelizmente outro motorista foi mais rápido e já aceitou esta carga.');
+      alert(error.response?.data?.error || 'Infelizmente a carga já não está mais disponível.');
       fecharModalAceite();
       fetchCargas(pagination.value.current_page);
     } else {
-      alert(error.response?.data?.message || 'Erro de conexão ao tentar aceitar o frete.');
+      alert(error.response?.data?.message || 'Erro de conexão ao tentar enviar o lance.');
     }
   } finally {
     actionLoading.value = false;
   }
 };
 
-const abrirModalTicket = (carga) => {
-  cargaSelecionada.value = carga;
-  ticketForm.value = { categoria: 'Dúvida Técnica', assunto: '', mensagem: '' };
-  showModalTicket.value = true;
-};
-
-const fecharModalTicket = () => {
-  showModalTicket.value = false;
-  cargaSelecionada.value = null;
-};
+const abrirModalTicket = (carga) => { cargaSelecionada.value = carga; ticketForm.value = { categoria: 'Dúvida Técnica', assunto: '', mensagem: '' }; showModalTicket.value = true; };
+const fecharModalTicket = () => { showModalTicket.value = false; cargaSelecionada.value = null; };
 
 const enviarTicket = async () => {
   if (!cargaSelecionada.value?.id) return;
-  
   ticketLoading.value = true;
   try {
-    const payload = {
-      assunto: ticketForm.value.assunto,
-      categoria: ticketForm.value.categoria,
-      carga_id: cargaSelecionada.value.id,
-      mensagem: ticketForm.value.mensagem
-    };
-
+    const payload = { assunto: ticketForm.value.assunto, categoria: ticketForm.value.categoria, carga_id: cargaSelecionada.value.id, mensagem: ticketForm.value.mensagem };
     const response = await axios.post('/api/v1/suporte/tickets', payload);
-    
     alert(response.data.message || 'Chamado aberto com sucesso! Nossa equipe retornará em breve.');
     fecharModalTicket();
   } catch (error) {
-    console.error('Erro ao abrir ticket:', error);
     alert(error.response?.data?.message || 'Falha de comunicação ao tentar abrir o chamado.');
   } finally {
     ticketLoading.value = false;
@@ -340,35 +303,22 @@ const enviarTicket = async () => {
 
 onMounted(() => {
   fetchCargas();
-
-  // MALHA DE EVENTOS REAL-TIME (Eliminação de Race Conditions)
   if (window.Echo) {
     window.Echo.channel('mural.fretes')
       .listen('.CargaAtualizada', (e) => {
         if (!cargas.value) return;
-        
         const index = cargas.value.findIndex(c => c.id === e.carga.id);
-        
         if (e.carga.status === 'publicada') {
-          if (index !== -1) {
-            cargas.value[index] = e.carga;
-          } else {
-            // Nova carga ou regressou ao status publicada, coloca no topo da lista
-            cargas.value.unshift(e.carga);
-          }
+          if (index !== -1) cargas.value[index] = e.carga;
+          else cargas.value.unshift(e.carga);
         } else {
-          // Se a carga foi assumida por outro motorista, cancelada, etc... desaparece do mural instantaneamente
-          if (index !== -1) {
-            cargas.value.splice(index, 1);
-          }
+          if (index !== -1) cargas.value.splice(index, 1);
         }
       });
   }
 });
 
 onBeforeUnmount(() => {
-  if (window.Echo) {
-    window.Echo.leaveChannel('mural.fretes');
-  }
+  if (window.Echo) window.Echo.leaveChannel('mural.fretes');
 });
 </script>

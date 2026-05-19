@@ -1,5 +1,4 @@
 <?php
-
 declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1\Motorista;
@@ -13,13 +12,9 @@ use Illuminate\Http\JsonResponse;
 
 class PerfilController extends Controller
 {
-    /**
-     * Retorna os dados completos do perfil do motorista logado mapeado com URLs Seguras.
-     */
     public function show(Request $request): JsonResponse
     {
         $user = $request->user();
-        
         $user->loadMissing(['role', 'motorista']);
 
         if (!$user->role || $user->role->slug !== 'motorista' || !$user->motorista) {
@@ -28,7 +23,6 @@ class PerfilController extends Controller
 
         $motorista = $user->motorista;
 
-        // Mapeamento Estrito de Saída (Data Contract)
         return response()->json([
             'id' => $motorista->id,
             'nome' => $user->name,
@@ -41,8 +35,6 @@ class PerfilController extends Controller
             'is_disponivel' => $motorista->is_disponivel,
             'status_conta' => $user->status,
             'status_verificacao' => $motorista->status_verificacao,
-            
-            // URLs SECURE: Apontam para o proxy autenticado e nunca para o disco público
             'doc_cnh_url' => $motorista->doc_cnh ? url("/api/v1/motorista/perfil/documento/doc_cnh") : null,
             'doc_selfie_cnh_url' => $motorista->doc_selfie_cnh ? url("/api/v1/motorista/perfil/documento/doc_selfie_cnh") : null,
             'doc_rntrc_url' => $motorista->doc_rntrc ? url("/api/v1/motorista/perfil/documento/doc_rntrc") : null,
@@ -50,10 +42,7 @@ class PerfilController extends Controller
         ]);
     }
 
-    /**
-     * Recebe e processa o upload de documentos KYC para a partição privada.
-     */
-    public function uploadDocumentos(Request $request): JsonResponse
+    public function update(Request $request): JsonResponse
     {
         $user = $request->user();
         $user->loadMissing(['role', 'motorista']);
@@ -70,23 +59,16 @@ class PerfilController extends Controller
             'doc_rntrc' => 'nullable|file|mimes:jpeg,png,jpg,pdf|max:10240',
             'doc_comprovante_endereco' => 'nullable|file|mimes:jpeg,png,jpg,pdf|max:10240',
         ], [
-            'mimes' => 'Arquivo suspeito. Apenas imagens (JPG/PNG) ou PDFs são permitidos.',
-            'max' => 'O arquivo excede o limite de 10MB.'
+            'mimes' => 'Arquivo suspeito. Apenas imagens ou PDFs.',
+            'max' => 'O arquivo excede 10MB.'
         ]);
 
         $updates = [];
         $pathPrefix = 'kyc/motorista_' . $motorista->id;
-
-        $documentos = [
-            'doc_cnh',
-            'doc_selfie_cnh',
-            'doc_rntrc',
-            'doc_comprovante_endereco'
-        ];
+        $documentos = ['doc_cnh', 'doc_selfie_cnh', 'doc_rntrc', 'doc_comprovante_endereco'];
 
         foreach ($documentos as $doc) {
             if ($request->hasFile($doc)) {
-                // BLINDAGEM: Utiliza o disco 'local' que está mapeado para storage/app/private (inacessível via web)
                 if ($motorista->$doc && Storage::disk('local')->exists($motorista->$doc)) {
                     Storage::disk('local')->delete($motorista->$doc);
                 }
@@ -97,48 +79,25 @@ class PerfilController extends Controller
         if (!empty($updates)) {
             DB::transaction(function () use ($motorista, $user, $updates) {
                 $motorista->update($updates);
-
-                if (in_array($user->status, ['pending', 'rejected'])) {
-                    $user->update(['status' => 'em_analise']);
-                }
-
-                if (in_array($motorista->status_verificacao, ['pendente', 'rejeitado', null])) {
-                    $motorista->update(['status_verificacao' => 'em_analise']);
-                }
+                if (in_array($user->status, ['pending', 'rejected'])) $user->update(['status' => 'em_analise']);
+                if (in_array($motorista->status_verificacao, ['pendente', 'rejeitado', null])) $motorista->update(['status_verificacao' => 'em_analise']);
             });
         }
 
-        return response()->json([
-            'message' => 'Documentos KYC criptografados e armazenados com segurança.',
-            'status_conta' => $user->fresh()->status
-        ], 200);
+        return response()->json(['message' => 'Documentos armazenados com segurança.', 'status_conta' => $user->fresh()->status], 200);
     }
 
-    /**
-     * Proxy Autenticado: Impede o acesso direto ao arquivo.
-     * Exige token Sanctum válido para autorizar o streaming do documento (Zero Trust).
-     */
     public function exibirDocumento(Request $request, string $tipo): StreamedResponse|JsonResponse
     {
         $user = $request->user();
-        if (!$user->motorista) {
-            return response()->json(['error' => 'Acesso negado. Credenciais inválidas.'], 403);
-        }
+        if (!$user->motorista) return response()->json(['error' => 'Acesso negado.'], 403);
 
         $validTypes = ['doc_cnh', 'doc_selfie_cnh', 'doc_rntrc', 'doc_comprovante_endereco'];
-        
-        if (!in_array($tipo, $validTypes)) {
-            return response()->json(['error' => 'Assinatura de documento inválida.'], 400);
-        }
+        if (!in_array($tipo, $validTypes)) return response()->json(['error' => 'Documento inválido.'], 400);
 
         $path = $user->motorista->$tipo;
+        if (!$path || !Storage::disk('local')->exists($path)) return response()->json(['error' => 'Arquivo não localizado.'], 404);
 
-        // Busca estritamente na partição privada
-        if (!$path || !Storage::disk('local')->exists($path)) {
-            return response()->json(['error' => 'Arquivo não localizado no cofre seguro.'], 404);
-        }
-
-        // Devolve o arquivo via Stream, impedindo o parser do servidor web (Nginx/FrankenPHP) de expor o path absoluto.
         return Storage::disk('local')->response($path);
     }
 }

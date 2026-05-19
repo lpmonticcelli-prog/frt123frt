@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api\V1\Support;
 
 use App\Http\Controllers\Controller;
-
 use App\Models\Ticket;
 use App\Models\TicketMessage;
 use Illuminate\Http\Request;
@@ -15,7 +14,17 @@ class TicketController extends Controller
     // MÓDULOS DO CLIENTE (EMBARCADOR / MOTORISTA)
     // =========================================================
 
-    public function abrirTicket(Request $request)
+    public function index(Request $request)
+    {
+        $tickets = Ticket::with(['staff:id,name', 'carga:id,cidade_origem,cidade_destino'])
+            ->where('user_id', $request->user()->id)
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return response()->json($tickets);
+    }
+
+    public function store(Request $request)
     {
         $validated = $request->validate([
             'assunto' => 'required|string|max:255',
@@ -53,14 +62,46 @@ class TicketController extends Controller
         return response()->json(['message' => 'Chamado aberto com sucesso. Nossa equipa responderá em breve.', 'ticket' => $ticket], 201);
     }
 
-    public function meusTickets(Request $request)
+    public function show(Ticket $ticket, Request $request)
     {
-        $tickets = Ticket::with(['staff:id,name', 'carga:id,cidade_origem,cidade_destino'])
-            ->where('user_id', $request->user()->id)
-            ->orderBy('created_at', 'desc')
-            ->get();
+        $user = $request->user();
+        $user->loadMissing('role');
+        
+        if ($user->role && in_array($user->role->slug, ['motorista', 'embarcador'])) {
+            if ($ticket->user_id !== $user->id) {
+                return response()->json(['message' => 'Acesso negado.'], 403);
+            }
+        }
 
-        return response()->json($tickets);
+        $ticket->load(['user:id,name,email', 'staff:id,name', 'carga', 'messages.user:id,name']);
+        
+        return response()->json($ticket);
+    }
+
+    public function reply(Request $request, Ticket $ticket)
+    {
+        $validated = $request->validate([
+            'mensagem' => 'required|string'
+        ]);
+
+        $user = $request->user();
+        $user->loadMissing('role');
+
+        DB::transaction(function () use ($ticket, $user, $validated) {
+            TicketMessage::create([
+                'ticket_id' => $ticket->id,
+                'user_id' => $user->id,
+                'mensagem' => $validated['mensagem']
+            ]);
+
+            $novoStatus = ($user->role && in_array($user->role->slug, ['motorista', 'embarcador']))
+                ? 'em_atendimento' 
+                : 'aguardando_cliente';
+
+            $ticket->update(['status' => $novoStatus]);
+        });
+
+        return response()->json(['message' => 'Resposta enviada.']);
     }
 
     // =========================================================
@@ -70,8 +111,6 @@ class TicketController extends Controller
     public function listarFilaGlobal(Request $request)
     {
         $user = $request->user();
-        
-        // CORREÇÃO 1: Prevenir Lazy Loading fatal
         $user->loadMissing('role');
         
         $query = Ticket::with(['user:id,name,email', 'carga:id,cidade_origem,cidade_destino']);
@@ -88,7 +127,6 @@ class TicketController extends Controller
             });
         }
 
-        // CORREÇÃO 2: Substituir FIELD por CASE WHEN (Universal SQL, a prova de falhas)
         $tickets = $query->orderByRaw("
             CASE prioridade 
                 WHEN 'urgente' THEN 1 
@@ -114,48 +152,6 @@ class TicketController extends Controller
         ]);
 
         return response()->json(['message' => 'Ticket assumido com sucesso.', 'ticket' => $ticket]);
-    }
-
-    public function exibirTicket(Ticket $ticket, Request $request)
-    {
-        $user = $request->user();
-        $user->loadMissing('role');
-        
-        if ($user->role && in_array($user->role->slug, ['motorista', 'embarcador'])) {
-            if ($ticket->user_id !== $user->id) {
-                return response()->json(['message' => 'Acesso negado.'], 403);
-            }
-        }
-
-        $ticket->load(['user:id,name,email', 'staff:id,name', 'carga', 'messages.user:id,name']);
-        
-        return response()->json($ticket);
-    }
-
-    public function responderTicket(Ticket $ticket, Request $request)
-    {
-        $validated = $request->validate([
-            'mensagem' => 'required|string'
-        ]);
-
-        $user = $request->user();
-        $user->loadMissing('role');
-
-        DB::transaction(function () use ($ticket, $user, $validated) {
-            TicketMessage::create([
-                'ticket_id' => $ticket->id,
-                'user_id' => $user->id,
-                'mensagem' => $validated['mensagem']
-            ]);
-
-            $novoStatus = ($user->role && in_array($user->role->slug, ['motorista', 'embarcador']))
-                ? 'em_atendimento' 
-                : 'aguardando_cliente';
-
-            $ticket->update(['status' => $novoStatus]);
-        });
-
-        return response()->json(['message' => 'Resposta enviada.']);
     }
 
     public function fecharTicket(Ticket $ticket)

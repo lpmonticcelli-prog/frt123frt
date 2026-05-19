@@ -197,7 +197,8 @@ const enviarResposta = async () => {
   
   enviando.value = true;
   try {
-    await axios.post(`/api/v1/suporte/tickets/${ticketSelecionado.value.id}/responder`, {
+    // CIRURGIA: Alinhamento da rota com a API REST
+    await axios.post(`/api/v1/suporte/tickets/${ticketSelecionado.value.id}/mensagens`, {
       mensagem: novaMensagem.value
     });
     

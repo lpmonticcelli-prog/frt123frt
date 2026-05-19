@@ -22,9 +22,13 @@ return Application::configure(basePath: dirname(__DIR__))
         // ==========================================
         // REGISTRO DE MIDDLEWARES CUSTOMIZADOS
         // ==========================================
-        // Conecta o alias 'role' ao guardião de papéis (RBAC)
         $middleware->alias([
+            // Controle de Acesso Base (Role Baseado em Tabela Própria)
             'role' => \App\Http\Middleware\CheckRole::class,
+            
+            // Controle de Acesso Sanctum (Token Abilities) - Restauração
+            'abilities' => \Laravel\Sanctum\Http\Middleware\CheckAbilities::class,
+            'ability' => \Laravel\Sanctum\Http\Middleware\CheckForAnyAbility::class,
         ]);
         
     })

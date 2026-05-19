@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\V1\Embarcador\AuditoriaController;
 use App\Http\Controllers\Api\V1\Motorista\CargaController as MotoristaCargaController;
 use App\Http\Controllers\Api\V1\Motorista\PerfilController as MotoristaPerfilController;
 use App\Http\Controllers\Api\V1\Motorista\PodController; 
+use App\Http\Controllers\Api\V1\Motorista\CarteiraController;
 use App\Http\Controllers\Api\V1\Admin\AdminController;
 use App\Http\Controllers\Api\V1\Admin\ParceiroController;
 use App\Http\Controllers\Api\V1\Admin\FaturamentoController as AdminFaturamentoController;
@@ -20,130 +21,103 @@ use App\Http\Controllers\Api\V1\Webhooks\PefWebhookController;
 
 Route::prefix('v1')->group(function () {
 
+    // =========================================================
+    // AUTENTICAÇÃO E IDENTIDADE
+    // =========================================================
     Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
     Route::post('/forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:3,1');
-    Route::post('/reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:3,1');
-    Route::post('/register/embarcador', [AuthController::class, 'registerEmbarcador'])->middleware('throttle:3,1');
-    Route::post('/register/motorista', [AuthController::class, 'registerMotorista'])->middleware('throttle:3,1');
+    Route::post('/reset-password', [AuthController::class, 'resetPassword']);
+    Route::post('/register/embarcador', [AuthController::class, 'registerEmbarcador']);
+    Route::post('/register/motorista', [AuthController::class, 'registerMotorista']);
 
-    Route::post('/webhooks/pef', [PefWebhookController::class, 'handle'])->middleware('throttle:120,1');
-
-    Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
-        
-        Route::get('/me', [AuthController::class, 'me']);
+    Route::middleware('auth:sanctum')->group(function () {
         Route::post('/logout', [AuthController::class, 'logout']);
+        Route::get('/me', [AuthController::class, 'me']);
+        
+        // =========================================================
+        // DOMÍNIO: SUPORTE, FAQ & HUB (Transversal)
+        // =========================================================
+        Route::get('/suporte/faqs', [FaqController::class, 'index']); // Corrigido para plural
+        Route::get('/suporte/tickets', [TicketController::class, 'index']);
+        Route::post('/suporte/tickets', [TicketController::class, 'store'])->middleware('throttle:5,1');
+        Route::get('/suporte/tickets/{ticket}', [TicketController::class, 'show']);
+        Route::post('/suporte/tickets/{ticket}/mensagens', [TicketController::class, 'reply'])->middleware('throttle:15,1');
+        
+        Route::get('/hub/parceiros', [ParceiroController::class, 'index']); // Rota da Loja Liberada
 
         // =========================================================
-        // HUB: Rotas de consumo (Motoristas e Embarcadores)
+        // DOMÍNIO: EMBARCADOR
         // =========================================================
-        Route::get('/hub/parceiros', [ParceiroController::class, 'listarPorPublico']);
-        Route::post('/hub/parceiros/{parceiro}/clique', [ParceiroController::class, 'registrarClique']);
-
-        Route::prefix('suporte')->group(function () {
-            Route::get('/faqs', [FaqController::class, 'index']);
-            Route::get('/tickets', [TicketController::class, 'meusTickets']);
-            Route::post('/tickets', [TicketController::class, 'abrirTicket']);
-            Route::get('/tickets/{ticket}', [TicketController::class, 'exibirTicket']);
-            Route::post('/tickets/{ticket}/responder', [TicketController::class, 'responderTicket']);
-        });
-
-        Route::middleware('role:embarcador')->prefix('embarcador')->group(function () {
-            Route::post('/cargas', [EmbarcadorCargaController::class, 'store']); 
-            Route::put('/cargas/{carga}', [EmbarcadorCargaController::class, 'update']); 
-            Route::delete('/cargas/{carga}', [EmbarcadorCargaController::class, 'destroy']); 
-            Route::get('/cargas', [EmbarcadorCargaController::class, 'index']); 
-            Route::get('/cargas/{carga}', [EmbarcadorCargaController::class, 'show']); 
-            Route::post('/cargas/{carga}/aprovar', [EmbarcadorCargaController::class, 'aprovarEntrega']);
-            Route::post('/cargas/{carga}/disputa', [AuditoriaController::class, 'abrirDisputa']);
-
-            Route::get('/perfil', [EmbarcadorPerfilController::class, 'show']);
-            Route::put('/perfil', [EmbarcadorPerfilController::class, 'update']);
+        Route::middleware('ability:embarcador')->prefix('embarcador')->group(function () {
+            Route::get('perfil', [EmbarcadorPerfilController::class, 'show']);
+            Route::put('perfil', [EmbarcadorPerfilController::class, 'update']);
             
-            // Faturamento B2B do Embarcador
-            Route::get('/faturas', [FaturaController::class, 'index']);
-            Route::get('/faturas/{id}', [FaturaController::class, 'show']);
-        });
+            Route::apiResource('cargas', EmbarcadorCargaController::class);
+            Route::post('cargas/{carga}/candidaturas/aprovar', [EmbarcadorCargaController::class, 'aprovarCandidato'])->middleware('throttle:10,1');
+            Route::post('cargas/{carga}/avaliar', [EmbarcadorCargaController::class, 'avaliarEFinalizarEntrega'])->middleware('throttle:5,1');
+            Route::post('cargas/{carga}/disputa', [EmbarcadorCargaController::class, 'abrirDisputa'])->middleware('throttle:5,1');
+            
+            Route::get('cargas/{carga}/chat', [EmbarcadorCargaController::class, 'getChat']);
+            Route::post('cargas/{carga}/chat', [EmbarcadorCargaController::class, 'storeChat'])->middleware('throttle:20,1');
 
-        Route::middleware('role:motorista')->prefix('motorista')->group(function () {
-            Route::get('/cargas/disponiveis', [MotoristaCargaController::class, 'disponiveis']); 
-            Route::get('/cargas/minhas', [MotoristaCargaController::class, 'minhasCargas']); 
-            Route::post('/cargas/{id}/aceitar', [MotoristaCargaController::class, 'aceitar'])->middleware('throttle:10,1'); 
-            Route::post('/cargas/{id}/cancelar-aceite', [MotoristaCargaController::class, 'cancelarAceite']); 
-            Route::post('/cargas/{id}/iniciar-viagem', [MotoristaCargaController::class, 'iniciarViagem']); 
-            Route::post('/cargas/{carga}/pod/url', [PodController::class, 'gerarUrlUpload']);
-            Route::post('/cargas/{carga}/pod/confirmar', [PodController::class, 'confirmarEntrega']);
-            
-            Route::get('/carteira/extrato', [\App\Http\Controllers\Api\V1\Motorista\CarteiraController::class, 'extrato']);
-            
-            Route::get('/perfil', [MotoristaPerfilController::class, 'show']);
-            Route::post('/perfil/documentos', [MotoristaPerfilController::class, 'uploadDocumentos']);
-            // ROTA DE PROXY SEGURO DE ARQUIVOS (MOTORISTA)
-            Route::get('/perfil/documento/{tipo}', [MotoristaPerfilController::class, 'exibirDocumento']);
+            Route::get('faturas', [FaturaController::class, 'index']);
+            Route::get('faturas/{fatura}', [FaturaController::class, 'show']);
+            Route::get('auditoria/ciot/{id}', [AuditoriaController::class, 'consultarCiot']);
         });
 
         // =========================================================
-        // BACKOFFICE: Rotas Gerais (Equipa Operacional)
+        // DOMÍNIO: MOTORISTA
         // =========================================================
-        Route::middleware('role:admin,manager,compliance,suporte_n1')->prefix('admin')->group(function () {
-            Route::get('/dashboard-stats', [AdminController::class, 'getDashboardStats']);
-            Route::get('/usuarios-pendentes', [AdminController::class, 'usuariosPendentes']);
-            Route::post('/usuarios/{usuario}/analise', [AdminController::class, 'analisarUsuario']);
-            Route::get('/usuarios', [AdminController::class, 'listarTodosUsuarios']);
-            Route::post('/usuarios/{usuario}/status', [AdminController::class, 'alterarStatus']);
+        Route::middleware('ability:motorista')->prefix('motorista')->group(function () {
             
-            // =========================================================
-            // Gestão de Fretes, Auditoria 360 e Proxies de Arquivos Seguros
-            // =========================================================
-            Route::get('/fretes', [AdminController::class, 'relatorioFretes']);
-            Route::get('/fretes/concluidos', [AdminController::class, 'fretesConcluidos']);
-            Route::get('/fretes/{id}/auditoria', [AdminController::class, 'auditoriaCarga']);
-            Route::get('/auditoria/documento', [AdminController::class, 'exibirDocumentoAuditoria']); // Proxy Foto Canhoto
-            Route::get('/kyc/documento', [AdminController::class, 'exibirDocumentoKyc']); // Proxy Documentos KYC
+            // Perfil & KYC (Alinhado com a sua base)
+            Route::get('perfil', [MotoristaPerfilController::class, 'show']);
+            Route::post('perfil/documentos', [MotoristaPerfilController::class, 'uploadDocumentos']); 
+            Route::get('perfil/documento/{tipo}', [MotoristaPerfilController::class, 'exibirDocumento']); 
             
-            Route::get('/operacoes/fretes', [AdminController::class, 'listarMuralFretes']);
-            Route::get('/operacoes/disputas', [AdminController::class, 'listarDisputas']);
-            Route::post('/operacoes/disputas/{carga}/resolver', [AdminController::class, 'resolverDisputa']);
+            Route::get('carteira/extrato', [CarteiraController::class, 'extrato']);
+            
+            // Gestão de Bidding e Execução
+            Route::get('cargas/disponiveis', [MotoristaCargaController::class, 'disponiveis']);
+            Route::get('cargas/minhas', [MotoristaCargaController::class, 'minhasCargas']);
+            Route::post('cargas/{id}/aceitar', [MotoristaCargaController::class, 'aceitar'])->middleware('throttle:10,1');
+            Route::delete('cargas/{id}/aceitar', [MotoristaCargaController::class, 'cancelarAceite']);
+            Route::post('cargas/{id}/iniciar-viagem', [MotoristaCargaController::class, 'iniciarViagem']);
+            
+            // Fluxo de POD com o seu PodController Base (S3 Mock) preservado
+            Route::post('cargas/{carga}/pod/url', [PodController::class, 'gerarUrlUpload']);
+            Route::post('cargas/{carga}/pod/confirmar', [PodController::class, 'confirmarEntrega']);
 
-            Route::prefix('suporte')->group(function () {
-                Route::get('/tickets', [TicketController::class, 'listarFilaGlobal']);
-                Route::get('/tickets/{ticket}', [TicketController::class, 'exibirTicket']);
-                Route::post('/tickets/{ticket}/assumir', [TicketController::class, 'assumirTicket']);
-                Route::post('/tickets/{ticket}/responder', [TicketController::class, 'responderTicket']);
-                Route::post('/tickets/{ticket}/fechar', [TicketController::class, 'fecharTicket']);
-            });
+            Route::get('cargas/{carga}/chat', [MotoristaCargaController::class, 'getChat']);
+            Route::post('cargas/{carga}/chat', [MotoristaCargaController::class, 'storeChat'])->middleware('throttle:20,1');
+        });
 
-            Route::get('/crm/motoristas', [AdminController::class, 'listarMotoristas']);
-            Route::get('/crm/embarcadores', [AdminController::class, 'listarEmbarcadores']);
+        // =========================================================
+        // DOMÍNIO: ADMIN
+        // =========================================================
+        Route::middleware('ability:admin')->prefix('admin')->group(function () {
+            Route::get('/dashboard', [AdminController::class, 'dashboardMetrics']);
+            Route::get('/embarcadores', [AdminController::class, 'listarEmbarcadores']);
+            Route::get('/embarcadores/{id}', [AdminController::class, 'detalhesEmbarcador']);
+            Route::get('/motoristas', [AdminController::class, 'listarMotoristas']);
+            Route::get('/motoristas/{id}', [AdminController::class, 'detalhesMotorista']);
+            Route::post('/motoristas/{id}/kyc', [AdminController::class, 'avaliarKycMotorista']);
+            Route::get('/fretes', [AdminController::class, 'listarFretes']);
+            Route::get('/fretes/{id}', [AdminController::class, 'detalhesFrete']);
+            Route::get('/disputas', [AdminController::class, 'listarDisputas']);
+            Route::post('/disputas/{id}/resolver', [AdminController::class, 'resolverDisputa']);
             
             Route::get('/faturamento/radar', [AdminFaturamentoController::class, 'radar']);
-            Route::post('/embarcadores/{id}/congelar', [AdminFaturamentoController::class, 'congelar'])->middleware('role:admin');
+            Route::post('/faturamento/congelar/{embarcadorId}', [AdminFaturamentoController::class, 'congelar']);
+            Route::get('/faturamento/ciclos', [AdminFaturamentoController::class, 'listarCiclos']);
+            Route::post('/faturamento/gerar', [AdminFaturamentoController::class, 'gerarFaturasManuais']);
+            Route::get('/faturamento/extrato-taxas', [AdminFaturamentoController::class, 'extratoTaxasPlataforma']);
+            Route::get('/faturamento/taxas-agregadas', [AdminFaturamentoController::class, 'taxasAgregadas']);
             
-            Route::get('/financeiro/extrato', [AdminController::class, 'extratoTaxas']);
-            Route::get('/financeiro/faturamento', [AdminController::class, 'relatorioFaturamento']);
-            
-            Route::get('/config/staff', [AdminController::class, 'listarStaff']);
-            Route::get('/config/variaveis', [AdminController::class, 'listarVariaveis']);
-            
-            Route::get('/crm/parceiros', [ParceiroController::class, 'index']);
-
-            // =========================================================
-            // API GATEWAY (Gestão de Integrações M2M)
-            // =========================================================
-            Route::middleware('role:admin')->group(function () {
-                Route::get('/parceiros-api', [AdminController::class, 'listarParceirosApi']);
-                Route::post('/parceiros-api', [AdminController::class, 'gerarTokenParceiro']);
-                Route::post('/parceiros-api/{id}/revogar', [AdminController::class, 'revogarTokenParceiro']);
-            });
-        });
-
-        // =========================================================
-        // BACKOFFICE: Rotas Críticas (Acesso EXCLUSIVO Admin Root)
-        // =========================================================
-        Route::middleware('role:admin')->prefix('admin/config')->group(function () {
+            Route::get('/staff', [AdminController::class, 'listarStaff']);
             Route::post('/staff', [AdminController::class, 'criarStaff']); 
             Route::put('/staff/{usuario}', [AdminController::class, 'atualizarStaff']); 
             Route::put('/variaveis', [AdminController::class, 'atualizarVariaveis']);
-            
             Route::put('/crm/embarcadores/{embarcador}/contrato', [AdminController::class, 'atualizarContratoEmbarcador']);
             
             Route::post('/crm/parceiros', [ParceiroController::class, 'store']);
@@ -152,9 +126,6 @@ Route::prefix('v1')->group(function () {
         });
     });
 
-    // =========================================================
-    // OPEN API B2B: PARCEIROS E GERENCIADORAS DE RISCO (GR / e3)
-    // =========================================================
     Route::middleware(['auth:sanctum', 'ability:gr-partner'])->prefix('partners/gr')->group(function () {
         Route::post('/analise/callback', [\App\Http\Controllers\Api\V1\Partners\GrIntegrationController::class, 'registrarAnalise']);
     });
@@ -166,3 +137,5 @@ Route::prefix('v1/localidades')->group(function () {
     Route::get('/estados', [\App\Http\Controllers\Api\V1\LocalidadeController::class, 'estados']);
     Route::get('/estados/{uf}/municipios', [\App\Http\Controllers\Api\V1\LocalidadeController::class, 'municipios']);
 });
+
+Route::post('/v1/webhooks/pef', [PefWebhookController::class, 'handleCallback'])->name('webhook.pef');

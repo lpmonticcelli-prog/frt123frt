@@ -11,20 +11,23 @@ class FaqController extends Controller
 {
     public function index(Request $request)
     {
-        // Identifica quem está chamando. Se não tiver role (ex: visitante), cai em 'todos'
-        $audience = $request->user()->role ?? 'todos'; 
+        $user = $request->user();
         
-        // TTL de 24h = 86400 segundos. Chave segmentada por perfil.
+        // CORREÇÃO CIRÚRGICA: Extrai o nome da role corretamente, evitando quebra do Cache
+        $audience = ($user && $user->role) ? $user->role->slug : 'todos'; 
+        
         $cacheKey = "faqs:audience:{$audience}";
 
         $faqs = Cache::remember($cacheKey, 86400, function () use ($audience) {
-            return Faq::select('id', 'category', 'question', 'answer')
+            $data = Faq::select('id', 'category', 'question', 'answer')
                 ->where('is_active', true)
                 ->whereIn('audience', [$audience, 'todos'])
                 ->orderBy('category')
                 ->orderBy('sort_order')
-                ->get()
-                ->groupBy('category');
+                ->get();
+
+            // Garante que o retorno seja sempre um Objeto JSON, prevenindo o Crash no Frontend
+            return $data->isEmpty() ? (object)[] : $data->groupBy('category');
         });
 
         return response()->json([

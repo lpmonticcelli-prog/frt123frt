@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -14,38 +15,63 @@ import (
 
 var ctx = context.Background()
 
-// Ligação com o Redis (Aponta para o container do Docker)
+// Conexão Otimizada com o Redis (Pool de Conexões de Alta Concorrência)
 var rdb = redis.NewClient(&redis.Options{
-	Addr: "redis:6379",
+	Addr:         "redis:6379",
+	PoolSize:     1000,               // Permite 1000 conexões simultâneas ao Redis
+	MinIdleConns: 100,                // Mantém conexões quentes para evitar overhead de handshake TCP
+	ReadTimeout:  3 * time.Second,
+	WriteTimeout: 3 * time.Second,
 })
 
-// Upgrader do WebSocket para aceitar ligações do Frontend (Vue.js)
+// Upgrader blindado (Zero Trust)
 var upgrader = websocket.Upgrader{
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
 	CheckOrigin: func(r *http.Request) bool {
-		return true // Em produção, aplicar restrição de domínio CORS (123fretei.com.br)
+		// ALERTA DE COMPLIANCE: Em produção, substitua pelo domínio estrito (ex: "app.123fretei.com.br")
+		origin := r.Header.Get("Origin")
+		return strings.Contains(origin, "localhost") || strings.Contains(origin, "123fretei") || origin == ""
 	},
 }
 
-// Estrutura de dados do GPS
+// Payload Otimizado de Memória
 type LocationData struct {
-	DriverID int     `json:"driver_id"`
-	CargaID  int     `json:"carga_id"`
-	Lat      float64 `json:"lat"`
-	Lng      float64 `json:"lng"`
-	Heading  float64 `json:"heading"` // Rotação do vetor veicular
+	DriverID  int     `json:"driver_id"`
+	CargaID   int     `json:"carga_id"`
+	Lat       float64 `json:"lat"`
+	Lng       float64 `json:"lng"`
+	Heading   float64 `json:"heading"`
+	Timestamp int64   `json:"timestamp"`
 }
 
 func main() {
-	// Endpoints da Arquitetura
+	// Ping de saúde (Healthcheck) para Orquestradores (Kubernetes/Docker Swarm)
+	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	})
+
+	// Endpoints da Malha de Telemetria
 	http.HandleFunc("/ws/driver", handleDriverPing)
 	http.HandleFunc("/ws/shipper", handleShipperWatch)
 
-	log.Println("🚀 Microserviço de Rastreamento (GO) a operar na porta 8080...")
+	log.Println("[TELEMETRIA] 🚀 Microsserviço de Alta Concorrência a operar na porta 8080...")
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
 
-// O Motorista emite o sinal e grava na infraestrutura de fila rápida (Redis)
+/**
+ * MOTOR DE INGESTÃO (MOTORISTA): Recebe GPS, aplica Rate Limit e distribui (PubSub + Streams).
+ */
 func handleDriverPing(w http.ResponseWriter, r *http.Request) {
+	// Validação Zero Trust: O Token deve ser validado antes de fazer o upgrade (Economia de RAM)
+	token := r.URL.Query().Get("token")
+	if token == "" {
+		http.Error(w, "Unauthorized: Missing Token", http.StatusUnauthorized)
+		return
+	}
+	// TODO: Integrar verificação de JWT ou validação no Redis (Auth Cache)
+
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println("[CRÍTICO] Falha no handshake do Driver:", err)
@@ -53,31 +79,53 @@ func handleDriverPing(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 
+	// Rate Limiter Stateful por Conexão
+	lastPingTime := time.Time{}
+
 	for {
 		_, msg, err := conn.ReadMessage()
 		if err != nil {
-			break // Sai do loop e encerra a goroutine quando o sinal do motorista cai
+			break // Sai do loop e liberta a Goroutine se o motorista perder rede
 		}
+
+		// Throttle: Bloqueia ataques DDoS ou GPS a flutuar loucamente (Drop de pings < 2 segundos)
+		if time.Since(lastPingTime) < 2*time.Second {
+			continue 
+		}
+		lastPingTime = time.Now()
 
 		var loc LocationData
 		if err := json.Unmarshal(msg, &loc); err != nil {
-			continue
+			continue // Ignora payload malformado
 		}
+		loc.Timestamp = time.Now().Unix()
 
-		// 1. Grava a coordenada exata com geolocalização nativa do Redis
-		rdb.GeoAdd(ctx, "cargas_ativas", &redis.GeoLocation{
-			Name:      fmt.Sprintf("%d", loc.DriverID),
-			Longitude: loc.Lng,
-			Latitude:  loc.Lat,
-		})
-
-		// 2. Transmite via Pub/Sub para que o Embarcador intercete o sinal
+		// Re-serialização otimizada
+		payload, _ := json.Marshal(loc)
 		channelName := fmt.Sprintf("carga_tracking_%d", loc.CargaID)
-		rdb.Publish(ctx, channelName, msg)
+
+		// 1. LATÊNCIA SUB-MILISSEGUNDO: Pub/Sub para o Frontend do Embarcador (Tempo Real)
+		rdb.Publish(ctx, channelName, payload)
+
+		// 2. PERSISTÊNCIA DE DADOS (Event Sourcing): Grava no Stream para o Laravel consumir depois
+		rdb.XAdd(ctx, &redis.XAddArgs{
+			Stream: "gps_tracking_stream",
+			MaxLen: 100000, // Limita a fila para não estourar a RAM do Redis (Drop old)
+			Values: map[string]interface{}{
+				"driver_id": loc.DriverID,
+				"carga_id":  loc.CargaID,
+				"lat":       loc.Lat,
+				"lng":       loc.Lng,
+				"heading":   loc.Heading,
+				"timestamp": loc.Timestamp,
+			},
+		})
 	}
 }
 
-// O Embarcador consome o sinal num circuito hermético livre de Memory Leaks
+/**
+ * MOTOR DE BROADCAST (EMBARCADOR): Inscreve-se no canal do Redis e envia updates para o Client.
+ */
 func handleShipperWatch(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -86,7 +134,7 @@ func handleShipperWatch(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 
-	// Interceta a carga subscrita no primeiro envio
+	// O embarcador deve enviar um JSON inicial informando qual carga quer monitorizar
 	_, msg, err := conn.ReadMessage()
 	if err != nil {
 		return
@@ -101,13 +149,14 @@ func handleShipperWatch(w http.ResponseWriter, r *http.Request) {
 
 	channelName := fmt.Sprintf("carga_tracking_%d", initData.CargaID)
 	pubsub := rdb.Subscribe(ctx, channelName)
-	defer pubsub.Close() // Fecha o canal do Redis quando a função morre
+	defer pubsub.Close() // MANDATÓRIO: Impede vazamento de conexões (Memory Leak) no Redis
 
 	ch := pubsub.Channel()
-	ticker := time.NewTicker(50 * time.Second) // Ping interval para estabilidade TCP
+	
+	// Ticker para enviar Ping e evitar que load balancers/nginx cortem a ligação por inatividade
+	ticker := time.NewTicker(45 * time.Second)
 	defer ticker.Stop()
 
-	// Canal local de controlo para detetar a morte prematura do cliente
 	clientGone := make(chan struct{})
 	go func() {
 		defer close(clientGone)
@@ -118,20 +167,20 @@ func handleShipperWatch(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	// Loop multiplexado anti-Memory Leak
+	// Loop Multiplexado de I/O (Bloqueia até que um evento ocorra)
 	for {
 		select {
 		case <-clientGone:
-			// O navegador do Embarcador foi fechado ou a rede caiu. Purga a memória de imediato.
+			// Navegador fechado ou rede caiu. Matar Goroutine instantaneamente.
 			return
-		case msg := <-ch:
-			// Sinal recebido do Pub/Sub. Repassa ao Embarcador via WebSocket.
-			if err := conn.WriteMessage(websocket.TextMessage, []byte(msg.Payload)); err != nil {
+		case <-ticker.C:
+			// Ping Keep-Alive
+			if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 				return
 			}
-		case <-ticker.C:
-			// Heartbeat para prevenir timeout dos load balancers (AWS ELB)
-			if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+		case msg := <-ch:
+			// Dados recebidos do Redis. Empurrar para o Socket do Embarcador.
+			if err := conn.WriteMessage(websocket.TextMessage, []byte(msg.Payload)); err != nil {
 				return
 			}
 		}
