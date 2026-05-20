@@ -381,41 +381,40 @@
 
     <div v-if="showModalChat" class="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true">
       <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        
         <div class="fixed inset-0 bg-slate-900 bg-opacity-80 transition-opacity backdrop-blur-sm" @click="fecharChat"></div>
         <span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
         
-        <div class="inline-block align-bottom bg-white rounded-xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl w-full border border-slate-200 flex flex-col h-[600px]">
+        <div class="relative inline-block align-bottom bg-white rounded-xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl w-full z-10">
           
-          <div class="bg-slate-900 px-6 py-4 shrink-0 flex justify-between items-center">
-            <div>
-              <h3 class="text-white font-black">Chat da Operação #{{ cargaChatAtivo?.id }}</h3>
-              <p class="text-slate-400 text-xs mt-1">Comunicação estritamente monitorada pelo Compliance.</p>
+          <div class="flex flex-col h-[500px] sm:h-[600px]">
+            
+            <div class="bg-slate-900 px-6 py-4 flex justify-between items-center shrink-0">
+              <div>
+                <h3 class="text-white font-black">Central de Operações #{{ cargaChatAtivo?.id }}</h3>
+                <p class="text-slate-400 text-xs mt-1">Fale diretamente com o Motorista.</p>
+              </div>
+              <button @click="fecharChat" class="text-slate-400 hover:text-white font-bold text-xl leading-none">&times;</button>
             </div>
-            <button @click="fecharChat" class="text-slate-400 hover:text-white">✕ Fechar</button>
-          </div>
 
-          <div class="flex-1 p-6 overflow-y-auto bg-slate-50 space-y-4" id="chat-messages">
-             <div v-for="msg in mensagensChat" :key="msg.id" :class="['flex', msg.remetente_tipo === 'embarcador' ? 'justify-end' : 'justify-start']">
-                <div :class="['max-w-[80%] rounded-lg px-4 py-3 shadow-sm', msg.remetente_tipo === 'embarcador' ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-white border border-slate-200 text-slate-800 rounded-tl-none']">
-                   <div class="text-[9px] font-black uppercase mb-1 opacity-70">{{ msg.remetente_tipo === 'embarcador' ? 'Você' : 'Motorista' }}</div>
-                   <p class="text-sm whitespace-pre-wrap">{{ msg.mensagem }}</p>
-                </div>
-             </div>
-             <div v-if="mensagensChat.length === 0" class="text-center text-slate-400 text-sm mt-10 italic">Nenhuma mensagem trocada nesta carga.</div>
-          </div>
-
-          <div class="p-4 bg-white border-t border-slate-200 shrink-0">
-            <form @submit.prevent="enviarMensagemChat" class="flex gap-3">
-              <input v-model="novaMensagemChat" type="text" placeholder="Digite sua mensagem sobre a carga..." class="flex-1 border border-slate-300 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" autocomplete="off">
-              <button type="submit" :disabled="enviandoMsg || !novaMensagemChat.trim()" class="bg-slate-900 text-white px-6 font-bold rounded-lg text-sm hover:bg-slate-800 disabled:opacity-50 transition-colors">
-                Enviar
-              </button>
-            </form>
-            <div class="mt-2 text-[10px] text-red-600 font-bold text-center">
-              ⚠️ É terminantemente PROIBIDO enviar telefone, e-mail ou WhatsApp. Infratores serão bloqueados pelo sistema.
+            <div class="flex-1 p-6 overflow-y-auto bg-slate-50 space-y-4" id="chat-messages">
+               <div v-for="msg in mensagensChat" :key="msg.id" :class="['flex', msg.remetente_tipo === 'embarcador' ? 'justify-end' : 'justify-start']">
+                  <div :class="['max-w-[80%] rounded-lg px-4 py-3 shadow-sm', msg.remetente_tipo === 'embarcador' ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-white border border-slate-200 text-slate-800 rounded-tl-none']">
+                     <div class="text-[9px] font-black uppercase mb-1 opacity-70">{{ msg.remetente_tipo === 'embarcador' ? 'Você' : 'Motorista' }}</div>
+                     <p class="text-sm whitespace-pre-wrap">{{ msg.mensagem }}</p>
+                  </div>
+               </div>
+               <div v-if="mensagensChat.length === 0" class="text-center text-slate-400 text-sm mt-10 italic">A sala de operações está aberta. Envie uma mensagem.</div>
             </div>
-          </div>
 
+            <div class="p-4 bg-white border-t border-slate-200 shrink-0">
+              <form @submit.prevent="enviarMensagemChat" class="flex gap-3">
+                <input v-model="novaMensagemChat" type="text" placeholder="Escreva para o motorista..." class="flex-1 border border-slate-300 rounded-lg px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" autocomplete="off">
+                <button type="submit" :disabled="enviandoMsg || !novaMensagemChat.trim()" class="bg-blue-600 text-white px-6 font-bold rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50">Enviar</button>
+              </form>
+            </div>
+
+          </div>
         </div>
       </div>
     </div>
@@ -595,9 +594,29 @@ const abrirChat = async (carga) => {
   cargaChatAtivo.value = carga;
   showModalChat.value = true;
   await carregarMensagens(carga.id);
+
+  // 🔥 CONECTA NO WEBSOCKET EXCLUSIVO DESTA CARGA
+  if (window.Echo) {
+    window.Echo.channel(`chat.${carga.id}`)
+      .listen('.NovaMensagem', (e) => {
+        mensagensChat.value.push(e.mensagem);
+        nextTick(() => {
+          const container = document.getElementById('chat-messages');
+          if (container) container.scrollTop = container.scrollHeight;
+        });
+      });
+  }
 };
 
-const fecharChat = () => { showModalChat.value = false; cargaChatAtivo.value = null; mensagensChat.value = []; };
+const fecharChat = () => {
+  // 🔥 DESCONECTA DO WEBSOCKET PARA NÃO DUPLICAR MENSAGENS
+  if (window.Echo && cargaChatAtivo.value) {
+    window.Echo.leaveChannel(`chat.${cargaChatAtivo.value.id}`);
+  }
+  showModalChat.value = false;
+  cargaChatAtivo.value = null;
+  mensagensChat.value = [];
+};
 
 const carregarMensagens = async (cargaId) => {
   try {

@@ -8,6 +8,7 @@ use App\Models\Ciot;
 use App\Models\CargaCandidatura;
 use App\Contracts\PefGatewayInterface;
 use App\Services\Logistics\CandidaturaService;
+use App\Events\NovaMensagemChat; // 🔥 IMPORTAÇÃO DO EVENTO WEBSOCKET
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -133,8 +134,8 @@ class CargaController extends Controller
                 abort(403, 'Operação negada. Propriedade da carga violada.');
             }
             
-            // Ajustado para permitir os status corretos do Bidding
-            if (!in_array($carga->status, ['aguardando_coleta', 'aceita', 'processando_aceite', 'alocada'])) {
+            // Ajustado para permitir os status corretos do Bidding, incluindo o MOCK (em_analise_gr)
+            if (!in_array($carga->status, ['aguardando_coleta', 'aceita', 'processando_aceite', 'em_analise_gr', 'alocada'])) {
                 abort(400, 'Status inválido. Aguarde a liberação do CIOT e da GR.');
             }
 
@@ -146,14 +147,13 @@ class CargaController extends Controller
 
     public function finalizarEntrega(Request $request, $id)
     {
-        // CORREÇÃO: Alinhado para receber os arquivos físicos (FormData) que o seu frontend envia
+        // Upload nativo atômico (salva na pasta public/pod do servidor)
         $request->validate([
             'foto_canhoto' => 'required|image|max:10240',
             'foto_carga'   => 'required|image|max:10240',
         ]);
 
         DB::transaction(function () use ($request, $id) {
-            // Lock Pessimista
             $carga = Carga::lockForUpdate()->findOrFail($id);
             
             if ($carga->motorista_id !== $request->user()->motorista->id) {
@@ -164,7 +164,6 @@ class CargaController extends Controller
                 abort(400, 'Status logístico inválido para finalização.');
             }
 
-            // Upload nativo atômico (salva na pasta public/pod do servidor)
             $pathCanhoto = $request->file('foto_canhoto')->store("pod/carga_{$carga->id}", 'public');
             $pathCarga = $request->file('foto_carga')->store("pod/carga_{$carga->id}", 'public');
 
@@ -179,7 +178,7 @@ class CargaController extends Controller
     }
 
     // =====================================================================
-    // CHAT ZERO TRUST (INJETADO COM SEGURANÇA)
+    // CHAT ZERO TRUST (WEBSOCKETS EM TEMPO REAL)
     // =====================================================================
     public function getChat(Request $request, $id)
     {
@@ -193,7 +192,10 @@ class CargaController extends Controller
     {
         $user = $request->user();
         $carga = Carga::findOrFail($id);
-        if ($carga->motorista_id !== $user->motorista->id) return response()->json(['error' => 'Acesso negado.'], 403);
+        
+        if ($carga->motorista_id !== $user->motorista->id) {
+            return response()->json(['error' => 'Acesso negado.'], 403);
+        }
         
         $request->validate(['mensagem' => 'required|string|max:1000']);
         $mensagemLimpa = $request->mensagem;
@@ -203,8 +205,16 @@ class CargaController extends Controller
             'remetente_id' => $user->motorista->id,
             'remetente_tipo' => 'motorista',
             'mensagem' => $mensagemLimpa,
-            'created_at' => now(), 'updated_at' => now()
+            'created_at' => now(), 
+            'updated_at' => now()
         ]);
-        return response()->json(DB::table('carga_mensagens')->find($msgId), 201);
+
+        // Puxa a mensagem exata que acabou de ser salva
+        $mensagemSalva = DB::table('carga_mensagens')->find($msgId);
+
+        // 🔥 O ALTO-FALANTE: Avisa todos no canal do WebSocket (menos o próprio emissor) que há uma nova mensagem
+        broadcast(new NovaMensagemChat($mensagemSalva, $carga->id))->toOthers();
+
+        return response()->json($mensagemSalva, 201);
     }
 }

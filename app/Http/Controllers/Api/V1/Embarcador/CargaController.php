@@ -9,6 +9,7 @@ use App\Http\Requests\StoreCargaRequest;
 use App\Jobs\LiquidarFreteJob;
 use App\Services\Logistics\CandidaturaService;
 use App\Services\Reputation\ReputacaoMotoristaService;
+use App\Events\NovaMensagemChat; // 🔥 IMPORTAÇÃO DO EVENTO WEBSOCKET
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -228,7 +229,7 @@ class CargaController extends Controller
     }
 
     // =====================================================================
-    // CHAT OPERACIONAL - ZERO TRUST COMPLIANCE
+    // CHAT OPERACIONAL - ZERO TRUST COMPLIANCE COM WEBSOCKET
     // =====================================================================
     public function getChat(Request $request, Carga $carga)
     {
@@ -284,6 +285,10 @@ class CargaController extends Controller
         ]);
 
         $msg = DB::table('carga_mensagens')->find($id);
+
+        // 🔥 O ALTO-FALANTE: Avisa o Motorista no canal do WebSocket que há uma nova mensagem
+        broadcast(new NovaMensagemChat($msg, $carga->id))->toOthers();
+
         return response()->json($msg, 201);
     }
 }
