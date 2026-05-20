@@ -623,4 +623,53 @@ class AdminController extends Controller
 
         return response()->json(['message' => 'Acesso revogado com sucesso. A porta da API foi fechada para este parceiro.']);
     }
+
+    // ==============================================================
+    // ADICIONADOS AGORA: Métodos requeridos pelas rotas originais
+    // NADA FOI APAGADO ACIMA. ESTAS SÃO APENAS "PONTES" COMPATÍVEIS
+    // ==============================================================
+    
+    public function dashboardMetrics()
+    {
+        return $this->getDashboardStats();
+    }
+
+    public function detalhesEmbarcador($id)
+    {
+        return response()->json(User::with('embarcador')->findOrFail($id));
+    }
+
+    public function detalhesMotorista($id)
+    {
+        return response()->json(User::with('motorista')->findOrFail($id));
+    }
+
+    public function avaliarKycMotorista(Request $request, $id)
+    {
+        $usuario = User::findOrFail($id);
+        return $this->analisarUsuario($request, $usuario);
+    }
+
+    public function listarFretes(Request $request)
+    {
+        $query = Carga::with(['embarcador', 'motorista.user'])->orderBy('created_at', 'desc');
+
+        if ($request->query('status') === 'concluidos') {
+            $query->whereIn('status', ['entregue', 'pago', 'concluido', 'finalizada', 'em_auditoria']);
+        } else {
+            $query->whereNotIn('status', ['entregue', 'cancelada']);
+        }
+
+        return response()->json($query->paginate(50));
+    }
+
+    public function detalhesFrete($id)
+    {
+        return response()->json(Carga::with(['embarcador', 'motorista.user'])->findOrFail($id));
+    }
+
+    public function obterVariaveis()
+    {
+        return $this->listarVariaveis();
+    }
 }

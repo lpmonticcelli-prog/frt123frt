@@ -37,13 +37,15 @@ Route::prefix('v1')->group(function () {
         // =========================================================
         // DOMÍNIO: SUPORTE, FAQ & HUB (Transversal)
         // =========================================================
-        Route::get('/suporte/faqs', [FaqController::class, 'index']); // Corrigido para plural
+        Route::get('/suporte/faqs', [FaqController::class, 'index']);
         Route::get('/suporte/tickets', [TicketController::class, 'index']);
         Route::post('/suporte/tickets', [TicketController::class, 'store'])->middleware('throttle:5,1');
         Route::get('/suporte/tickets/{ticket}', [TicketController::class, 'show']);
         Route::post('/suporte/tickets/{ticket}/mensagens', [TicketController::class, 'reply'])->middleware('throttle:15,1');
         
-        Route::get('/hub/parceiros', [ParceiroController::class, 'index']); // Rota da Loja Liberada
+        // Rotas do Hub de Parceiros (Motoristas e Embarcadores)
+        Route::get('/hub/parceiros', [ParceiroController::class, 'listarPorPublico']);
+        Route::post('/hub/parceiros/{parceiro}/clique', [ParceiroController::class, 'registrarClique']);
 
         // =========================================================
         // DOMÍNIO: EMBARCADOR
@@ -70,21 +72,18 @@ Route::prefix('v1')->group(function () {
         // =========================================================
         Route::middleware('ability:motorista')->prefix('motorista')->group(function () {
             
-            // Perfil & KYC (Alinhado com a sua base)
             Route::get('perfil', [MotoristaPerfilController::class, 'show']);
             Route::post('perfil/documentos', [MotoristaPerfilController::class, 'uploadDocumentos']); 
             Route::get('perfil/documento/{tipo}', [MotoristaPerfilController::class, 'exibirDocumento']); 
             
             Route::get('carteira/extrato', [CarteiraController::class, 'extrato']);
             
-            // Gestão de Bidding e Execução
             Route::get('cargas/disponiveis', [MotoristaCargaController::class, 'disponiveis']);
             Route::get('cargas/minhas', [MotoristaCargaController::class, 'minhasCargas']);
             Route::post('cargas/{id}/aceitar', [MotoristaCargaController::class, 'aceitar'])->middleware('throttle:10,1');
             Route::delete('cargas/{id}/aceitar', [MotoristaCargaController::class, 'cancelarAceite']);
             Route::post('cargas/{id}/iniciar-viagem', [MotoristaCargaController::class, 'iniciarViagem']);
             
-            // Fluxo de POD com o seu PodController Base (S3 Mock) preservado
             Route::post('cargas/{carga}/pod/url', [PodController::class, 'gerarUrlUpload']);
             Route::post('cargas/{carga}/pod/confirmar', [PodController::class, 'confirmarEntrega']);
 
@@ -96,6 +95,7 @@ Route::prefix('v1')->group(function () {
         // DOMÍNIO: ADMIN
         // =========================================================
         Route::middleware('ability:admin')->prefix('admin')->group(function () {
+            // [MANTIDO O SEU CÓDIGO ORIGINAL INTACTO]
             Route::get('/dashboard', [AdminController::class, 'dashboardMetrics']);
             Route::get('/embarcadores', [AdminController::class, 'listarEmbarcadores']);
             Route::get('/embarcadores/{id}', [AdminController::class, 'detalhesEmbarcador']);
@@ -123,6 +123,56 @@ Route::prefix('v1')->group(function () {
             Route::post('/crm/parceiros', [ParceiroController::class, 'store']);
             Route::put('/crm/parceiros/{parceiro}', [ParceiroController::class, 'update']);
             Route::delete('/crm/parceiros/{parceiro}', [ParceiroController::class, 'destroy']);
+
+            // =========================================================
+            // ADIÇÃO CIRÚRGICA: AS ROTAS GET/POST EXATAS QUE O SEU VUE PEDE
+            // A apontar para as funções que JÁ EXISTEM no seu AdminController
+            // =========================================================
+            
+            // Dashboard
+            Route::get('/dashboard-stats', [AdminController::class, 'getDashboardStats']);
+            
+            // Variáveis Globais
+            Route::get('/config/variaveis', [AdminController::class, 'listarVariaveis']);
+            Route::put('/config/variaveis', [AdminController::class, 'atualizarVariaveis']);
+            
+            // Staff
+            Route::get('/config/staff', [AdminController::class, 'listarStaff']);
+            Route::post('/config/staff', [AdminController::class, 'criarStaff']);
+            Route::put('/config/staff/{usuario}', [AdminController::class, 'atualizarStaff']);
+            
+            // Extrato Taxas
+            Route::get('/financeiro/extrato', [AdminController::class, 'extratoTaxas']);
+            
+            // Utilizadores e CRM
+            Route::get('/usuarios', [AdminController::class, 'listarTodosUsuarios']);
+            Route::get('/usuarios-pendentes', [AdminController::class, 'usuariosPendentes']);
+            Route::post('/usuarios/{usuario}/analise', [AdminController::class, 'analisarUsuario']);
+            Route::post('/usuarios/{usuario}/status', [AdminController::class, 'alterarStatus']);
+            
+            Route::get('/crm/embarcadores', [AdminController::class, 'listarEmbarcadores']);
+            Route::get('/crm/motoristas', [AdminController::class, 'listarMotoristas']);
+            Route::put('/config/crm/embarcadores/{embarcador}/contrato', [AdminController::class, 'atualizarContratoEmbarcador']);
+            
+            // Operações, Disputas e Fretes
+            Route::get('/operacoes/fretes', [AdminController::class, 'listarMuralFretes']);
+            Route::get('/operacoes/disputas', [AdminController::class, 'listarDisputas']);
+            Route::post('/operacoes/disputas/{carga}/resolver', [AdminController::class, 'resolverDisputa']);
+            Route::get('/fretes/concluidos', [AdminController::class, 'fretesConcluidos']);
+            Route::get('/fretes/{id}/auditoria', [AdminController::class, 'auditoriaCarga']);
+            
+            // Parceiros CMS e API
+            Route::get('/crm/parceiros', [ParceiroController::class, 'index']);
+            Route::get('/parceiros-api', [AdminController::class, 'listarParceirosApi']);
+            Route::post('/parceiros-api', [AdminController::class, 'gerarTokenParceiro']);
+            Route::post('/parceiros-api/{tokenId}/revogar', [AdminController::class, 'revogarTokenParceiro']);
+            
+            // Mesa de Operações (Tickets)
+            Route::get('/suporte/tickets', [TicketController::class, 'index']);
+            Route::get('/suporte/tickets/{ticket}', [TicketController::class, 'show']);
+            Route::post('/suporte/tickets/{ticket}/assumir', [TicketController::class, 'assumirTicket']);
+            Route::post('/suporte/tickets/{ticket}/responder', [TicketController::class, 'reply']);
+            Route::post('/suporte/tickets/{ticket}/fechar', [TicketController::class, 'fecharTicket']);
         });
     });
 

@@ -95,7 +95,7 @@ const totalReceita = computed(() => {
 const carregarExtrato = async () => {
   loading.value = true;
   try {
-    const res = await axios.get('/api/admin/financeiro/extrato');
+    const res = await axios.get('/api/v1/admin/financeiro/extrato');
     // Mapeamento correto baseando-se na nova estrutura JSON do Controller
     extratos.value = res.data.dados;
     currentFee.value = res.data.configuracao_atual;
