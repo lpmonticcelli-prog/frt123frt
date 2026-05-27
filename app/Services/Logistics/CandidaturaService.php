@@ -8,6 +8,7 @@ use App\Models\Carga;
 use App\Models\CargaCandidatura;
 use App\Models\Motorista;
 use App\Events\CargaAtualizada;
+use App\Jobs\ProcessarAceiteCarga;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
@@ -20,27 +21,35 @@ class CandidaturaService
      */
     public function aplicar(Motorista $motorista, Carga $carga): CargaCandidatura
     {
-        if ($carga->status !== 'publicada') {
-            throw new Exception('Esta carga não está mais disponível para lances.');
-        }
-
         if ($motorista->suspenso_ate && $motorista->suspenso_ate->isFuture()) {
             throw new Exception('Seu perfil está temporariamente suspenso para novas candidaturas.');
         }
 
-        // Limite de contenção de spam (máximo 10 candidaturas ativas simultâneas)
-        $candidaturasAtivas = CargaCandidatura::where('motorista_id', $motorista->id)
-            ->where('status', 'pendente')
-            ->count();
-
-        if ($candidaturasAtivas >= 10) {
-            throw new Exception('Você atingiu o limite de candidaturas simultâneas.');
-        }
-
         return DB::transaction(function () use ($motorista, $carga) {
+            // ZT-DEFENSE: Serialização da sessão do motorista.
+            // Trava o registro do motorista para impedir Race Condition na contagem de spam.
+            Motorista::where('id', $motorista->id)->lockForUpdate()->firstOrFail();
+
+            // Limite de contenção de spam (máximo 10 candidaturas ativas simultâneas)
+            $candidaturasAtivas = CargaCandidatura::where('motorista_id', $motorista->id)
+                ->where('status', 'pendente')
+                ->count();
+
+            if ($candidaturasAtivas >= 10) {
+                throw new Exception('Você atingiu o limite de candidaturas simultâneas.');
+            }
+
+            // ZT-DEFENSE: Lock pessimista na Carga.
+            // Movemos a validação de status para dentro da transação para erradicar o TOCTOU (Ghost Bids).
+            $cargaLock = Carga::where('id', $carga->id)->lockForUpdate()->firstOrFail();
+
+            if ($cargaLock->status !== 'publicada') {
+                throw new Exception('Esta carga não está mais disponível para lances.');
+            }
+
             return CargaCandidatura::firstOrCreate(
                 [
-                    'carga_id' => $carga->id,
+                    'carga_id' => $cargaLock->id,
                     'motorista_id' => $motorista->id,
                 ],
                 [
@@ -56,10 +65,11 @@ class CandidaturaService
      */
     public function aprovarCandidato(int $cargaId, int $candidaturaId, int $embarcadorId): void
     {
-        // Variável auxiliar para disparar evento fora do bloqueio de banco de dados
+        // Variáveis auxiliares para orquestração fora do bloqueio de banco de dados
         $cargaAtualizada = null;
+        $motoristaUserId = null;
 
-        DB::transaction(function () use ($cargaId, $candidaturaId, $embarcadorId, &$cargaAtualizada) {
+        DB::transaction(function () use ($cargaId, $candidaturaId, $embarcadorId, &$cargaAtualizada, &$motoristaUserId) {
             // Lock Pessimista na Carga para evitar double-booking
             $carga = Carga::where('id', $cargaId)
                 ->where('embarcador_id', $embarcadorId)
@@ -89,12 +99,25 @@ class CandidaturaService
                 'motorista_id' => $candidatura->motorista_id
             ]);
 
+            // Recupera a identidade base do Motorista para o Job subsequente
+            $motoristaUserId = Motorista::where('id', $candidatura->motorista_id)->value('user_id');
             $cargaAtualizada = clone $carga;
 
             Log::info("[Bidding] Embarcador {$embarcadorId} aprovou motorista {$candidatura->motorista_id} para carga {$cargaId}.");
         });
 
-        // 4. Dispara a notificação Websocket para o Frontend do Motorista instantaneamente
+        // ZT-DEFENSE: Resolução do Deadlock Operacional.
+        // O Job agora é corretamente empurrado para a fila após o commit, assumindo o controle da máquina de estado.
+        if ($motoristaUserId) {
+            ProcessarAceiteCarga::dispatch(
+                $cargaId,
+                $motoristaUserId,
+                request()->ip() ?? '127.0.0.1',
+                request()->userAgent() ?? 'Automação de Orquestração B2B'
+            )->onQueue('default');
+        }
+
+        // Dispara a notificação Websocket para o Frontend do Motorista
         if ($cargaAtualizada) {
             CargaAtualizada::dispatch($cargaAtualizada);
         }
@@ -112,6 +135,15 @@ class CandidaturaService
 
             if ($cargaLock->motorista_id !== $motorista->id) {
                 throw new Exception('Você não é o motorista desta carga.');
+            }
+
+            // ZT-DEFENSE: Prevenção Atômica contra Roubo de Carga.
+            // Barra a desistência caso a mercadoria já esteja na estrada ou além.
+            $statusBlindados = ['em_transito', 'em_auditoria', 'entregue', 'pago', 'concluido', 'finalizada', 'em_disputa'];
+            
+            if (in_array($cargaLock->status, $statusBlindados, true)) {
+                Log::alert("[SECURITY AUDIT] Tentativa de roubo/evasão bloqueada. Motorista ID {$motorista->id} tentou cancelar a Carga ID {$carga->id} no status: {$cargaLock->status}.");
+                throw new Exception('Ação bloqueada de forma irrevogável. O transporte já foi iniciado ou concluído. Entre em contato com a mesa de operações de suporte.');
             }
 
             // Devolve a carga para o mural público

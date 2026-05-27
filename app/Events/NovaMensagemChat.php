@@ -1,8 +1,10 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Events;
 
-use Illuminate\Broadcasting\Channel;
+use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
@@ -12,22 +14,23 @@ class NovaMensagemChat implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
-    public $mensagem;
-    public $cargaId;
+    public object $mensagem;
+    public int $cargaId;
 
-    public function __construct($mensagem, $cargaId)
+    public function __construct(object $mensagem, int $cargaId)
     {
         $this->mensagem = $mensagem;
         $this->cargaId = $cargaId;
     }
 
-    public function broadcastOn()
+    public function broadcastOn(): PrivateChannel
     {
-        // Cria uma sala de chat exclusiva para o ID desta carga
-        return new Channel('chat.' . $this->cargaId);
+        // ZT-DEFENSE: Tranca a sala de chat. O Reverb agora exigirá autenticação do Sanctum
+        // validada obrigatoriamente através do routes/channels.php.
+        return new PrivateChannel('chat.' . $this->cargaId);
     }
 
-    public function broadcastAs()
+    public function broadcastAs(): string
     {
         return 'NovaMensagem';
     }

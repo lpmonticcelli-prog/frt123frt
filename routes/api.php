@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -10,7 +12,6 @@ use App\Http\Controllers\Api\V1\Embarcador\PerfilController as EmbarcadorPerfilC
 use App\Http\Controllers\Api\V1\Embarcador\AuditoriaController; 
 use App\Http\Controllers\Api\V1\Motorista\CargaController as MotoristaCargaController;
 use App\Http\Controllers\Api\V1\Motorista\PerfilController as MotoristaPerfilController;
-use App\Http\Controllers\Api\V1\Motorista\PodController; 
 use App\Http\Controllers\Api\V1\Motorista\CarteiraController;
 use App\Http\Controllers\Api\V1\Admin\AdminController;
 use App\Http\Controllers\Api\V1\Admin\ParceiroController;
@@ -27,9 +28,13 @@ Route::prefix('v1')->group(function () {
     // =========================================================
     Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
     Route::post('/forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:3,1');
-    Route::post('/reset-password', [AuthController::class, 'resetPassword']);
-    Route::post('/register/embarcador', [AuthController::class, 'registerEmbarcador']);
-    Route::post('/register/motorista', [AuthController::class, 'registerMotorista']);
+    Route::post('/reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:5,1');
+    
+    // ZT-DEFENSE: Proteção L7 alinhada ao rate limit da API da ReceitaWS (3 requisições / 1 minuto por IP)
+    Route::post('/register/embarcador', [AuthController::class, 'registerEmbarcador'])->middleware('throttle:3,1');
+    
+    // ZT-DEFENSE: Mitigação contra Botnets de cadastro e esgotamento de banco
+    Route::post('/register/motorista', [AuthController::class, 'registerMotorista'])->middleware('throttle:5,1');
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('/logout', [AuthController::class, 'logout']);
@@ -44,9 +49,10 @@ Route::prefix('v1')->group(function () {
         Route::get('/suporte/tickets/{ticket}', [TicketController::class, 'show']);
         Route::post('/suporte/tickets/{ticket}/mensagens', [TicketController::class, 'reply'])->middleware('throttle:15,1');
         
-        // Rotas do Hub de Parceiros
-        Route::get('/hub/parceiros', [ParceiroController::class, 'listarPorPublico']);
-        Route::post('/hub/parceiros/{parceiro}/clique', [ParceiroController::class, 'registrarClique']);
+        // 🔒 ZERO TRUST: Rotas do Hub de Parceiros (Blindadas contra Botnets)
+        Route::get('/hub/parceiros', [ParceiroController::class, 'listarPorPublico'])->middleware('throttle:120,1');
+        Route::post('/hub/parceiros/{parceiro}/clique', [ParceiroController::class, 'registrarClique'])->middleware('throttle:10,1');
+        Route::post('/hub/parceiros/{parceiro}/conversao', [ParceiroController::class, 'registrarConversao'])->middleware('throttle:10,1');
 
         // =========================================================
         // DOMÍNIO: EMBARCADOR
@@ -66,6 +72,10 @@ Route::prefix('v1')->group(function () {
             Route::get('faturas', [FaturaController::class, 'index']);
             Route::get('faturas/{fatura}', [FaturaController::class, 'show']);
             Route::get('auditoria/ciot/{id}', [AuditoriaController::class, 'consultarCiot']);
+            
+            // ZT-DEFENSE: Rota do Proxy Local adicionada para leitura segura de KYC e PODs
+            Route::get('perfil/documento', [EmbarcadorPerfilController::class, 'exibirDocumento']);
+            Route::get('cargas/documento/pod', [EmbarcadorCargaController::class, 'exibirDocumentoPod']);
         });
 
         // =========================================================
@@ -84,8 +94,8 @@ Route::prefix('v1')->group(function () {
             Route::delete('cargas/{id}/aceitar', [MotoristaCargaController::class, 'cancelarAceite']);
             Route::post('cargas/{id}/iniciar-viagem', [MotoristaCargaController::class, 'iniciarViagem']);
             
-            Route::post('cargas/{carga}/pod/url', [PodController::class, 'gerarUrlUpload']);
-            Route::post('cargas/{carga}/pod/confirmar', [PodController::class, 'confirmarEntrega']);
+            // ZT-DEFENSE: Mapeamento Atômico do Envio Seguro de POD (Substitui as Rotas Zumbis)
+            Route::post('cargas/{id}/finalizar', [MotoristaCargaController::class, 'finalizarEntrega']);
 
             Route::get('cargas/{carga}/chat', [MotoristaCargaController::class, 'getChat']);
             Route::post('cargas/{carga}/chat', [MotoristaCargaController::class, 'storeChat'])->middleware('throttle:20,1');
@@ -108,6 +118,10 @@ Route::prefix('v1')->group(function () {
             
             Route::get('/fretes/{id}', [AdminController::class, 'detalhesFrete']);
             Route::get('/fretes/{id}/auditoria', [AdminController::class, 'auditoriaCarga']);
+            
+            // ZT-DEFENSE: Proxy seguro de documentos (LFI Aniquilado)
+            Route::get('/auditoria/documento', [AdminController::class, 'exibirDocumentoAuditoria']);
+            Route::get('/kyc/documento', [AdminController::class, 'exibirDocumentoKyc']);
 
             // Disputas
             Route::get('/disputas', [AdminController::class, 'listarDisputas']);
@@ -154,11 +168,11 @@ Route::prefix('v1')->group(function () {
             Route::put('/crm/embarcadores/{embarcador}/contrato', [AdminController::class, 'atualizarContratoEmbarcador']);
             Route::put('/config/crm/embarcadores/{embarcador}/contrato', [AdminController::class, 'atualizarContratoEmbarcador']);
             
-            // Parceiros e Integrações (API Gateway)
+            // 🔒 ZERO TRUST: Parceiros e Integrações (API Gateway / Admin CRM)
             Route::get('/crm/parceiros', [ParceiroController::class, 'index']);
-            Route::post('/crm/parceiros', [ParceiroController::class, 'store']);
-            Route::put('/crm/parceiros/{parceiro}', [ParceiroController::class, 'update']);
-            Route::delete('/crm/parceiros/{parceiro}', [ParceiroController::class, 'destroy']);
+            Route::post('/crm/parceiros', [ParceiroController::class, 'store'])->middleware('throttle:30,1');
+            Route::put('/crm/parceiros/{parceiro}', [ParceiroController::class, 'update'])->middleware('throttle:30,1');
+            Route::delete('/crm/parceiros/{parceiro}', [ParceiroController::class, 'destroy'])->middleware('throttle:30,1');
             
             Route::get('/parceiros-api', [AdminController::class, 'listarParceirosApi']);
             Route::post('/parceiros-api', [AdminController::class, 'gerarTokenParceiro']);

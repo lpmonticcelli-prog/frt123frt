@@ -1,33 +1,42 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Api\V1\Webhooks;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 use App\Models\Carga;
 use Illuminate\Support\Facades\Log;
 
 class TransatWebhookController extends Controller
 {
-    public function handleCallback(Request $request)
+    public function handleCallback(Request $request): JsonResponse
     {
-        // 1. BLINDAGEM ZERO-TRUST
-        $tokenEsperado = config('services.transat.webhook_secret');
+        // 1. BLINDAGEM ZERO-TRUST (TypeError DoS Fix)
+        // O casting explícito previne que falhas no .env causem exception na função hash_equals
+        $tokenEsperado = (string) config('services.transat.webhook_secret');
         
         $bearer = $request->header('Authorization') ?? $request->header('authorization');
-        $tokenRecebido = str_replace(['Bearer ', 'bearer '], '', $bearer);
+        $tokenRecebido = str_replace(['Bearer ', 'bearer '], '', (string) $bearer);
 
-        if (empty($tokenRecebido) || !hash_equals($tokenEsperado, $tokenRecebido)) {
+        // Fail-Fast: Impede crash e neutraliza chaves ausentes ou vazias
+        if (empty($tokenEsperado) || empty($tokenRecebido) || !hash_equals($tokenEsperado, $tokenRecebido)) {
             Log::alert('[WEBHOOK HACK] Tentativa de forjar Laudo GR bloqueada.', ['ip' => $request->ip()]);
             return response()->json(['error' => 'Acesso Negado'], 401);
         }
 
         // 2. RECUPERAÇÃO DA REFERÊNCIA
         $referencia = $request->input('referencia');
-        if (!$referencia) return response()->json(['error' => 'Referencia vazia'], 400);
+        if (!$referencia) {
+            return response()->json(['error' => 'Referencia vazia'], 400);
+        }
 
         $carga = Carga::where('gr_referencia', $referencia)->first();
-        if (!$carga) return response()->json(['status' => 'Ignorado'], 200);
+        if (!$carga) {
+            return response()->json(['status' => 'Ignorado'], 200);
+        }
 
         // Salva Laudo Bruto no Banco
         $carga->gr_laudo_raw = $request->all();

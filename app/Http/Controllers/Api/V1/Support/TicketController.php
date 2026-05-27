@@ -1,20 +1,38 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Api\V1\Support;
 
 use App\Http\Controllers\Controller;
 use App\Models\Ticket;
 use App\Models\TicketMessage;
+use App\Models\Carga;
 use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class TicketController extends Controller
 {
+    /**
+     * Sanitização Termal Estrita (Defesa contra XSS/Null Byte injetados no SAC).
+     */
+    private function sanitizeText(?string $payload): ?string
+    {
+        if ($payload === null) {
+            return null;
+        }
+        $clean = str_replace(chr(0), '', $payload);
+        $clean = strip_tags($clean);
+        return htmlspecialchars($clean, ENT_QUOTES | ENT_HTML5 | ENT_SUBSTITUTE, 'UTF-8', false);
+    }
+
     // =========================================================
     // MÓDULOS DO CLIENTE (EMBARCADOR / MOTORISTA)
     // =========================================================
 
-    public function index(Request $request)
+    public function index(Request $request): JsonResponse
     {
         $tickets = Ticket::with(['staff:id,name', 'carga:id,cidade_origem,cidade_destino'])
             ->where('user_id', $request->user()->id)
@@ -24,14 +42,30 @@ class TicketController extends Controller
         return response()->json($tickets);
     }
 
-    public function store(Request $request)
+    public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'assunto' => 'required|string|max:255',
             'categoria' => 'required|string',
             'carga_id' => 'nullable|exists:cargas,id',
-            'mensagem' => 'required|string',
+            'mensagem' => 'required|string|max:5000',
         ]);
+
+        $user = $request->user();
+
+        // ZT-DEFENSE: Proteção contra Context-Spoofing e Vazamento via Engenharia Social.
+        // Valida se o usuário que está abrindo o ticket de fato pertence à carga informada.
+        if (!empty($validated['carga_id'])) {
+            $carga = Carga::select('id', 'embarcador_id', 'motorista_id')->find($validated['carga_id']);
+            
+            $isEmbarcadorDono = $user->embarcador !== null && $user->embarcador->id === $carga->embarcador_id;
+            $isMotoristaDono = $user->motorista !== null && $user->motorista->id === $carga->motorista_id;
+            
+            if (!$isEmbarcadorDono && !$isMotoristaDono) {
+                Log::alert("[Security Audit] Tentativa de Context-Spoofing bloqueada. Usuário ID {$user->id} tentou vincular ticket à Carga ID {$validated['carga_id']} a qual não lhe pertence.");
+                abort(403, 'Acesso negado. Você não possui vínculo logístico com esta carga.');
+            }
+        }
 
         $prioridade = 'normal';
         if ($validated['categoria'] === 'Disputa de Frete' || $request->filled('carga_id')) {
@@ -40,11 +74,11 @@ class TicketController extends Controller
             $prioridade = 'alta';
         }
 
-        $ticket = DB::transaction(function () use ($request, $validated, $prioridade) {
+        $ticket = DB::transaction(function () use ($user, $validated, $prioridade) {
             $ticket = Ticket::create([
-                'user_id' => $request->user()->id,
+                'user_id' => $user->id,
                 'carga_id' => $validated['carga_id'] ?? null,
-                'assunto' => $validated['assunto'],
+                'assunto' => $this->sanitizeText($validated['assunto']),
                 'categoria' => $validated['categoria'],
                 'prioridade' => $prioridade,
                 'status' => 'aberto'
@@ -52,8 +86,8 @@ class TicketController extends Controller
 
             TicketMessage::create([
                 'ticket_id' => $ticket->id,
-                'user_id' => $request->user()->id,
-                'mensagem' => $validated['mensagem']
+                'user_id' => $user->id,
+                'mensagem' => $this->sanitizeText($validated['mensagem'])
             ]);
 
             return $ticket;
@@ -62,14 +96,15 @@ class TicketController extends Controller
         return response()->json(['message' => 'Chamado aberto com sucesso. Nossa equipa responderá em breve.', 'ticket' => $ticket], 201);
     }
 
-    public function show(Ticket $ticket, Request $request)
+    public function show(Ticket $ticket, Request $request): JsonResponse
     {
         $user = $request->user();
         $user->loadMissing('role');
         
-        if ($user->role && in_array($user->role->slug, ['motorista', 'embarcador'])) {
+        // ZT-DEFENSE: Read-IDOR Protection
+        if ($user->role && in_array($user->role->slug, ['motorista', 'embarcador'], true)) {
             if ($ticket->user_id !== $user->id) {
-                return response()->json(['message' => 'Acesso negado.'], 403);
+                return response()->json(['message' => 'Acesso negado. Perímetro de segurança isolado.'], 403);
             }
         }
 
@@ -78,44 +113,62 @@ class TicketController extends Controller
         return response()->json($ticket);
     }
 
-    public function reply(Request $request, Ticket $ticket)
+    public function reply(Request $request, Ticket $ticket): JsonResponse
     {
         $validated = $request->validate([
-            'mensagem' => 'required|string'
+            'mensagem' => 'required|string|max:5000'
         ]);
 
         $user = $request->user();
         $user->loadMissing('role');
+        
+        $isClient = $user->role && in_array($user->role->slug, ['motorista', 'embarcador'], true);
+        $isStaff = $user->role && in_array($user->role->slug, ['suporte_n1', 'compliance', 'manager'], true);
 
-        DB::transaction(function () use ($ticket, $user, $validated) {
+        // ZT-DEFENSE: Write-IDOR Protection para o Cliente Final
+        if ($isClient && $ticket->user_id !== $user->id) {
+            abort(403, 'Acesso negado. Violação de titularidade do chamado.');
+        }
+
+        // ZT-DEFENSE: Impede que um Atendente N1 responda o chamado assumido por outro especialista
+        if ($isStaff && $ticket->staff_id !== null && $ticket->staff_id !== $user->id) {
+            abort(403, 'Acesso negado. Este chamado já encontra-se sob custódia de outro especialista.');
+        }
+
+        DB::transaction(function () use ($ticket, $user, $validated, $isClient) {
+            // ZT-DEFENSE: Lock Pessimista evita Race Conditions na Máquina de Estado
+            $lockedTicket = Ticket::where('id', $ticket->id)->lockForUpdate()->firstOrFail();
+
+            if (in_array($lockedTicket->status, ['resolvido', 'fechado'], true)) {
+                abort(400, 'Não é possível inserir tréplicas em um chamado encerrado na auditoria.');
+            }
+
             TicketMessage::create([
-                'ticket_id' => $ticket->id,
+                'ticket_id' => $lockedTicket->id,
                 'user_id' => $user->id,
-                'mensagem' => $validated['mensagem']
+                'mensagem' => $this->sanitizeText($validated['mensagem'])
             ]);
 
-            $novoStatus = ($user->role && in_array($user->role->slug, ['motorista', 'embarcador']))
-                ? 'em_atendimento' 
-                : 'aguardando_cliente';
+            $novoStatus = $isClient ? 'em_atendimento' : 'aguardando_cliente';
 
-            $ticket->update(['status' => $novoStatus]);
+            $lockedTicket->update(['status' => $novoStatus]);
         });
 
-        return response()->json(['message' => 'Resposta enviada.']);
+        return response()->json(['message' => 'Resposta enviada e registrada em log.']);
     }
 
     // =========================================================
     // MÓDULOS DO STAFF (BACKOFFICE / N1 / ADMIN)
     // =========================================================
 
-    public function listarFilaGlobal(Request $request)
+    public function listarFilaGlobal(Request $request): JsonResponse
     {
         $user = $request->user();
         $user->loadMissing('role');
         
         $query = Ticket::with(['user:id,name,email', 'carga:id,cidade_origem,cidade_destino']);
 
-        if ($user->role && in_array($user->role->slug, ['admin', 'manager', 'compliance'])) {
+        if ($user->role && in_array($user->role->slug, ['admin', 'manager', 'compliance'], true)) {
             $query->whereIn('status', ['aberto', 'em_atendimento', 'aguardando_cliente']);
         } else {
             $query->where(function ($q) use ($user) {
@@ -140,23 +193,33 @@ class TicketController extends Controller
         return response()->json($tickets);
     }
 
-    public function assumirTicket(Ticket $ticket, Request $request)
+    public function assumirTicket(Ticket $ticket, Request $request): JsonResponse
     {
-        if ($ticket->staff_id !== null && $ticket->staff_id !== $request->user()->id) {
-            return response()->json(['message' => 'Este ticket já foi assumido por outro atendente.'], 409);
-        }
+        $lockedTicket = null;
 
-        $ticket->update([
-            'staff_id' => $request->user()->id,
-            'status' => 'em_atendimento'
-        ]);
+        DB::transaction(function () use ($ticket, $request, &$lockedTicket) {
+            $lockedTicket = Ticket::where('id', $ticket->id)->lockForUpdate()->firstOrFail();
 
-        return response()->json(['message' => 'Ticket assumido com sucesso.', 'ticket' => $ticket]);
+            if ($lockedTicket->staff_id !== null && $lockedTicket->staff_id !== $request->user()->id) {
+                abort(409, 'Conflito de Atribuição: Este ticket foi assumido por outro atendente milissegundos atrás.');
+            }
+
+            $lockedTicket->update([
+                'staff_id' => $request->user()->id,
+                'status' => 'em_atendimento'
+            ]);
+        });
+
+        return response()->json(['message' => 'Ticket assumido com sucesso.', 'ticket' => $lockedTicket]);
     }
 
-    public function fecharTicket(Ticket $ticket)
+    public function fecharTicket(Ticket $ticket): JsonResponse
     {
-        $ticket->update(['status' => 'resolvido']);
-        return response()->json(['message' => 'Ticket classificado como resolvido.']);
+        DB::transaction(function () use ($ticket) {
+            $lockedTicket = Ticket::where('id', $ticket->id)->lockForUpdate()->firstOrFail();
+            $lockedTicket->update(['status' => 'resolvido']);
+        });
+
+        return response()->json(['message' => 'Ticket classificado e arquivado como resolvido.']);
     }
 }

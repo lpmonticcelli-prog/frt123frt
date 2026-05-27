@@ -1,21 +1,24 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Api\V1\Embarcador;
 
 use App\Http\Controllers\Controller;
-
 use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
-use App\Services\ReceitaWSService; // IMPORTAÇÃO DO SERVIÇO DE VALIDAÇÃO
+use App\Services\ReceitaWSService;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class PerfilController extends Controller
 {
     /**
      * Retorna os dados atuais do perfil do Embarcador logado
      */
-    public function show(Request $request)
+    public function show(Request $request): JsonResponse
     {
         $user = $request->user();
         
@@ -39,14 +42,16 @@ class PerfilController extends Controller
             'cidade' => $embarcador->cidade,
             'uf' => $embarcador->uf,
             'status_conta' => $user->status, // pending, em_analise, active, rejected
-            'documento_kyc_url' => $embarcador->documento_kyc ? Storage::url($embarcador->documento_kyc) : null,
+            
+            // ZT-DEFENSE: Substituição da URL Pública por Proxy Autenticado
+            'documento_kyc_url' => $embarcador->documento_kyc ? url("/api/v1/embarcador/perfil/documento") : null,
         ]);
     }
 
     /**
      * Atualiza os dados, valida o CNPJ na Receita Federal e faz o upload do documento KYC
      */
-    public function update(Request $request, ReceitaWSService $receitaWSService)
+    public function update(Request $request, ReceitaWSService $receitaWSService): JsonResponse
     {
         $user = $request->user();
         
@@ -106,13 +111,13 @@ class PerfilController extends Controller
         }
 
         if ($novoDocumento) {
-            // Apaga o arquivo antigo do servidor para economizar espaço e evitar lixo (Orphan files)
-            if ($documentoPath && Storage::disk('public')->exists($documentoPath)) {
-                Storage::disk('public')->delete($documentoPath);
+            // ZT-DEFENSE: Apaga o arquivo antigo do cofre seguro (local) para economizar espaço
+            if ($documentoPath && Storage::disk('local')->exists($documentoPath)) {
+                Storage::disk('local')->delete($documentoPath);
             }
             
-            // Salva o novo arquivo isolado na pasta do embarcador
-            $documentoPath = $request->file('documento_kyc')->store('kyc/embarcadores/' . $embarcador->id, 'public');
+            // ZT-DEFENSE: Salva o novo arquivo isolado na pasta do embarcador no disco local (NÃO PÚBLICO)
+            $documentoPath = $request->file('documento_kyc')->store('kyc/embarcadores/' . $embarcador->id, 'local');
         }
 
         if ($cnpjAlterado || $novoDocumento) {
@@ -145,7 +150,29 @@ class PerfilController extends Controller
         return response()->json([
             'message' => 'Perfil atualizado com sucesso. Dados verificados na Receita Federal.',
             'status_conta' => $statusConta,
-            'documento_kyc_url' => $documentoPath ? Storage::url($documentoPath) : null,
+            // Retorna o Proxy Seguro
+            'documento_kyc_url' => $documentoPath ? url("/api/v1/embarcador/perfil/documento") : null,
         ]);
+    }
+
+    /**
+     * ZT-DEFENSE: Servidor de Arquivo Seguro (Proxy Local)
+     * Entrega o documento KYC diretamente da memória sem expor a URI física.
+     */
+    public function exibirDocumento(Request $request): StreamedResponse|JsonResponse
+    {
+        $user = $request->user();
+
+        if ($user->role->slug !== 'embarcador' || !$user->embarcador) {
+            abort(403, 'Acesso negado.');
+        }
+
+        $path = $user->embarcador->documento_kyc;
+
+        if (!$path || !Storage::disk('local')->exists($path)) {
+            return response()->json(['error' => 'Documento não localizado no cofre seguro.'], 404);
+        }
+
+        return Storage::disk('local')->response($path);
     }
 }

@@ -13,6 +13,43 @@ use Illuminate\Support\Facades\DB;
 
 class ParceiroController extends Controller
 {
+    /**
+     * MOTOR ZERO TRUST (DevSecOps)
+     * Isolamento de Tenant, Anti-IDOR e Rate Limiting Direcionado (Anti-DDoS/Botnets)
+     */
+    public function __construct()
+    {
+        // 1. Proteção Estrita de Identidade (Apenas usuários autenticados, exceto clique de telemetria)
+        $this->middleware('auth:sanctum')->except(['registrarClique']);
+
+        // 2. Proteção Anti-IDOR (Apenas Administradores podem ler métricas globais e escrever no banco)
+        $this->middleware('role:admin')->only(['index', 'store', 'update', 'destroy']);
+
+        // 3. Rate Limiting (Aceleração e mitigação de DDoS L7 por IP/Tenant)
+        $this->middleware('throttle:30,1')->only(['store', 'update', 'destroy']); // Escrita pesada
+        $this->middleware('throttle:120,1')->only(['listarPorPublico', 'index']); // Leitura / Leilão GPU
+        $this->middleware('throttle:10,1')->only(['registrarClique', 'registrarConversao']); // Anti-Fraude CPA/CPC
+    }
+
+    /**
+     * Sanitização Termal Estrita (Defesa em Profundidade contra Stored XSS).
+     */
+    private function sanitizeText(?string $payload): ?string
+    {
+        if ($payload === null) {
+            return null;
+        }
+
+        // 1. Prevenção contra Null Byte Injection (%00 / \0)
+        $clean = str_replace(chr(0), '', $payload);
+        
+        // 2. Extirpação agressiva de tags estruturais
+        $clean = strip_tags($clean);
+        
+        // 3. Conversão de entidades HTML5 bloqueando execução de handlers via DOM evasion
+        return htmlspecialchars($clean, ENT_QUOTES | ENT_HTML5 | ENT_SUBSTITUTE, 'UTF-8', false);
+    }
+
     public function index(): JsonResponse
     {
         return response()->json(Parceiro::orderBy('ordem_exibicao')->get());
@@ -25,8 +62,9 @@ class ParceiroController extends Controller
             'categoria' => 'required|in:propaganda,anuncio,contrato_comercial,produto',
             'audience' => 'required|in:motorista,embarcador,todos',
             'descricao' => 'nullable|string',
-            'imagem_url' => 'nullable|url', // Proteção Anti-XSS (Impede javascript:...)
-            'link_url' => 'nullable|url',   // Proteção Anti-XSS
+            // Blindagem Anti-SSRF/XSS: Bloqueia URIs hostis 
+            'imagem_url' => 'nullable|url|starts_with:http://,https://', 
+            'link_url' => 'nullable|url|starts_with:http://,https://',   
             'conteudo_contrato' => 'nullable|string',
             'is_active' => 'boolean',
             'ordem_exibicao' => 'integer',
@@ -44,12 +82,21 @@ class ParceiroController extends Controller
             'limite_conversoes' => 'required_if:modelo_cobranca,cpa|nullable|integer|min:1',
         ]);
 
+        // Sanitização Secundária Térmica (Blindagem atômica no banco)
+        $validated['nome'] = $this->sanitizeText($validated['nome']);
+        if (isset($validated['descricao'])) {
+            $validated['descricao'] = $this->sanitizeText($validated['descricao']);
+        }
+        if (isset($validated['conteudo_contrato'])) {
+            $validated['conteudo_contrato'] = $this->sanitizeText($validated['conteudo_contrato']);
+        }
+
         // Default constraints para segurança da view
         $validated['estatico'] = $validated['estatico'] ?? false;
         $validated['velocidade'] = $validated['velocidade'] ?? 25;
 
         // Máquina de Estado Financeiro
-        if (in_array($validated['status_financeiro'], ['pago', 'isento'])) {
+        if (in_array($validated['status_financeiro'], ['pago', 'isento'], true)) {
             $validated['data_ativacao'] = now();
             $validated['is_active'] = true;
             if ($validated['modelo_cobranca'] === 'assinatura') {
@@ -78,8 +125,8 @@ class ParceiroController extends Controller
             'categoria' => 'in:propaganda,anuncio,contrato_comercial,produto',
             'audience' => 'in:motorista,embarcador,todos',
             'descricao' => 'nullable|string',
-            'imagem_url' => 'nullable|url',
-            'link_url' => 'nullable|url',
+            'imagem_url' => 'nullable|url|starts_with:http://,https://',
+            'link_url' => 'nullable|url|starts_with:http://,https://',
             'conteudo_contrato' => 'nullable|string',
             'is_active' => 'boolean',
             'ordem_exibicao' => 'integer',
@@ -96,14 +143,28 @@ class ParceiroController extends Controller
             'limite_conversoes' => 'nullable|integer|min:1',
         ]);
 
-        DB::transaction(function () use ($request, $parceiro, &$validated) {
+        // Sanitização Secundária Térmica
+        if (isset($validated['nome'])) {
+            $validated['nome'] = $this->sanitizeText($validated['nome']);
+        }
+        if (isset($validated['descricao'])) {
+            $validated['descricao'] = $this->sanitizeText($validated['descricao']);
+        }
+        if (isset($validated['conteudo_contrato'])) {
+            $validated['conteudo_contrato'] = $this->sanitizeText($validated['conteudo_contrato']);
+        }
+
+        DB::transaction(function () use ($parceiro, &$validated) {
+            // Lock Pessimista: Impede Race Condition caso dois administradores atualizem simultaneamente.
+            $lockedParceiro = Parceiro::where('id', $parceiro->id)->lockForUpdate()->firstOrFail();
+
             // Processamento Mútuo de Datas de Contrato
-            if (isset($validated['status_financeiro']) && $parceiro->status_financeiro !== $validated['status_financeiro']) {
-                if (in_array($validated['status_financeiro'], ['pago', 'isento'])) {
+            if (isset($validated['status_financeiro']) && $lockedParceiro->status_financeiro !== $validated['status_financeiro']) {
+                if (in_array($validated['status_financeiro'], ['pago', 'isento'], true)) {
                     $validated['data_ativacao'] = now();
                     $validated['is_active'] = true;
-                    if (($validated['modelo_cobranca'] ?? $parceiro->modelo_cobranca) === 'assinatura') {
-                        $duracao = $validated['dias_duracao'] ?? $parceiro->dias_duracao ?? 30;
+                    if (($validated['modelo_cobranca'] ?? $lockedParceiro->modelo_cobranca) === 'assinatura') {
+                        $duracao = $validated['dias_duracao'] ?? $lockedParceiro->dias_duracao ?? 30;
                         $validated['data_expiracao'] = now()->addDays((int) $duracao);
                     }
                 } else {
@@ -113,8 +174,10 @@ class ParceiroController extends Controller
                 }
             }
 
-            $parceiro->update($validated);
+            $lockedParceiro->update($validated);
         });
+        
+        $parceiro->refresh();
 
         return response()->json([
             'message' => 'Contrato/Campanha atualizado com sucesso.', 
@@ -138,7 +201,7 @@ class ParceiroController extends Controller
         // 1. Captação Sanitizada do Posicionamento exigido pelo Frontend
         $posicionamento = $request->query('posicionamento');
 
-        // 2. Determinação de Escopo do Usuário Logado
+        // 2. Determinação de Escopo do Usuário Logado (Fallback defensivo)
         $role = $request->user() ? $request->user()->role->slug : 'motorista';
 
         // 3. O construtor Query inicia com o escopo global de ativos (CPA/CPC e Data)
@@ -147,11 +210,10 @@ class ParceiroController extends Controller
 
         // 4. INTERCEPTADOR CRÍTICO: Isola os banners pelas zonas de exibição
         if (!empty($posicionamento)) {
-            // Previne injeção SQL assegurando que seja uma das 4 zonas permitidas
-            if (in_array($posicionamento, ['topo', 'lateral', 'rodape', 'direita'])) {
+            // Previne injeção SQL e manipulação de arrays assegurando flag estrita (true)
+            if (in_array($posicionamento, ['topo', 'lateral', 'rodape', 'direita'], true)) {
                 $query->where('posicionamento', $posicionamento);
             } else {
-                // Se a zona for inválida (ex: tentativa de scan), retorna vazio imediatamente.
                 return response()->json([]);
             }
         }
@@ -165,15 +227,18 @@ class ParceiroController extends Controller
     public function registrarClique(Parceiro $parceiro, Request $request): JsonResponse
     {
         DB::transaction(function () use ($parceiro) {
+            // LOCK PESSIMISTA (TOCTOU Defense): O Row-level locking impede que bots massivos
+            // leiam e ultrapassem o teto de cota de cliques (CPC) da campanha antes do commit.
+            $lockedParceiro = Parceiro::where('id', $parceiro->id)->lockForUpdate()->firstOrFail();
+
             // 🚨 Regra de Negócio Crítica: O clique só é debitado se a campanha for CPC
-            if ($parceiro->modelo_cobranca === 'cpc') {
-                // Se já bateu o limite, não computa clique além do faturado.
-                if ($parceiro->limite_cliques === null || $parceiro->cliques_acumulados < $parceiro->limite_cliques) {
-                    $parceiro->increment('cliques_acumulados');
+            if ($lockedParceiro->modelo_cobranca === 'cpc') {
+                if ($lockedParceiro->limite_cliques === null || $lockedParceiro->cliques_acumulados < $lockedParceiro->limite_cliques) {
+                    $lockedParceiro->increment('cliques_acumulados');
                 }
             } else {
-                // Apenas para telemetria (sem cobrança)
-                $parceiro->increment('cliques_acumulados');
+                // Apenas para telemetria (sem cobrança limite)
+                $lockedParceiro->increment('cliques_acumulados');
             }
         });
         
@@ -183,14 +248,17 @@ class ParceiroController extends Controller
     public function registrarConversao(Parceiro $parceiro, Request $request): JsonResponse
     {
         DB::transaction(function () use ($parceiro) {
+            // LOCK PESSIMISTA (TOCTOU Defense): Protege injeção simultânea de leads.
+            $lockedParceiro = Parceiro::where('id', $parceiro->id)->lockForUpdate()->firstOrFail();
+
             // 🚨 Regra de Negócio Crítica: Lead só é debitado se a campanha for CPA
-            if ($parceiro->modelo_cobranca === 'cpa') {
-                if ($parceiro->limite_conversoes === null || $parceiro->conversoes_acumuladas < $parceiro->limite_conversoes) {
-                    $parceiro->increment('conversoes_acumuladas');
+            if ($lockedParceiro->modelo_cobranca === 'cpa') {
+                if ($lockedParceiro->limite_conversoes === null || $lockedParceiro->conversoes_acumuladas < $lockedParceiro->limite_conversoes) {
+                    $lockedParceiro->increment('conversoes_acumuladas');
                 }
             } else {
                 // Apenas para telemetria
-                $parceiro->increment('conversoes_acumuladas');
+                $lockedParceiro->increment('conversoes_acumuladas');
             }
         });
         

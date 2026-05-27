@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Jobs;
 
 use App\Models\Embarcador;
@@ -50,34 +52,38 @@ class GerarFaturasMensaisJob implements ShouldQueue
         })->get();
 
         foreach ($embarcadores as $embarcador) {
-            // Garante que não geramos fatura duplicada
-            $faturaExistente = Fatura::where('embarcador_id', $embarcador->id)
-                                     ->where('mes_referencia', $mesFormatado)
-                                     ->exists();
+            // ZT-DEFENSE: A transação agora engloba a checagem, a leitura e a escrita.
+            DB::transaction(function () use ($embarcador, $inicioMes, $fimMes, $mesFormatado) {
+                
+                // Garante que não geramos fatura duplicada (Verificação dentro do lock implícito)
+                $faturaExistente = Fatura::where('embarcador_id', $embarcador->id)
+                                         ->where('mes_referencia', $mesFormatado)
+                                         ->exists();
 
-            if ($faturaExistente) {
-                Log::info("[Faturamento] Fatura já existe para o Embarcador {$embarcador->id} em {$mesFormatado}. Pulando.");
-                continue;
-            }
+                if ($faturaExistente) {
+                    Log::info("[Faturamento] Fatura já existe para o Embarcador {$embarcador->id} em {$mesFormatado}. Pulando.");
+                    return; // Retorno antecipado (Sai do closure da transaction)
+                }
 
-            // Busca as cargas ENTREGUES neste mês específico
-            $cargasFaturaveis = Carga::where('embarcador_id', $embarcador->id)
-                ->whereIn('status', ['entregue', 'finalizada', 'concluida'])
-                ->whereBetween('updated_at', [$inicioMes, $fimMes])
-                ->get();
+                // ZT-DEFENSE: Lock Pessimista e Filtro Estrito
+                // Exige whereNull('fatura_id') para blindar contra double-billing.
+                $cargasFaturaveis = Carga::where('embarcador_id', $embarcador->id)
+                    ->whereNull('fatura_id')
+                    ->whereIn('status', ['entregue', 'finalizada', 'concluida'])
+                    ->whereBetween('updated_at', [$inicioMes, $fimMes])
+                    ->lockForUpdate()
+                    ->get();
 
-            // Se o Embarcador não teve operações E não tem mensalidade fixa, pula
-            if ($cargasFaturaveis->isEmpty() && !$embarcador->mensalidade_fixa) {
-                continue;
-            }
-
-            DB::transaction(function () use ($embarcador, $cargasFaturaveis, $mesFormatado) {
+                // Se o Embarcador não teve operações E não tem mensalidade fixa, pula
+                if ($cargasFaturaveis->isEmpty() && !$embarcador->mensalidade_fixa) {
+                    return;
+                }
                 
                 // 1. Soma das taxas das cargas (Comissões)
-                $somaTaxasVariaveis = $cargasFaturaveis->sum('taxa_plataforma');
+                $somaTaxasVariaveis = (float) $cargasFaturaveis->sum('taxa_plataforma');
                 
                 // 2. Adiciona a mensalidade SaaS (se existir no contrato)
-                $mensalidade = $embarcador->mensalidade_fixa ?? 0;
+                $mensalidade = (float) ($embarcador->mensalidade_fixa ?? 0);
                 
                 $valorTotalFatura = $somaTaxasVariaveis + $mensalidade;
 
@@ -90,7 +96,7 @@ class GerarFaturasMensaisJob implements ShouldQueue
                     ];
                 })->toArray();
 
-                Fatura::create([
+                $fatura = Fatura::create([
                     'embarcador_id' => $embarcador->id,
                     'mes_referencia' => $mesFormatado,
                     'valor_total' => $valorTotalFatura,
@@ -104,6 +110,14 @@ class GerarFaturasMensaisJob implements ShouldQueue
                         ]
                     ]
                 ]);
+
+                // ZT-DEFENSE: Selamento Atômico do Ciclo Financeiro
+                // Vincula as cargas à fatura gerada, impedindo faturamento duplicado futuro.
+                if ($cargasFaturaveis->isNotEmpty()) {
+                    Carga::whereIn('id', $cargasFaturaveis->pluck('id'))->update([
+                        'fatura_id' => $fatura->id
+                    ]);
+                }
 
                 Log::info("[Faturamento] Fatura gerada para Embarcador {$embarcador->id} | Valor: R$ {$valorTotalFatura}");
             });

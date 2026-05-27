@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -14,6 +16,13 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware) {
         
+        // ==========================================
+        // ZERO TRUST: CONFIANÇA DE PROXY (WAF/ELB)
+        // ==========================================
+        // Garante que o Rate Limiting (Throttle) bloqueie o IP REAL do atacante,
+        // e não o IP do Cloudflare, AWS Load Balancer ou Nginx.
+        $middleware->trustProxies(at: '*'); 
+
         // ==========================================
         // SANCTUM: HABILITA SESSÃO/COOKIES NA API
         // ==========================================

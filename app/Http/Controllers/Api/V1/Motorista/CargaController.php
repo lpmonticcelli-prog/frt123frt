@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Api\V1\Motorista;
 
 use App\Http\Controllers\Controller;
@@ -8,8 +10,9 @@ use App\Models\Ciot;
 use App\Models\CargaCandidatura;
 use App\Contracts\PefGatewayInterface;
 use App\Services\Logistics\CandidaturaService;
-use App\Events\NovaMensagemChat; // 🔥 IMPORTAÇÃO DO EVENTO WEBSOCKET
+use App\Events\NovaMensagemChat;
 use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -22,7 +25,20 @@ class CargaController extends Controller
         $this->candidaturaService = $candidaturaService;
     }
 
-    public function disponiveis(Request $request)
+    /**
+     * Sanitização Termal Estrita (Defesa contra XSS/Null Byte injetados via Socket).
+     */
+    private function sanitizeText(?string $payload): ?string
+    {
+        if ($payload === null) {
+            return null;
+        }
+        $clean = str_replace(chr(0), '', $payload);
+        $clean = strip_tags($clean);
+        return htmlspecialchars($clean, ENT_QUOTES | ENT_HTML5 | ENT_SUBSTITUTE, 'UTF-8', false);
+    }
+
+    public function disponiveis(Request $request): JsonResponse
     {
         return response()->json([
             'status' => 'success',
@@ -33,14 +49,14 @@ class CargaController extends Controller
         ], 200);
     }
 
-    public function minhasCargas(Request $request)
+    public function minhasCargas(Request $request): JsonResponse
     {
         $motoristaId = $request->user()->motorista->id ?? null;
         if (!$motoristaId) {
             return response()->json(['error' => 'Perfil de motorista não localizado.'], 403);
         }
 
-        // CORREÇÃO: Puxa cargas alocadas OU cargas onde o motorista tem lances pendentes (para não sumirem)
+        // Puxa cargas alocadas OU cargas onde o motorista tem lances pendentes
         $cargas = Carga::with(['embarcador', 'candidaturas'])
             ->where(function ($query) use ($motoristaId) {
                 $query->where('motorista_id', $motoristaId)
@@ -54,7 +70,7 @@ class CargaController extends Controller
         return response()->json(['status' => 'success', 'data' => $cargas], 200);
     }
 
-    public function aceitar(Request $request, $id)
+    public function aceitar(Request $request, int $id): JsonResponse
     {
         $motorista = $request->user()->motorista;
         if (!$motorista) {
@@ -82,7 +98,7 @@ class CargaController extends Controller
         }
     }
 
-    public function cancelarAceite(Request $request, $id, PefGatewayInterface $pefGateway)
+    public function cancelarAceite(Request $request, int $id, PefGatewayInterface $pefGateway): JsonResponse
     {
         $motorista = $request->user()->motorista;
         $carga = Carga::findOrFail($id);
@@ -124,30 +140,32 @@ class CargaController extends Controller
         }
     }
 
-    public function iniciarViagem(Request $request, $id)
+    public function iniciarViagem(Request $request, int $id): JsonResponse
     {
         DB::transaction(function () use ($request, $id) {
-            // Lock Pessimista necessário para garantir integridade atômica da mudança de state
             $carga = Carga::lockForUpdate()->findOrFail($id);
             
             if ($carga->motorista_id !== $request->user()->motorista->id) {
                 abort(403, 'Operação negada. Propriedade da carga violada.');
             }
             
-            // Ajustado para permitir os status corretos do Bidding, incluindo o MOCK (em_analise_gr)
-            if (!in_array($carga->status, ['aguardando_coleta', 'aceita', 'processando_aceite', 'em_analise_gr', 'alocada'])) {
-                abort(400, 'Status inválido. Aguarde a liberação do CIOT e da GR.');
+            // ZT-DEFENSE: A restrição foi severamente corrigida. 
+            // O motorista NUNCA pode iniciar a viagem se estiver "em_analise_gr" ou "processando_aceite".
+            // A viagem só é válida quando o motor de CIOT e a Seguradora dão ok.
+            if (!in_array($carga->status, ['aguardando_coleta', 'alocada'], true)) {
+                abort(400, 'Status inválido. A operação não pode ser iniciada pois aguarda liberação jurídica (GR) ou fiduciária (CIOT).');
             }
 
             $carga->update(['status' => 'em_transito']);
+            
+            Log::info("[Logística] Motorista ID {$request->user()->motorista->id} iniciou rota para Carga ID {$carga->id}");
         });
 
         return response()->json(['message' => 'Viagem iniciada.'], 200);
     }
 
-    public function finalizarEntrega(Request $request, $id)
+    public function finalizarEntrega(Request $request, int $id): JsonResponse
     {
-        // Upload nativo atômico (salva na pasta public/pod do servidor)
         $request->validate([
             'foto_canhoto' => 'required|image|max:10240',
             'foto_carga'   => 'required|image|max:10240',
@@ -164,14 +182,20 @@ class CargaController extends Controller
                 abort(400, 'Status logístico inválido para finalização.');
             }
 
-            $pathCanhoto = $request->file('foto_canhoto')->store("pod/carga_{$carga->id}", 'public');
-            $pathCarga = $request->file('foto_carga')->store("pod/carga_{$carga->id}", 'public');
+            // ZT-DEFENSE: Proteção de Dados (PII). Migração do disco public para o cofre interno (local).
+            // A extensão da imagem original é mantida para garantir a correta renderização e hash futuro.
+            $pathCanhoto = $request->file('foto_canhoto')->store("pod/carga_{$carga->id}", 'local');
+            $pathCarga = $request->file('foto_carga')->store("pod/carga_{$carga->id}", 'local');
 
             $carga->update([
                 'status' => 'em_auditoria',
-                'foto_canhoto' => url('storage/'.$pathCanhoto),
-                'foto_carga' => url('storage/'.$pathCarga)
+                // ZT-DEFENSE: Não exportamos a URL gerada por Storage::url. Apenas o path.
+                // O Embarcador e o Admin consumirão a foto através de um endpoint Proxy Authenticado.
+                'foto_canhoto' => $pathCanhoto,
+                'foto_carga' => $pathCarga
             ]);
+            
+            Log::info("[POD] Motorista ID {$request->user()->motorista->id} finalizou a Carga ID {$carga->id}. Evidências arquivadas em cofre.");
         });
 
         return response()->json(['message' => 'Entrega finalizada. A carga agora aguarda avaliação de reputação pelo Embarcador.'], 200);
@@ -180,15 +204,23 @@ class CargaController extends Controller
     // =====================================================================
     // CHAT ZERO TRUST (WEBSOCKETS EM TEMPO REAL)
     // =====================================================================
-    public function getChat(Request $request, $id)
+    public function getChat(Request $request, int $id): JsonResponse
     {
         $carga = Carga::findOrFail($id);
-        if ($carga->motorista_id !== $request->user()->motorista->id) return response()->json(['error' => 'Acesso negado.'], 403);
-        $mensagens = DB::table('carga_mensagens')->where('carga_id', $carga->id)->orderBy('created_at', 'asc')->get();
+        
+        if ($carga->motorista_id !== $request->user()->motorista->id) {
+            return response()->json(['error' => 'Acesso negado.'], 403);
+        }
+        
+        $mensagens = DB::table('carga_mensagens')
+            ->where('carga_id', $carga->id)
+            ->orderBy('created_at', 'asc')
+            ->get();
+            
         return response()->json($mensagens);
     }
 
-    public function storeChat(Request $request, $id)
+    public function storeChat(Request $request, int $id): JsonResponse
     {
         $user = $request->user();
         $carga = Carga::findOrFail($id);
@@ -198,7 +230,9 @@ class CargaController extends Controller
         }
         
         $request->validate(['mensagem' => 'required|string|max:1000']);
-        $mensagemLimpa = $request->mensagem;
+        
+        // ZT-DEFENSE: Sanitização do payload para bloquear Stored XSS
+        $mensagemLimpa = $this->sanitizeText($request->mensagem);
 
         $msgId = DB::table('carga_mensagens')->insertGetId([
             'carga_id' => $carga->id,
@@ -209,10 +243,8 @@ class CargaController extends Controller
             'updated_at' => now()
         ]);
 
-        // Puxa a mensagem exata que acabou de ser salva
         $mensagemSalva = DB::table('carga_mensagens')->find($msgId);
 
-        // 🔥 O ALTO-FALANTE: Avisa todos no canal do WebSocket (menos o próprio emissor) que há uma nova mensagem
         broadcast(new NovaMensagemChat($mensagemSalva, $carga->id))->toOthers();
 
         return response()->json($mensagemSalva, 201);

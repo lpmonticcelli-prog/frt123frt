@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Http\Controllers\Controller;
@@ -17,13 +19,14 @@ use Illuminate\Support\Facades\Mail;
 use App\Mail\B2bCredentialMail;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Illuminate\Http\JsonResponse;
 
 class AdminController extends Controller
 {
     // ==========================================
     // ABA 1: VISÃO GERAL (KPIs)
     // ==========================================
-    public function getDashboardStats()
+    public function getDashboardStats(): JsonResponse
     {
         $roleMotoristaId = Role::where('slug', 'motorista')->value('id');
         $roleEmbarcadorId = Role::where('slug', 'embarcador')->value('id');
@@ -47,7 +50,7 @@ class AdminController extends Controller
     // ==========================================
     // ABA 2: AUDITORIA KYC (Fila de Espera)
     // ==========================================
-    public function usuariosPendentes()
+    public function usuariosPendentes(): JsonResponse
     {
         $pendentes = User::with(['role', 'motorista', 'embarcador'])
             ->whereIn('status', ['pending', 'em_analise'])
@@ -57,7 +60,7 @@ class AdminController extends Controller
         return response()->json($pendentes);
     }
 
-    public function analisarUsuario(Request $request, User $usuario)
+    public function analisarUsuario(Request $request, User $usuario): JsonResponse
     {
         $request->validate([
             'status' => 'required|in:active,rejected',
@@ -79,7 +82,7 @@ class AdminController extends Controller
     // ==========================================
     // ABA 3: CRM (Base de Usuários / Blocklist)
     // ==========================================
-    public function listarTodosUsuarios()
+    public function listarTodosUsuarios(): JsonResponse
     {
         $roleAdminId = Role::where('slug', 'admin')->value('id');
 
@@ -91,7 +94,7 @@ class AdminController extends Controller
         return response()->json($usuarios);
     }
 
-    public function alterarStatus(Request $request, User $usuario)
+    public function alterarStatus(Request $request, User $usuario): JsonResponse
     {
         $request->validate([
             'status' => 'required|in:active,banned'
@@ -101,12 +104,18 @@ class AdminController extends Controller
             abort(403, 'Tentativa de violação de hierarquia bloqueada. Você não pode alterar o status de um Administrador Root.');
         }
 
-        $usuario->status = $request->status;
-        $usuario->save();
+        DB::transaction(function () use ($usuario, $request) {
+            $usuario->status = $request->status;
+            $usuario->save();
 
-        if ($request->status === 'banned') {
-            $usuario->tokens()->delete(); 
-        }
+            if ($request->status === 'banned') {
+                // ZT-DEFENSE: Kill Switch Absoluto (Ban Evasion Fix)
+                // 1. Destrói chaves de API (M2M)
+                $usuario->tokens()->delete(); 
+                // 2. Destrói Sessões Físicas no Servidor (Stateful Web)
+                DB::table('sessions')->where('user_id', $usuario->id)->delete();
+            }
+        });
 
         $estado = $request->status === 'banned' ? 'banido' : 'restaurado';
         
@@ -120,7 +129,7 @@ class AdminController extends Controller
     // ==========================================
     // ABA 4: FINANCEIRO & OPERAÇÕES (Dashboard)
     // ==========================================
-    public function relatorioFretes()
+    public function relatorioFretes(): JsonResponse
     {
         $fretes = Carga::with(['embarcador', 'motorista.user'])
             ->orderBy('created_at', 'desc')
@@ -141,7 +150,7 @@ class AdminController extends Controller
     // ==========================================
     // NOVOS MÓDULOS: MESA DE OPERAÇÕES
     // ==========================================
-    public function listarMuralFretes()
+    public function listarMuralFretes(): JsonResponse
     {
         $cargas = Carga::with(['embarcador', 'motorista.user'])
             ->whereNotIn('status', ['entregue', 'cancelada'])
@@ -151,7 +160,7 @@ class AdminController extends Controller
         return response()->json($cargas);
     }
 
-    public function listarDisputas()
+    public function listarDisputas(): JsonResponse
     {
         $disputas = Carga::with(['embarcador', 'motorista.user'])
             ->where('status', 'em_disputa')
@@ -160,7 +169,7 @@ class AdminController extends Controller
         return response()->json($disputas);
     }
 
-    public function resolverDisputa(Request $request, Carga $carga)
+    public function resolverDisputa(Request $request, Carga $carga): JsonResponse
     {
         $request->validate([
             'acao' => 'required|in:cancelar,finalizar'
@@ -201,7 +210,7 @@ class AdminController extends Controller
     // ARQUIVO MORTO E AUDITORIA (TELEMETRIA B2B)
     // ==========================================
     
-    public function fretesConcluidos(Request $request)
+    public function fretesConcluidos(Request $request): JsonResponse
     {
         $fretes = Carga::with(['embarcador', 'motorista.user'])
             ->whereIn('status', ['entregue', 'pago', 'concluido', 'finalizada', 'em_auditoria'])
@@ -211,7 +220,7 @@ class AdminController extends Controller
         return response()->json($fretes);
     }
 
-    public function auditoriaCarga(int $id)
+    public function auditoriaCarga(int $id): JsonResponse
     {
         $carga = Carga::with([
             'embarcador.user', 
@@ -295,7 +304,7 @@ class AdminController extends Controller
                 'documento' => $carga->embarcador->cnpj ?? 'N/A',
                 'data_assinatura' => $publicacaoLog->publicado_em ?? $carga->created_at,
                 'ip_assinatura' => $publicacaoLog->ip_address ?? 'Registado pelo Sistema',
-                'hash_certificado' => $publicacaoLog->termo_hash ?? sha1($carga->id . $carga->created_at . 'EMB')
+                'hash_certificado' => $publicacaoLog->termo_hash ?? hash('sha256', $carga->id . $carga->created_at . config('app.key') . 'EMB')
             ],
             'motorista' => [
                 'valido' => $carga->motorista_id ? true : false,
@@ -303,7 +312,7 @@ class AdminController extends Controller
                 'documento' => $carga->motorista->cpf ?? 'N/A',
                 'data_assinatura' => $aceiteLog->created_at ?? $carga->updated_at,
                 'ip_assinatura' => $aceiteLog->ip_address ?? 'Capturado via App',
-                'hash_certificado' => $aceiteLog->termo_hash ?? sha1($carga->id . $carga->motorista_id . 'MOT')
+                'hash_certificado' => $aceiteLog->termo_hash ?? hash('sha256', $carga->id . $carga->motorista_id . config('app.key') . 'MOT')
             ]
         ];
 
@@ -314,32 +323,80 @@ class AdminController extends Controller
         ]);
     }
 
-    public function exibirDocumentoAuditoria(Request $request)
+    /**
+     * MOTOR DE SEGURANÇA: Validador de Diretório Estrito (Anti-LFI / Anti-Path Traversal)
+     */
+    private function resolveAndValidateSecurePath(?string $path, string $allowedPrefix): string
     {
-        $path = $request->query('path');
-
-        if (!$path || !Storage::disk('local')->exists($path)) {
-            return response()->json(['error' => 'Arquivo de auditoria não localizado no cofre seguro.'], 404);
+        if (empty($path)) {
+            abort(400, 'Path do arquivo é obrigatório.');
         }
 
-        return Storage::disk('local')->response($path);
+        // 1. Desfaz Double Encoding
+        $decodedPath = rawurldecode($path);
+        
+        // 2. Padronização de Barras
+        $normalizedPath = str_replace('\\', '/', $decodedPath);
+
+        // 3. Extirpação de Null Bytes
+        if (str_contains($normalizedPath, "\0")) {
+            abort(403, 'Violação detectada: Null byte injection.');
+        }
+
+        // 4. Bloqueio definitivo de escalonamento de diretório
+        if (preg_match('#(?:^|/)\.\.(?:/|$)#', $normalizedPath) || str_contains($normalizedPath, '../')) {
+            abort(403, 'Violação detectada: Path Traversal (Escalonamento de Diretório).');
+        }
+
+        // 5. Bloqueio de consulta à raiz do sistema
+        if (str_starts_with($normalizedPath, '/')) {
+            abort(403, 'Violação detectada: Consulta de caminho absoluto não autorizada.');
+        }
+
+        // 6. Whitelisting (O cofre)
+        if (!str_starts_with($normalizedPath, $allowedPrefix . '/')) {
+            abort(403, 'Violação detectada: Tentativa de leitura fora do perímetro isolado.');
+        }
+
+        return $normalizedPath;
     }
 
-    public function exibirDocumentoKyc(Request $request)
+    public function exibirDocumentoAuditoria(Request $request): StreamedResponse|JsonResponse
     {
-        $path = $request->query('path');
+        try {
+            $path = $this->resolveAndValidateSecurePath($request->query('path'), 'pod');
 
-        if (!$path || !Storage::disk('local')->exists($path)) {
-            return response()->json(['error' => 'Arquivo KYC não localizado no cofre seguro.'], 404);
+            if (!Storage::disk('local')->exists($path)) {
+                return response()->json(['error' => 'Arquivo de auditoria não localizado no cofre seguro.'], 404);
+            }
+
+            return Storage::disk('local')->response($path);
+        } catch (\Exception $e) {
+            Log::alert("Security Audit (LFI/Traversal Blocked) - Modulo: Auditoria | IP: {$request->ip()} | Payload: " . $request->query('path'));
+            return response()->json(['error' => $e->getMessage()], $e->getCode() ?: 403);
         }
+    }
 
-        return Storage::disk('local')->response($path);
+    public function exibirDocumentoKyc(Request $request): StreamedResponse|JsonResponse
+    {
+        try {
+            $path = $this->resolveAndValidateSecurePath($request->query('path'), 'kyc');
+
+            if (!Storage::disk('local')->exists($path)) {
+                return response()->json(['error' => 'Arquivo KYC não localizado no cofre seguro.'], 404);
+            }
+
+            return Storage::disk('local')->response($path);
+        } catch (\Exception $e) {
+            Log::alert("Security Audit (LFI/Traversal Blocked) - Modulo: KYC | IP: {$request->ip()} | Payload: " . $request->query('path'));
+            return response()->json(['error' => $e->getMessage()], $e->getCode() ?: 403);
+        }
     }
 
     // ==========================================
     // NOVOS MÓDULOS: CRM ESPECÍFICO
     // ==========================================
-    public function listarMotoristas()
+    public function listarMotoristas(): JsonResponse
     {
         $roleMotoristaId = Role::where('slug', 'motorista')->value('id');
         
@@ -351,7 +408,7 @@ class AdminController extends Controller
         return response()->json($motoristas);
     }
 
-    public function listarEmbarcadores()
+    public function listarEmbarcadores(): JsonResponse
     {
         $roleEmbarcadorId = Role::where('slug', 'embarcador')->value('id');
         
@@ -363,7 +420,7 @@ class AdminController extends Controller
         return response()->json($embarcadores);
     }
 
-    public function atualizarContratoEmbarcador(Request $request, Embarcador $embarcador)
+    public function atualizarContratoEmbarcador(Request $request, Embarcador $embarcador): JsonResponse
     {
         if ($request->user()->role->slug !== 'admin') {
             abort(403, 'Ação restrita. Apenas administradores raiz podem alterar as taxas financeiras de um cliente.');
@@ -387,7 +444,7 @@ class AdminController extends Controller
     // ==========================================
     // NOVOS MÓDULOS: FINANCEIRO E EXTRATOS
     // ==========================================
-    public function extratoTaxas()
+    public function extratoTaxas(): JsonResponse
     {
         $settings = Cache::get('global_settings') ?? DB::table('settings')->pluck('value', 'key')->toArray();
         $taxaVigente = $settings['taxa_plataforma'] ?? 5.00;
@@ -412,7 +469,7 @@ class AdminController extends Controller
         ]);
     }
 
-    public function relatorioFaturamento()
+    public function relatorioFaturamento(): JsonResponse
     {
         $faturamentoAgregado = Carga::with('embarcador.user:id,name,email')
             ->whereIn('status', ['entregue', 'finalizada'])
@@ -426,7 +483,7 @@ class AdminController extends Controller
     // ==========================================
     // NOVOS MÓDULOS: CONFIGURAÇÕES CORE E STAFF
     // ==========================================
-    public function listarStaff()
+    public function listarStaff(): JsonResponse
     {
         $staffRoles = Role::whereIn('slug', ['admin', 'manager', 'compliance', 'suporte_n1'])->pluck('id');
         
@@ -438,7 +495,7 @@ class AdminController extends Controller
         return response()->json($staff);
     }
 
-    public function criarStaff(Request $request)
+    public function criarStaff(Request $request): JsonResponse
     {
         if ($request->user()->role->slug !== 'admin') {
             abort(403, 'Ação restrita. Apenas administradores raiz podem criar membros da equipe.');
@@ -471,7 +528,7 @@ class AdminController extends Controller
         ], 201);
     }
 
-    public function atualizarStaff(Request $request, User $usuario)
+    public function atualizarStaff(Request $request, User $usuario): JsonResponse
     {
         if ($request->user()->role->slug !== 'admin') {
             abort(403, 'Ação restrita.');
@@ -490,8 +547,12 @@ class AdminController extends Controller
                 'status' => $request->status
             ]);
 
-            if (in_array($request->status, ['banned', 'suspended'])) {
-                $usuario->tokens()->delete();
+            if (in_array($request->status, ['banned', 'suspended'], true)) {
+                // ZT-DEFENSE: Kill Switch Absoluto (Ban Evasion Fix)
+                // 1. Destrói chaves de API (M2M)
+                $usuario->tokens()->delete(); 
+                // 2. Destrói Sessões Físicas no Servidor (Stateful Web)
+                DB::table('sessions')->where('user_id', $usuario->id)->delete();
             }
         });
 
@@ -502,7 +563,7 @@ class AdminController extends Controller
         ]);
     }
 
-    public function listarVariaveis()
+    public function listarVariaveis(): JsonResponse
     {
         $settings = Cache::rememberForever('global_settings', function () {
             return DB::table('settings')->pluck('value', 'key')->toArray();
@@ -515,7 +576,7 @@ class AdminController extends Controller
         ]);
     }
 
-    public function atualizarVariaveis(Request $request)
+    public function atualizarVariaveis(Request $request): JsonResponse
     {
         if ($request->user()->role->slug !== 'admin') {
             abort(403, 'Ação restrita.');
@@ -546,7 +607,7 @@ class AdminController extends Controller
     // ==========================================
     // NOVOS MÓDULOS: GESTÃO DE INTEGRAÇÕES (API GATEWAY)
     // ==========================================
-    public function listarParceirosApi()
+    public function listarParceirosApi(): JsonResponse
     {
         $tokens = \Laravel\Sanctum\PersonalAccessToken::with('tokenable')
             ->where('name', 'like', 'API%')
@@ -556,7 +617,7 @@ class AdminController extends Controller
         return response()->json($tokens);
     }
 
-    public function gerarTokenParceiro(Request $request)
+    public function gerarTokenParceiro(Request $request): JsonResponse
     {
         if ($request->user()->role->slug !== 'admin') {
             abort(403, 'Ação restrita. Apenas administradores raiz podem gerar chaves de integração.');
@@ -568,13 +629,17 @@ class AdminController extends Controller
             'email_contato' => 'required|email'
         ]);
 
+        // ZT-DEFENSE: Eliminação de Fallback Root (Privilege Escalation Fix)
+        // A role "embarcador" DEVE existir. Caso contrário, Fail-Fast (abort 404).
+        $roleEmbarcador = Role::where('slug', 'embarcador')->firstOrFail();
+
         $parceiro = User::firstOrCreate(
             ['email' => $validated['email_contato']],
             [
                 'name' => 'B2B - ' . $validated['nome_parceiro'],
                 'phone' => '00000000000',
                 'password' => Hash::make(Str::random(40)),
-                'role_id' => Role::where('slug', 'embarcador')->value('id') ?? 1,
+                'role_id' => $roleEmbarcador->id,
                 'status' => 'active'
             ]
         );
@@ -602,7 +667,7 @@ class AdminController extends Controller
         ]);
     }
 
-    public function revogarTokenParceiro(Request $request, $tokenId)
+    public function revogarTokenParceiro(Request $request, string $tokenId): JsonResponse
     {
         if ($request->user()->role->slug !== 'admin') {
             abort(403, 'Ação restrita. Acesso negado ao Kill Switch.');
@@ -621,28 +686,28 @@ class AdminController extends Controller
     // ADICIONADOS AGORA: Métodos requeridos pelas rotas originais
     // ==============================================================
     
-    public function dashboardMetrics()
+    public function dashboardMetrics(): JsonResponse
     {
         return $this->getDashboardStats();
     }
 
-    public function detalhesEmbarcador($id)
+    public function detalhesEmbarcador(int $id): JsonResponse
     {
         return response()->json(User::with('embarcador')->findOrFail($id));
     }
 
-    public function detalhesMotorista($id)
+    public function detalhesMotorista(int $id): JsonResponse
     {
         return response()->json(User::with('motorista')->findOrFail($id));
     }
 
-    public function avaliarKycMotorista(Request $request, $id)
+    public function avaliarKycMotorista(Request $request, int $id): JsonResponse
     {
         $usuario = User::findOrFail($id);
         return $this->analisarUsuario($request, $usuario);
     }
 
-    public function listarFretes(Request $request)
+    public function listarFretes(Request $request): JsonResponse
     {
         $query = Carga::with(['embarcador', 'motorista.user'])->orderBy('created_at', 'desc');
 
@@ -655,12 +720,12 @@ class AdminController extends Controller
         return response()->json($query->paginate(50));
     }
 
-    public function detalhesFrete($id)
+    public function detalhesFrete(int $id): JsonResponse
     {
         return response()->json(Carga::with(['embarcador', 'motorista.user'])->findOrFail($id));
     }
 
-    public function obterVariaveis()
+    public function obterVariaveis(): JsonResponse
     {
         return $this->listarVariaveis();
     }
