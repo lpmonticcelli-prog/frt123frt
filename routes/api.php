@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\V1\Admin\FaturamentoController as AdminFaturamentoC
 use App\Http\Controllers\Api\V1\Support\TicketController;
 use App\Http\Controllers\Api\V1\Support\FaqController;
 use App\Http\Controllers\Api\V1\Webhooks\PefWebhookController; 
+use App\Http\Controllers\Api\V1\Webhooks\TransatWebhookController;
 
 Route::prefix('v1')->group(function () {
 
@@ -43,7 +44,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/suporte/tickets/{ticket}', [TicketController::class, 'show']);
         Route::post('/suporte/tickets/{ticket}/mensagens', [TicketController::class, 'reply'])->middleware('throttle:15,1');
         
-        // Rotas do Hub de Parceiros (Motoristas e Embarcadores)
+        // Rotas do Hub de Parceiros
         Route::get('/hub/parceiros', [ParceiroController::class, 'listarPorPublico']);
         Route::post('/hub/parceiros/{parceiro}/clique', [ParceiroController::class, 'registrarClique']);
 
@@ -71,7 +72,6 @@ Route::prefix('v1')->group(function () {
         // DOMÍNIO: MOTORISTA
         // =========================================================
         Route::middleware('ability:motorista')->prefix('motorista')->group(function () {
-            
             Route::get('perfil', [MotoristaPerfilController::class, 'show']);
             Route::post('perfil/documentos', [MotoristaPerfilController::class, 'uploadDocumentos']); 
             Route::get('perfil/documento/{tipo}', [MotoristaPerfilController::class, 'exibirDocumento']); 
@@ -95,74 +95,71 @@ Route::prefix('v1')->group(function () {
         // DOMÍNIO: ADMIN
         // =========================================================
         Route::middleware('ability:admin')->prefix('admin')->group(function () {
-            // [MANTIDO O SEU CÓDIGO ORIGINAL INTACTO]
+
+            // Dashboards e Relatórios
             Route::get('/dashboard', [AdminController::class, 'dashboardMetrics']);
-            Route::get('/embarcadores', [AdminController::class, 'listarEmbarcadores']);
-            Route::get('/embarcadores/{id}', [AdminController::class, 'detalhesEmbarcador']);
-            Route::get('/motoristas', [AdminController::class, 'listarMotoristas']);
-            Route::get('/motoristas/{id}', [AdminController::class, 'detalhesMotorista']);
-            Route::post('/motoristas/{id}/kyc', [AdminController::class, 'avaliarKycMotorista']);
+            Route::get('/dashboard-stats', [AdminController::class, 'getDashboardStats']);
+
+            // 🛑 PREVENÇÃO DE ROUTE SHADOWING: Rotas de Fretes organizadas
+            // As rotas estáticas absolutas DEVEM preceder as dinâmicas ({id})
             Route::get('/fretes', [AdminController::class, 'listarFretes']);
-            Route::get('/fretes/{id}', [AdminController::class, 'detalhesFrete']);
-            Route::get('/disputas', [AdminController::class, 'listarDisputas']);
-            Route::post('/disputas/{id}/resolver', [AdminController::class, 'resolverDisputa']);
+            Route::get('/fretes/concluidos', [AdminController::class, 'fretesConcluidos']);
+            Route::get('/operacoes/fretes', [AdminController::class, 'listarMuralFretes']);
             
+            Route::get('/fretes/{id}', [AdminController::class, 'detalhesFrete']);
+            Route::get('/fretes/{id}/auditoria', [AdminController::class, 'auditoriaCarga']);
+
+            // Disputas
+            Route::get('/disputas', [AdminController::class, 'listarDisputas']);
+            Route::get('/operacoes/disputas', [AdminController::class, 'listarDisputas']);
+            Route::post('/disputas/{id}/resolver', [AdminController::class, 'resolverDisputa']);
+            Route::post('/operacoes/disputas/{carga}/resolver', [AdminController::class, 'resolverDisputa']);
+            
+            // Faturamento
             Route::get('/faturamento/radar', [AdminFaturamentoController::class, 'radar']);
-            Route::post('/faturamento/congelar/{embarcadorId}', [AdminFaturamentoController::class, 'congelar']);
             Route::get('/faturamento/ciclos', [AdminFaturamentoController::class, 'listarCiclos']);
             Route::post('/faturamento/gerar', [AdminFaturamentoController::class, 'gerarFaturasManuais']);
             Route::get('/faturamento/extrato-taxas', [AdminFaturamentoController::class, 'extratoTaxasPlataforma']);
             Route::get('/faturamento/taxas-agregadas', [AdminFaturamentoController::class, 'taxasAgregadas']);
-            
-            Route::get('/staff', [AdminController::class, 'listarStaff']);
-            Route::post('/staff', [AdminController::class, 'criarStaff']); 
-            Route::put('/staff/{usuario}', [AdminController::class, 'atualizarStaff']); 
-            Route::put('/variaveis', [AdminController::class, 'atualizarVariaveis']);
-            Route::put('/crm/embarcadores/{embarcador}/contrato', [AdminController::class, 'atualizarContratoEmbarcador']);
-            
-            Route::post('/crm/parceiros', [ParceiroController::class, 'store']);
-            Route::put('/crm/parceiros/{parceiro}', [ParceiroController::class, 'update']);
-            Route::delete('/crm/parceiros/{parceiro}', [ParceiroController::class, 'destroy']);
-
-            // =========================================================
-            // ADIÇÃO CIRÚRGICA: AS ROTAS GET/POST EXATAS QUE O SEU VUE PEDE
-            // A apontar para as funções que JÁ EXISTEM no seu AdminController
-            // =========================================================
-            
-            // Dashboard
-            Route::get('/dashboard-stats', [AdminController::class, 'getDashboardStats']);
-            
-            // Variáveis Globais
-            Route::get('/config/variaveis', [AdminController::class, 'listarVariaveis']);
-            Route::put('/config/variaveis', [AdminController::class, 'atualizarVariaveis']);
-            
-            // Staff
-            Route::get('/config/staff', [AdminController::class, 'listarStaff']);
-            Route::post('/config/staff', [AdminController::class, 'criarStaff']);
-            Route::put('/config/staff/{usuario}', [AdminController::class, 'atualizarStaff']);
-            
-            // Extrato Taxas
+            Route::post('/faturamento/congelar/{embarcadorId}', [AdminFaturamentoController::class, 'congelar']);
             Route::get('/financeiro/extrato', [AdminController::class, 'extratoTaxas']);
             
-            // Utilizadores e CRM
+            // Variáveis Globais e Staff
+            Route::get('/config/variaveis', [AdminController::class, 'listarVariaveis']);
+            Route::put('/config/variaveis', [AdminController::class, 'atualizarVariaveis']);
+            Route::put('/variaveis', [AdminController::class, 'atualizarVariaveis']);
+            
+            Route::get('/config/staff', [AdminController::class, 'listarStaff']);
+            Route::get('/staff', [AdminController::class, 'listarStaff']);
+            Route::post('/config/staff', [AdminController::class, 'criarStaff']);
+            Route::post('/staff', [AdminController::class, 'criarStaff']); 
+            Route::put('/config/staff/{usuario}', [AdminController::class, 'atualizarStaff']);
+            Route::put('/staff/{usuario}', [AdminController::class, 'atualizarStaff']); 
+            
+            // Usuários e CRM
             Route::get('/usuarios', [AdminController::class, 'listarTodosUsuarios']);
             Route::get('/usuarios-pendentes', [AdminController::class, 'usuariosPendentes']);
             Route::post('/usuarios/{usuario}/analise', [AdminController::class, 'analisarUsuario']);
             Route::post('/usuarios/{usuario}/status', [AdminController::class, 'alterarStatus']);
             
+            Route::get('/embarcadores', [AdminController::class, 'listarEmbarcadores']);
             Route::get('/crm/embarcadores', [AdminController::class, 'listarEmbarcadores']);
+            Route::get('/embarcadores/{id}', [AdminController::class, 'detalhesEmbarcador']);
+            
+            Route::get('/motoristas', [AdminController::class, 'listarMotoristas']);
             Route::get('/crm/motoristas', [AdminController::class, 'listarMotoristas']);
+            Route::get('/motoristas/{id}', [AdminController::class, 'detalhesMotorista']);
+            Route::post('/motoristas/{id}/kyc', [AdminController::class, 'avaliarKycMotorista']);
+            
+            Route::put('/crm/embarcadores/{embarcador}/contrato', [AdminController::class, 'atualizarContratoEmbarcador']);
             Route::put('/config/crm/embarcadores/{embarcador}/contrato', [AdminController::class, 'atualizarContratoEmbarcador']);
             
-            // Operações, Disputas e Fretes
-            Route::get('/operacoes/fretes', [AdminController::class, 'listarMuralFretes']);
-            Route::get('/operacoes/disputas', [AdminController::class, 'listarDisputas']);
-            Route::post('/operacoes/disputas/{carga}/resolver', [AdminController::class, 'resolverDisputa']);
-            Route::get('/fretes/concluidos', [AdminController::class, 'fretesConcluidos']);
-            Route::get('/fretes/{id}/auditoria', [AdminController::class, 'auditoriaCarga']);
-            
-            // Parceiros CMS e API
+            // Parceiros e Integrações (API Gateway)
             Route::get('/crm/parceiros', [ParceiroController::class, 'index']);
+            Route::post('/crm/parceiros', [ParceiroController::class, 'store']);
+            Route::put('/crm/parceiros/{parceiro}', [ParceiroController::class, 'update']);
+            Route::delete('/crm/parceiros/{parceiro}', [ParceiroController::class, 'destroy']);
+            
             Route::get('/parceiros-api', [AdminController::class, 'listarParceirosApi']);
             Route::post('/parceiros-api', [AdminController::class, 'gerarTokenParceiro']);
             Route::post('/parceiros-api/{tokenId}/revogar', [AdminController::class, 'revogarTokenParceiro']);
@@ -188,4 +185,8 @@ Route::prefix('v1/localidades')->group(function () {
     Route::get('/estados/{uf}/municipios', [\App\Http\Controllers\Api\V1\LocalidadeController::class, 'municipios']);
 });
 
+// =========================================================
+// WEBHOOKS (Fora da blindagem Sanctum, protegidos por Token Interno)
+// =========================================================
 Route::post('/v1/webhooks/pef', [PefWebhookController::class, 'handleCallback'])->name('webhook.pef');
+Route::post('/v1/webhooks/transat', [TransatWebhookController::class, 'handleCallback'])->name('webhook.transat');

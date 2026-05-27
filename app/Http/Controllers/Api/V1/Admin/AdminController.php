@@ -13,8 +13,8 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log; 
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Mail; // INJETADO PARA O DISPARO B2B
-use App\Mail\B2bCredentialMail;      // INJETADO PARA O DISPARO B2B
+use Illuminate\Support\Facades\Mail;
+use App\Mail\B2bCredentialMail;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -548,7 +548,6 @@ class AdminController extends Controller
     // ==========================================
     public function listarParceirosApi()
     {
-        // CORREÇÃO CIRÚRGICA: Alterado de 'API-%' para 'API%' para capturar qualquer variação de espaçamento
         $tokens = \Laravel\Sanctum\PersonalAccessToken::with('tokenable')
             ->where('name', 'like', 'API%')
             ->orderBy('created_at', 'desc')
@@ -569,26 +568,21 @@ class AdminController extends Controller
             'email_contato' => 'required|email'
         ]);
 
-        // Criamos o "Utilizador Fantasma" para o parceiro, para que a chave fique vinculada a ele
         $parceiro = User::firstOrCreate(
             ['email' => $validated['email_contato']],
             [
                 'name' => 'B2B - ' . $validated['nome_parceiro'],
                 'phone' => '00000000000',
                 'password' => Hash::make(Str::random(40)),
-                'role_id' => Role::where('slug', 'embarcador')->value('id') ?? 1, // Utilizador sem painel, apenas API
+                'role_id' => Role::where('slug', 'embarcador')->value('id') ?? 1,
                 'status' => 'active'
             ]
         );
 
         $tokenName = 'API - ' . $validated['nome_parceiro'];
         
-        // Gera a Chave Blindada e estampa a Habilidade Específica
         $token = $parceiro->createToken($tokenName, [$validated['tipo_acesso']])->plainTextToken;
 
-        // ======================================================
-        // A INJEÇÃO DE AUTOMAÇÃO (Disparo do E-mail)
-        // ======================================================
         try {
             Mail::to($validated['email_contato'])->send(
                 new B2bCredentialMail($validated['nome_parceiro'], $token, $validated['tipo_acesso'])
@@ -596,7 +590,6 @@ class AdminController extends Controller
             Log::info("API Gateway: E-mail de credenciais enviado para {$validated['email_contato']}");
         } catch (\Exception $e) {
             Log::error("API Gateway: Falha ao enviar e-mail de credencial para {$validated['email_contato']} - Erro: " . $e->getMessage());
-            // Não travamos o processo se o e-mail falhar, pois o token ainda será exibido no ecrã do administrador.
         }
 
         Log::warning("API Gateway: Nova chave gerada para {$validated['nome_parceiro']} ({$validated['tipo_acesso']}) pelo Admin ID " . auth()->id());
@@ -626,7 +619,6 @@ class AdminController extends Controller
 
     // ==============================================================
     // ADICIONADOS AGORA: Métodos requeridos pelas rotas originais
-    // NADA FOI APAGADO ACIMA. ESTAS SÃO APENAS "PONTES" COMPATÍVEIS
     // ==============================================================
     
     public function dashboardMetrics()

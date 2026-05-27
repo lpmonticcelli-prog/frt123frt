@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
@@ -16,7 +18,10 @@ class Parceiro extends Model
         'codigo_contrato_externo', 'cliques_acumulados', 'posicionamento', 'status_financeiro',
         'dias_duracao', 'data_ativacao', 'data_expiracao',
         // Adicionados para o motor AdTech real:
-        'limite_cliques', 'limite_conversoes', 'conversoes_acumuladas'
+        'limite_cliques', 'limite_conversoes', 'conversoes_acumuladas',
+        // --- INJEÇÃO ADTECH GPU ---
+        'estatico',
+        'velocidade',
     ];
 
     protected $casts = [
@@ -32,12 +37,15 @@ class Parceiro extends Model
         'dias_duracao' => 'integer',
         'data_ativacao' => 'datetime',
         'data_expiracao' => 'datetime',
+        // --- CASTING ADTECH GPU ---
+        'estatico' => 'boolean',
+        'velocidade' => 'integer',
     ];
 
     /**
      * O MOTOR ADTECH: Só retorna anúncios que ainda têm saldo (Tempo, Cliques ou Conversões).
      */
-    public function scopeAtivosPublicos(Builder $query)
+    public function scopeAtivosPublicos(Builder $query): Builder
     {
         return $query->where('is_active', true)
             ->whereIn('status_financeiro', ['pago', 'isento'])

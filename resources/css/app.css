@@ -1,3 +1,31 @@
+/* resources/css/app.css */
+
+/* 1. Importação Restrita: Inter (Leitura UI) e JetBrains Mono (Hashes/Cargas/Logs) */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+    html {
+        /* Bloqueia o "bounce" elástico no mobile. Crucial para o App do Motorista parecer nativo. */
+        overscroll-behavior-y: none;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+        /* Injeção global do fundo clínico, cor primária do texto e anti-aliasing para máxima nitidez */
+        @apply bg-surface-50 text-surface-700 font-sans antialiased;
+    }
+
+    /* Otimização implacável para Data-Tables e relatórios financeiros (evita trepidação visual ao mudar números) */
+    table {
+        @apply tabular-nums;
+    }
+
+    /* Acessibilidade corporativa rigorosa (Navegação por teclado em galpões e docas) */
+    *:focus-visible {
+        @apply outline-none ring-2 ring-brand-500 ring-offset-2 ring-offset-surface-50 transition-shadow rounded-sm;
+    }
+}
