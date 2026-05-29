@@ -3,12 +3,10 @@
     
     <nav class="navbar">
       <div class="nav-brand" style="display: flex; align-items: center; gap: 8px;">
-        <svg width="32" height="32" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M50 10C27.9086 10 10 27.9086 10 50C10 61.0457 14.4772 71.0457 21.8016 78.3701L50 100L78.1984 78.3701C85.5228 71.0457 90 61.0457 90 50C90 27.9086 72.0914 10 50 10Z" fill="#F28C28"/>
-          <circle cx="50" cy="40" r="15" fill="#2F5C3E"/>
-        </svg>
+        <!-- Injeção do Asset Oficial (logo1.png) -->
+        <img src="/logo1.png" alt="Logotipo 123fretei" style="height: 32px; width: auto; object-fit: contain;" />
         <span style="font-size: 1.8rem; font-weight: 900; letter-spacing: -1px; display: flex; align-items: baseline;">
-          <span style="color: #2F5C3E;">123</span><span style="color: #F28C28;">Fretei</span>
+          <span style="color: #035D29;">123</span><span style="color: var(--c-brand);">fretei</span>
         </span>
       </div>
       
@@ -109,12 +107,13 @@
     </section>
 
     <footer class="footer">
-      <div class="nav-brand">
-        <span style="font-size: 1.5rem; font-weight: 900; letter-spacing: -1px;">
-          <span style="color: #2F5C3E;">123</span><span style="color: #F28C28;">Fretei</span>
+      <div class="nav-brand" style="display: flex; align-items: center; gap: 8px;">
+        <img src="/logo1.png" alt="Logotipo 123fretei" style="height: 24px; width: auto; object-fit: contain;" />
+        <span style="font-size: 1.5rem; font-weight: 900; letter-spacing: -1px; display: flex; align-items: baseline;">
+          <span style="color: #035D29;">123</span><span style="color: var(--c-brand);">fretei</span>
         </span>
       </div>
-      <p class="footer-text">&copy; 2026 123FRETEI. Engenharia de Software e Logística Integrada.</p>
+      <p class="footer-text">&copy; 2026 123fretei. Engenharia de Software e Logística Integrada.</p>
     </footer>
 
     <div class="modal-overlay" :class="{ 'active': isModalOpen }" @click.self="closeModal">
@@ -130,8 +129,6 @@
 
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue';
-
-// A importação do logo defeituoso foi permanentemente removida
 
 const isModalOpen = ref(false);
 const openModal = () => isModalOpen.value = true;

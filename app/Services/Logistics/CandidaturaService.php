@@ -21,8 +21,10 @@ class CandidaturaService
      */
     public function aplicar(Motorista $motorista, Carga $carga): CargaCandidatura
     {
-        if ($motorista->suspenso_ate && $motorista->suspenso_ate->isFuture()) {
-            throw new Exception('Seu perfil está temporariamente suspenso para novas candidaturas.');
+        // ZT-DEFENSE: Validação Absoluta de Integridade e Risco (O Escudo)
+        // Bloqueia se o motorista estiver suspenso, com KYC interno pendente ou reprovado na Gerenciadora de Risco.
+        if (!$motorista->podeAceitarFrete()) {
+            throw new Exception('O seu perfil não está autorizado a aceitar fretes neste momento. Verifique se o seu cadastro está aprovado pela auditoria interna e pela Gerenciadora de Risco (Trans Sat).');
         }
 
         return DB::transaction(function () use ($motorista, $carga) {

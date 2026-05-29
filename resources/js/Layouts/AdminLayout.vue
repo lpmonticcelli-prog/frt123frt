@@ -1,20 +1,35 @@
 <template>
-  <div class="flex h-screen bg-gray-100 text-gray-900 font-sans">
+  <div class="flex h-screen bg-surface-50 text-surface-900 font-sans selection:bg-brand-500 selection:text-white">
     
-    <aside class="w-64 bg-gray-900 text-white flex flex-col shadow-lg z-10 transition-all duration-300">
-      <div class="h-16 flex items-center px-6 border-b border-gray-800 bg-gray-950 select-none">
-        <span class="text-xl font-black text-blue-500 tracking-wider">123fretei</span>
-        <span class="ml-2 text-[10px] font-bold text-gray-300 bg-red-600 px-2 py-0.5 rounded uppercase tracking-widest">Backoffice</span>
+    <!-- SIDEBAR LIGHT CORPORATIVA -->
+    <aside class="w-64 bg-white border-r border-surface-200 flex flex-col shadow-clinical-sm z-20 shrink-0 transition-all duration-300">
+      
+      <!-- HEADER DA SIDEBAR -->
+      <div class="h-20 flex items-center px-6 border-b border-surface-200 select-none shrink-0">
+        <div class="flex items-center gap-2 relative">
+          <!-- Asset Oficial (logo1.png) -->
+          <img src="/logo1.png" alt="Logotipo 123fretei" class="h-8 w-auto object-contain shrink-0" />
+          
+          <div class="relative flex items-baseline mt-1">
+            <span class="text-xl font-extrabold tracking-tight text-[#035D29]">123</span>
+            <span class="text-xl font-extrabold tracking-tight text-brand-600">fretei</span>
+            
+            <!-- Pílula Backoffice sobreposta -->
+            <span class="absolute -bottom-3.5 -right-3 text-[9px] font-black text-white bg-brand-600 px-2 py-0.5 rounded shadow-sm uppercase tracking-widest">
+              Backoffice
+            </span>
+          </div>
+        </div>
       </div>
       
-      <nav class="flex-1 px-4 py-6 space-y-1 overflow-y-auto custom-scrollbar">
+      <nav class="flex-1 px-4 py-6 space-y-1 overflow-y-auto scrollbar-clinical">
         <div v-for="item in menuFiltrado" :key="item.id" class="mb-2">
           
           <router-link 
             v-if="!item.submenus" 
             :to="{ name: item.route }" 
-            class="flex items-center w-full px-4 py-2.5 rounded text-sm font-medium transition-colors hover:bg-gray-800 text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            active-class="bg-blue-600 text-white shadow-md font-bold"
+            class="flex items-center w-full px-4 py-2.5 rounded-lg text-sm font-medium transition-colors hover:bg-surface-100 text-surface-600 focus:outline-none focus:ring-2 focus:ring-brand-500"
+            active-class="bg-brand-600 text-white shadow-md font-bold"
           >
             {{ item.label }}
           </router-link>
@@ -22,15 +37,15 @@
           <div v-else>
             <button 
               @click="toggleMenu(item.id)" 
-              class="flex items-center justify-between w-full px-4 py-2.5 rounded text-sm font-medium transition-colors hover:bg-gray-800 text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              :class="{ 'bg-gray-800 text-white': menuAberto === item.id }"
+              class="flex items-center justify-between w-full px-4 py-2.5 rounded-lg text-sm font-medium transition-colors hover:bg-surface-100 text-surface-600 focus:outline-none focus:ring-2 focus:ring-brand-500"
+              :class="{ 'bg-surface-100 text-surface-900 font-semibold': menuAberto === item.id }"
               :aria-expanded="menuAberto === item.id"
             >
               <div class="flex items-center">
                 {{ item.label }}
               </div>
               <svg 
-                class="w-4 h-4 transition-transform duration-200" 
+                class="w-4 h-4 transition-transform duration-200 text-surface-400" 
                 :class="{ 'rotate-180': menuAberto === item.id }" 
                 fill="none" stroke="currentColor" viewBox="0 0 24 24"
                 aria-hidden="true"
@@ -41,14 +56,14 @@
 
             <div 
               v-show="menuAberto === item.id" 
-              class="pl-4 pr-4 py-1 mt-1 space-y-1 border-l-2 border-gray-700 ml-2"
+              class="pl-4 pr-2 py-1 mt-1 space-y-1 border-l-2 border-surface-200 ml-2"
             >
               <router-link 
                 v-for="sub in submenusFiltrados(item.submenus)" 
                 :key="sub.route" 
                 :to="{ name: sub.route }" 
-                class="block px-2 py-1.5 rounded text-xs font-medium text-gray-400 hover:text-white hover:bg-gray-800 transition-colors focus:outline-none focus:ring-1 focus:ring-blue-500"
-                active-class="text-blue-400 font-bold bg-gray-800"
+                class="block px-3 py-2 rounded-md text-xs font-medium text-surface-500 hover:text-surface-900 hover:bg-surface-100 transition-colors focus:outline-none focus:ring-1 focus:ring-brand-500"
+                active-class="text-brand-700 font-bold bg-brand-50"
               >
                 {{ sub.label }}
               </router-link>
@@ -60,24 +75,25 @@
     </aside>
 
     <div class="flex-1 flex flex-col overflow-hidden">
-      <header class="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-8 shadow-sm">
-        <h1 class="text-lg font-black text-gray-800">{{ tituloPagina }}</h1>
+      <!-- HEADER GLOBAL MAIN CONTENT -->
+      <header class="h-16 bg-white border-b border-surface-200 flex items-center justify-between px-8 shadow-clinical-sm shrink-0">
+        <h1 class="text-lg font-black text-surface-900">{{ tituloPagina }}</h1>
         <div class="flex items-center space-x-4">
           <div class="text-right">
-            <p class="text-sm text-gray-900 font-bold">{{ userName }}</p>
-            <p class="text-[10px] text-blue-600 font-black uppercase">{{ userRoleName }}</p>
+            <p class="text-sm text-surface-900 font-bold">{{ userName }}</p>
+            <p class="text-[10px] text-brand-600 font-black uppercase">{{ userRoleName }}</p>
           </div>
           <button 
             @click="handleLogout" 
             :disabled="isLoggingOut"
-            class="text-sm text-red-600 hover:text-red-800 font-bold px-3 py-1 border border-red-100 rounded bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-red-500"
+            class="text-sm text-rose-600 hover:text-rose-800 font-bold px-3 py-1 border border-rose-100 rounded bg-rose-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-rose-500"
           >
             {{ isLoggingOut ? 'Processando...' : 'Sair do Sistema' }}
           </button>
         </div>
       </header>
 
-      <main class="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 p-8">
+      <main class="flex-1 overflow-x-hidden overflow-y-auto scrollbar-clinical bg-surface-50 p-8 relative">
         <router-view v-slot="{ Component }">
           <transition name="fade" mode="out-in">
             <component :is="Component" />
@@ -120,7 +136,6 @@ const userRoleName = computed<string>(() => authStore.user?.role?.name || '');
 const menuAberto = ref<string | null>('ops');
 const isLoggingOut = ref<boolean>(false);
 
-// Error Boundary para evitar WSOD em falhas de injeção da router-view
 onErrorCaptured((err: unknown, instance: any, info: string) => {
   console.error('[AdminLayout] Erro interceptado na árvore de componentes:', err, info);
   return false; 
@@ -199,7 +214,6 @@ const handleLogout = async (): Promise<void> => {
     await router.push({ name: 'Login' });
   } catch (error) {
     console.error('[AdminLayout] Falha ao processar logout no backend:', error);
-    // Neutraliza retenção de estado na máquina do cliente em caso de falha da API
     localStorage.clear();
     sessionStorage.clear();
     window.location.href = '/login';
@@ -210,19 +224,6 @@ const handleLogout = async (): Promise<void> => {
 </script>
 
 <style scoped>
-.custom-scrollbar::-webkit-scrollbar {
-  width: 4px;
-}
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #374151;
-  border-radius: 4px;
-}
-.custom-scrollbar:hover::-webkit-scrollbar-thumb {
-  background: #4B5563;
-}
 .fade-enter-active,
 .fade-leave-active {
   transition: opacity 0.2s ease;

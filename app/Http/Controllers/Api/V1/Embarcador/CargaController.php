@@ -18,22 +18,27 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Throwable;
 
 class CargaController extends Controller
 {
-    protected CandidaturaService $candidaturaService;
-    protected ReputacaoMotoristaService $reputacaoService;
+    private const ROLE_EMBARCADOR = 'embarcador';
+    private const STATUS_PUBLICADA = 'publicada';
+    private const STATUS_EM_AUDITORIA = 'em_auditoria';
+    private const STATUS_EM_DISPUTA = 'em_disputa';
+    private const STATUS_ENTREGUE = 'entregue';
+    
+    // Status de bloqueio
+    private const CIOT_BLOQUEADO_DISPUTA = 'bloqueado_disputa';
+    private const CIOT_PROCESSANDO_LIQUIDACAO = 'processando_liquidacao';
 
     public function __construct(
-        CandidaturaService $candidaturaService,
-        ReputacaoMotoristaService $reputacaoService
-    ) {
-        $this->candidaturaService = $candidaturaService;
-        $this->reputacaoService = $reputacaoService;
-    }
+        private readonly CandidaturaService $candidaturaService,
+        private readonly ReputacaoMotoristaService $reputacaoService
+    ) {}
 
     /**
-     * Sanitização Termal Estrita (Defesa contra XSS/Null Byte em formulários e chat).
+     * Sanitização Termal Estrita (Defesa contra XSS/Null Byte).
      */
     private function sanitizeText(?string $payload): ?string
     {
@@ -50,47 +55,69 @@ class CargaController extends Controller
         $validated = $request->validated();
         $user = $request->user();
 
-        $carga = DB::transaction(function () use ($validated, $user, $request) {
-            $percentualTaxa = $user->embarcador->taxa_frete_percentual ?? 5.00;
-            $taxaPlataforma = round($validated['valor_frete'] * ($percentualTaxa / 100), 2);
+        try {
+            $carga = DB::transaction(function () use ($validated, $user, $request) {
+                $percentualTaxa = $user->embarcador->taxa_frete_percentual ?? 5.00;
+                $taxaPlataforma = round($validated['valor_frete'] * ($percentualTaxa / 100), 2);
 
-            $novaCarga = Carga::create([
-                'embarcador_id' => $user->embarcador->id,
-                'produto' => $this->sanitizeText($validated['produto']),
-                'especie' => $this->sanitizeText($validated['especie']),
-                'peso_kg' => $validated['peso_kg'],
-                'cubagem_m3' => $validated['cubagem_m3'] ?? null,
-                'tipo_veiculo' => $validated['tipo_veiculo'],
-                'tipo_carroceria' => $validated['tipo_carroceria'],
-                'cidade_origem' => $this->sanitizeText($validated['cidade_origem']),
-                'uf_origem' => strtoupper($validated['uf_origem']),
-                'cidade_destino' => $this->sanitizeText($validated['cidade_destino']),
-                'uf_destino' => strtoupper($validated['uf_destino']),
-                'distancia_km' => $validated['distancia_km'] ?? null,
-                'valor_frete' => $validated['valor_frete'],
-                'taxa_plataforma' => $taxaPlataforma, 
-                'data_coleta' => $validated['data_coleta'],
-                'data_entrega_prevista' => $validated['data_entrega_prevista'] ?? null,
-                'status' => 'publicada'
+                $novaCarga = Carga::create([
+                    'embarcador_id' => $user->embarcador->id,
+                    'produto' => $this->sanitizeText($validated['produto']),
+                    'especie' => $this->sanitizeText($validated['especie']),
+                    'peso_kg' => $validated['peso_kg'],
+                    'cubagem_m3' => $validated['cubagem_m3'] ?? null,
+                    'tipo_veiculo' => $validated['tipo_veiculo'],
+                    'tipo_carroceria' => $validated['tipo_carroceria'],
+                    'cidade_origem' => $this->sanitizeText($validated['cidade_origem']),
+                    'uf_origem' => strtoupper($validated['uf_origem']),
+                    'cidade_destino' => $this->sanitizeText($validated['cidade_destino']),
+                    'uf_destino' => strtoupper($validated['uf_destino']),
+                    'distancia_km' => $validated['distancia_km'] ?? null,
+                    'valor_frete' => $validated['valor_frete'],
+                    'taxa_plataforma' => $taxaPlataforma, 
+                    'data_coleta' => $validated['data_coleta'],
+                    'data_entrega_prevista' => $validated['data_entrega_prevista'] ?? null,
+                    'status' => self::STATUS_PUBLICADA
+                ]);
+
+                $termo = sprintf(
+                    "TERMO DE PUBLICAÇÃO DE FRETE. O Embarcador ID %d declara a veracidade dos dados da carga ID %d, com origem em %s/%s e destino a %s/%s, referente ao produto %s (%skg), oferecendo o valor de R$ %s e concorda com a taxa de intermediação de R$ %s (%s%%).",
+                    $user->embarcador->id,
+                    $novaCarga->id,
+                    $novaCarga->cidade_origem,
+                    $novaCarga->uf_origem,
+                    $novaCarga->cidade_destino,
+                    $novaCarga->uf_destino,
+                    $novaCarga->produto,
+                    $novaCarga->peso_kg,
+                    number_format((float)$novaCarga->valor_frete, 2, ',', '.'),
+                    number_format($taxaPlataforma, 2, ',', '.'),
+                    $percentualTaxa
+                );
+
+                DB::table('carga_publicacoes_log')->insert([
+                    'carga_id' => $novaCarga->id,
+                    'embarcador_id' => $user->embarcador->id,
+                    'ip_address' => $request->ip(),
+                    'user_agent' => substr((string) $request->header('User-Agent'), 0, 255),
+                    'termo_hash' => hash('sha256', $termo),
+                    'publicado_em' => now(),
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+
+                return $novaCarga;
+            });
+
+            return response()->json(['message' => 'Carga publicada com sucesso.', 'carga' => $carga], 201);
+            
+        } catch (Throwable $e) {
+            Log::critical('Falha atômica ao publicar carga', [
+                'embarcador_id' => $user->embarcador->id ?? null,
+                'error' => $e->getMessage()
             ]);
-
-            $termo = "TERMO DE PUBLICAÇÃO DE FRETE. O Embarcador ID {$user->embarcador->id} declara a veracidade dos dados da carga ID {$novaCarga->id}, com origem em {$novaCarga->cidade_origem}/{$novaCarga->uf_origem} e destino a {$novaCarga->cidade_destino}/{$novaCarga->uf_destino}, referente ao produto {$novaCarga->produto} ({$novaCarga->peso_kg}kg), oferecendo o valor de R$ " . number_format((float)$novaCarga->valor_frete, 2, ',', '.') . " e concorda com a taxa de intermediação de R$ " . number_format($taxaPlataforma, 2, ',', '.') . " ({$percentualTaxa}%).";
-
-            DB::table('carga_publicacoes_log')->insert([
-                'carga_id' => $novaCarga->id,
-                'embarcador_id' => $user->embarcador->id,
-                'ip_address' => $request->ip(),
-                'user_agent' => substr((string) $request->header('User-Agent'), 0, 255),
-                'termo_hash' => hash('sha256', $termo),
-                'publicado_em' => now(),
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-
-            return $novaCarga;
-        });
-
-        return response()->json(['message' => 'Carga publicada.', 'carga' => $carga], 201);
+            return response()->json(['error' => 'Falha interna ao processar a publicação.'], 500);
+        }
     }
 
     public function index(Request $request): JsonResponse
@@ -98,23 +125,22 @@ class CargaController extends Controller
         $user = $request->user();
         $user->loadMissing('role', 'embarcador');
 
-        if (!$user->role || $user->role->slug !== 'embarcador' || !$user->embarcador) {
+        if (!$user->role || $user->role->slug !== self::ROLE_EMBARCADOR || !$user->embarcador) {
             return response()->json(['message' => 'Acesso restrito.'], 403);
         }
 
         $cargas = Carga::with([
-            'motorista.user', // O Gêmeo Digital (C3) necessita dos dados completos do motorista ATRIBUÍDO
+            'motorista.user',
             'ciot',
             'candidaturas',
-            // ZERO TRUST PROJECTION: Oculta estritamente PII e Contatos (Mass Data Breach Fix) de candidatos no leilão
             'candidaturas.motorista' => function ($query) {
                 $query->select('id', 'user_id', 'score_geral', 'total_viagens', 'tier_reputacao');
             },
-            'candidaturas.motorista.user:id,name' // Decapita email e telefone da query
+            'candidaturas.motorista.user:id,name'
         ])
-            ->where('embarcador_id', $user->embarcador->id)
-            ->orderBy('created_at', 'desc')
-            ->paginate(15);
+        ->where('embarcador_id', $user->embarcador->id)
+        ->orderBy('created_at', 'desc')
+        ->paginate(15);
 
         return response()->json($cargas);
     }
@@ -124,8 +150,8 @@ class CargaController extends Controller
         $user = $request->user();
         $user->loadMissing('role', 'embarcador');
 
-        if ($user->role && $user->role->slug === 'embarcador' && $carga->embarcador_id !== $user->embarcador->id) {
-            return response()->json(['message' => 'Acesso negado.'], 403);
+        if ($user->role && $user->role->slug === self::ROLE_EMBARCADOR && $carga->embarcador_id !== $user->embarcador->id) {
+            return response()->json(['message' => 'Acesso negado. Esta carga não pertence à sua organização.'], 403);
         }
 
         $carga->load([
@@ -133,7 +159,6 @@ class CargaController extends Controller
             'motorista.user', 
             'ciot', 
             'candidaturas',
-            // ZERO TRUST PROJECTION: Evita serialização gulosa do Eloquent ORM
             'candidaturas.motorista' => function ($query) {
                 $query->select('id', 'user_id', 'score_geral', 'total_viagens', 'tier_reputacao');
             },
@@ -148,25 +173,28 @@ class CargaController extends Controller
         $user = $request->user();
         $user->loadMissing('role', 'embarcador');
 
-        if ($user->role && $user->role->slug === 'embarcador' && $carga->embarcador_id !== $user->embarcador->id) {
+        if ($user->role && $user->role->slug === self::ROLE_EMBARCADOR && $carga->embarcador_id !== $user->embarcador->id) {
             return response()->json(['message' => 'Acesso negado.'], 403);
         }
 
         $validated = $request->validated();
-        $percentualTaxa = $user->embarcador->taxa_frete_percentual ?? 5.00;
-        $taxaPlataforma = round($validated['valor_frete'] * ($percentualTaxa / 100), 2);
-
-        DB::transaction(function () use ($carga, $validated, $taxaPlataforma) {
+        
+        try {
+            DB::beginTransaction();
+            
             $cargaLock = Carga::where('id', $carga->id)->lockForUpdate()->firstOrFail();
 
-            if ($cargaLock->status !== 'publicada') {
-                abort(403, 'Cargas em processamento não podem ser editadas.');
+            if ($cargaLock->status !== self::STATUS_PUBLICADA) {
+                abort(403, 'Cargas em processamento (' . $cargaLock->status . ') não podem ser editadas.');
             }
 
-            // ZT-DEFENSE: Anti-Bait-and-Switch
+            // Anti-Bait-and-Switch
             if ($cargaLock->candidaturas()->where('status', 'pendente')->exists()) {
-                abort(409, 'Fraude evitada: Não é permitido alterar o valor ou rota de uma carga que já possui lances ativos de motoristas. Cancele a carga ou rejeite os lances primeiro.');
+                abort(409, 'Fraude evitada: Não é permitido alterar o valor ou rota de uma carga com lances ativos. Cancele a carga ou rejeite os lances.');
             }
+
+            $percentualTaxa = $user->embarcador->taxa_frete_percentual ?? 5.00;
+            $taxaPlataforma = round($validated['valor_frete'] * ($percentualTaxa / 100), 2);
 
             $cargaLock->update(array_merge($validated, [
                 'produto' => $this->sanitizeText($validated['produto']),
@@ -177,9 +205,18 @@ class CargaController extends Controller
                 'uf_origem' => strtoupper($validated['uf_origem']),
                 'uf_destino' => strtoupper($validated['uf_destino'])
             ]));
-        });
-
-        return response()->json(['message' => 'Atualizada com sucesso.', 'carga' => $carga->fresh()]);
+            
+            DB::commit();
+            return response()->json(['message' => 'Carga atualizada com sucesso.', 'carga' => $carga->fresh()]);
+            
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            DB::rollBack();
+            return response()->json(['error' => $e->getMessage()], $e->getStatusCode());
+        } catch (Throwable $e) {
+            DB::rollBack();
+            Log::critical('Erro atômico na atualização da carga', ['carga_id' => $carga->id, 'error' => $e->getMessage()]);
+            return response()->json(['error' => 'Falha interna ao atualizar carga.'], 500);
+        }
     }
 
     public function destroy(Carga $carga, Request $request): JsonResponse
@@ -187,21 +224,29 @@ class CargaController extends Controller
         $user = $request->user();
         $user->loadMissing('role', 'embarcador');
 
-        if ($user->role && $user->role->slug === 'embarcador' && $carga->embarcador_id !== $user->embarcador->id) {
+        if ($user->role && $user->role->slug === self::ROLE_EMBARCADOR && $carga->embarcador_id !== $user->embarcador->id) {
             return response()->json(['message' => 'Acesso negado.'], 403);
         }
 
-        DB::transaction(function () use ($carga) {
-            $cargaLock = Carga::where('id', $carga->id)->lockForUpdate()->firstOrFail();
+        try {
+            DB::transaction(function () use ($carga) {
+                $cargaLock = Carga::where('id', $carga->id)->lockForUpdate()->firstOrFail();
 
-            if ($cargaLock->status !== 'publicada') {
-                abort(403, 'Status inválido. Apenas cargas publicadas podem ser excluídas.');
-            }
+                if ($cargaLock->status !== self::STATUS_PUBLICADA) {
+                    abort(403, 'Apenas cargas publicadas podem ser excluídas.');
+                }
 
-            $cargaLock->delete();
-        });
+                $cargaLock->delete();
+            });
 
-        return response()->json(['message' => 'Carga removida.']);
+            return response()->json(['message' => 'Carga removida do sistema.']);
+            
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            return response()->json(['error' => $e->getMessage()], $e->getStatusCode());
+        } catch (Throwable $e) {
+            Log::error('Falha ao deletar carga', ['carga_id' => $carga->id, 'error' => $e->getMessage()]);
+            return response()->json(['error' => 'Erro interno ao remover carga.'], 500);
+        }
     }
 
     public function aprovarCandidato(Request $request, Carga $carga): JsonResponse
@@ -214,13 +259,17 @@ class CargaController extends Controller
         }
 
         try {
+            // Delegação atômica para a camada de serviço (que já deve possuir sua própria transação)
             $this->candidaturaService->aprovarCandidato($carga->id, (int) $request->candidatura_id, $user->embarcador->id);
-            return response()->json(['message' => 'Motorista aprovado.'], 200);
+            return response()->json(['message' => 'Motorista aprovado. O processo de alocação foi iniciado.'], 200);
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 400);
         }
     }
 
+    /**
+     * Auditoria Financeira Crítica: Finalização e Liberação de Ciot.
+     */
     public function avaliarEFinalizarEntrega(Request $request, Carga $carga): JsonResponse
     {
         $request->validate([
@@ -236,11 +285,14 @@ class CargaController extends Controller
             return response()->json(['message' => 'Acesso negado.'], 403);
         }
 
-        if ($carga->status !== 'em_auditoria') {
-            return response()->json(['error' => 'A carga não está aguardando auditoria.'], 400);
+        if ($carga->status !== self::STATUS_EM_AUDITORIA) {
+            return response()->json(['error' => 'A carga não está aguardando auditoria ou já foi liquidada.'], 400);
         }
 
         try {
+            DB::beginTransaction();
+            
+            // Processa a avaliação (deve ser idempotente ou fazer parte da transação se possível)
             $avaliacao = $this->reputacaoService->processarAvaliacao(
                 $carga->id, $user->embarcador->id, $carga->motorista_id,
                 (int) $request->nota_pontualidade, (int) $request->nota_cuidado,
@@ -248,26 +300,35 @@ class CargaController extends Controller
                 $this->sanitizeText($request->comentarios)
             );
 
-            DB::transaction(function () use ($carga, $request) {
-                if ($request->houve_avaria) {
-                    $carga->update(['status' => 'em_disputa']);
-                    Ciot::where('carga_id', $carga->id)->lockForUpdate()->update(['status' => 'bloqueado_disputa']);
-                } else {
-                    $carga->update(['status' => 'entregue']);
-                    $ciot = Ciot::where('carga_id', $carga->id)->lockForUpdate()->first();
-                    if ($ciot && $ciot->status === 'emitido') {
-                        LiquidarFreteJob::dispatch($ciot->codigo_ciot)->onQueue('financeiro');
-                        $ciot->update(['status' => 'processando_liquidacao']);
-                    }
+            $cargaLock = Carga::where('id', $carga->id)->lockForUpdate()->firstOrFail();
+
+            if ($request->houve_avaria) {
+                $cargaLock->update(['status' => self::STATUS_EM_DISPUTA]);
+                Ciot::where('carga_id', $cargaLock->id)->lockForUpdate()->update(['status' => self::CIOT_BLOQUEADO_DISPUTA]);
+            } else {
+                $cargaLock->update(['status' => self::STATUS_ENTREGUE]);
+                $ciot = Ciot::where('carga_id', $cargaLock->id)->lockForUpdate()->first();
+                
+                if ($ciot && $ciot->status === 'emitido') {
+                    $ciot->update(['status' => self::CIOT_PROCESSANDO_LIQUIDACAO]);
+                    // Job despachado apenas se o commit de banco for bem sucedido (ver listener no framework ou afterCommit)
+                    LiquidarFreteJob::dispatch($ciot->codigo_ciot)->onQueue('financeiro')->afterCommit();
                 }
-            });
+            }
 
-            $mensagem = $request->houve_avaria ? 'Avaria registrada e pagamento retido.' : 'Ordem de pagamento liberada.';
-            return response()->json(['message' => $mensagem, 'carga' => $carga->fresh(['avaliacao'])], 200);
+            DB::commit();
 
-        } catch (\Exception $e) {
-            Log::error("[Avaliação] Erro: " . $e->getMessage());
-            return response()->json(['error' => 'Falha ao processar avaliação.'], 500);
+            $mensagem = $request->houve_avaria ? 'Avaria registrada. Pagamento bloqueado para disputa.' : 'Ordem de pagamento e liquidação do frete liberada com sucesso.';
+            return response()->json(['message' => $mensagem, 'carga' => $cargaLock->fresh(['avaliacao'])], 200);
+
+        } catch (Throwable $e) {
+            DB::rollBack();
+            Log::critical('Falha catastrófica ao liquidar frete', [
+                'carga_id' => $carga->id, 
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return response()->json(['error' => 'Falha crítica ao processar a liquidação financeira.'], 500);
         }
     }
 
@@ -275,70 +336,78 @@ class CargaController extends Controller
     {
         $request->validate(['motivo' => 'required|string|max:1000']);
         $user = $request->user();
+        
         if ($carga->embarcador_id !== $user->embarcador->id) { 
             return response()->json(['message' => 'Acesso negado.'], 403); 
         }
 
-        DB::transaction(function () use ($carga) {
-            $cargaLock = Carga::where('id', $carga->id)->lockForUpdate()->firstOrFail();
+        try {
+            DB::transaction(function () use ($carga) {
+                $cargaLock = Carga::where('id', $carga->id)->lockForUpdate()->firstOrFail();
 
-            // ZT-DEFENSE: State Machine Validation (Disputa Zumbi)
-            $estadosAuditiveis = ['em_transito', 'em_auditoria', 'entregue'];
-            if (!in_array($cargaLock->status, $estadosAuditiveis, true)) {
-                abort(400, "Operação inválida. O status atual ('{$cargaLock->status}') não permite a abertura de disputas financeiras e operacionais.");
-            }
+                $estadosAuditiveis = ['em_transito', self::STATUS_EM_AUDITORIA, self::STATUS_ENTREGUE];
+                if (!in_array($cargaLock->status, $estadosAuditiveis, true)) {
+                    abort(400, "O status atual ('{$cargaLock->status}') impede a abertura de disputas financeiras.");
+                }
 
-            $cargaLock->update(['status' => 'em_disputa']);
-            Ciot::where('carga_id', $cargaLock->id)->lockForUpdate()->update(['status' => 'bloqueado_disputa']);
-        });
+                $cargaLock->update(['status' => self::STATUS_EM_DISPUTA]);
+                Ciot::where('carga_id', $cargaLock->id)->lockForUpdate()->update(['status' => self::CIOT_BLOQUEADO_DISPUTA]);
+            });
 
-        return response()->json(['message' => 'Disputa aberta com sucesso.'], 200);
+            return response()->json(['message' => 'Fundos congelados. Disputa aberta com sucesso e notificada aos administradores.'], 200);
+            
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            return response()->json(['error' => $e->getMessage()], $e->getStatusCode());
+        } catch (Throwable $e) {
+            Log::error('Erro ao abrir disputa', ['carga_id' => $carga->id, 'error' => $e->getMessage()]);
+            return response()->json(['error' => 'Erro interno ao processar a disputa.'], 500);
+        }
     }
 
-    // =====================================================================
-    // ZT-DEFENSE: Proxy Restrito de Arquivos (POD View)
-    // =====================================================================
+    /**
+     * Proxy Zero Trust para visualização de POD (Proof of Delivery).
+     * Saneado e agnóstico de ambiente (S3 / Local).
+     */
     public function exibirDocumentoPod(Request $request): StreamedResponse|JsonResponse
     {
         $user = $request->user();
-        if (!$user || $user->role->slug !== 'embarcador' || !$user->embarcador) {
-            abort(403, 'Acesso negado.');
+        if (!$user || $user->role->slug !== self::ROLE_EMBARCADOR || !$user->embarcador) {
+            return response()->json(['error' => 'Acesso restrito.'], 403);
         }
 
         $path = $request->query('path');
 
         if (!$path || preg_match('/\.{2}/', $path) || str_contains($path, '../') || str_contains($path, '..\\')) {
-            Log::alert("Security Audit: Tentativa de LFI/Path Traversal em POD. IP: " . $request->ip());
-            return response()->json(['error' => 'Violação de perímetro detectada.'], 403);
+            Log::alert("Security Audit: Tentativa LFI/Path Traversal em POD detectada e contida.", ['ip' => $request->ip()]);
+            return response()->json(['error' => 'Violação de perímetro.'], 403);
         }
 
         if (!str_starts_with($path, 'pod/')) {
-            return response()->json(['error' => 'Acesso a diretório não autorizado.'], 403);
+            return response()->json(['error' => 'Escopo de diretório violado.'], 403);
         }
 
-        if (!Storage::disk('local')->exists($path)) {
-            return response()->json(['error' => 'Documento de entrega não encontrado no cofre.'], 404);
-        }
-
-        // Recupera o ID da carga através do nome da pasta para checar titularidade. ex: pod/carga_123/foto.jpg
+        // Recupera o ID da carga através da regex
         preg_match('/carga_(\d+)/', $path, $matches);
-        if (isset($matches[1])) {
-            $cargaId = (int) $matches[1];
-            $carga = Carga::select('embarcador_id')->find($cargaId);
-            
-            if (!$carga || $carga->embarcador_id !== $user->embarcador->id) {
-                return response()->json(['error' => 'Você não é o contratante deste frete. Acesso bloqueado.'], 403);
-            }
-        } else {
-             return response()->json(['error' => 'Caminho de documento inválido ou corrompido.'], 400);
+        if (!isset($matches[1])) {
+             return response()->json(['error' => 'Assinatura do documento inválida.'], 400);
         }
 
-        return Storage::disk('local')->response($path);
+        $cargaId = (int) $matches[1];
+        $carga = Carga::select('embarcador_id')->find($cargaId);
+        
+        if (!$carga || $carga->embarcador_id !== $user->embarcador->id) {
+            Log::warning('Tentativa de acesso IDOR a POD.', ['user_id' => $user->id, 'carga_id' => $cargaId]);
+            return response()->json(['error' => 'Acesso negado. Documento pertence a outra organização.'], 403);
+        }
+
+        // Operação de I/O Abstrata (Storage Driver configurado)
+        if (!Storage::exists($path)) {
+            return response()->json(['error' => 'Objeto de entrega não encontrado na storage.'], 404);
+        }
+
+        return Storage::response($path);
     }
 
-    // =====================================================================
-    // CHAT OPERACIONAL - ZERO TRUST COMPLIANCE COM WEBSOCKET
-    // =====================================================================
     public function getChat(Request $request, Carga $carga): JsonResponse
     {
         $user = $request->user();
@@ -363,10 +432,8 @@ class CargaController extends Controller
 
         $request->validate(['mensagem' => 'required|string|max:1000']);
         
-        // ZT-DEFENSE: Sanitização térmica contra XSS/Null bytes injetados via Socket
         $mensagemLimpa = $this->sanitizeText($request->mensagem);
 
-        // MOTOR DE NLP / REGEX (Bloqueia Contatos)
         $patternDDI = '/\+?\d{2,3}[\s-]?\d{2}[\s-]?\d{4,5}[\s-]?\d{4}/'; 
         $patternTel = '/\b(?:\(?\d{2}\)?\s?)?(?:9\d{4}|\d{4})[-\s]?\d{4}\b/'; 
         $patternSocial = '/\b(whatsapp|whats|wpp|telegram|facebook|insta|instagram|tiktok|skype|linkedin|twiter|x\.com)\b/i';
@@ -380,24 +447,31 @@ class CargaController extends Controller
             preg_match($patternDDI, $mensagemLimpa) ||
             preg_match($patternObfus, $mensagemLimpa)
         ) {
+            Log::info('Vazamento de PII interceptado no chat (Embarcador)', ['embarcador_id' => $user->embarcador->id, 'carga_id' => $carga->id]);
             return response()->json([
-                'error' => '⛔ ALERTA DE COMPLIANCE: É proibido enviar telefone, e-mail ou redes sociais. O chat é exclusivo para assuntos da carga. Reincidências geram bloqueio automático da conta.'
+                'error' => '⛔ ALERTA: É estritamente proibido enviar dados de contato externo. A comunicação deve ocorrer na plataforma.'
             ], 403);
         }
 
-        $id = DB::table('carga_mensagens')->insertGetId([
-            'carga_id' => $carga->id,
-            'remetente_id' => $user->embarcador->id,
-            'remetente_tipo' => 'embarcador',
-            'mensagem' => $mensagemLimpa,
-            'created_at' => now(),
-            'updated_at' => now()
-        ]);
+        try {
+            $id = DB::table('carga_mensagens')->insertGetId([
+                'carga_id' => $carga->id,
+                'remetente_id' => $user->embarcador->id,
+                'remetente_tipo' => self::ROLE_EMBARCADOR,
+                'mensagem' => $mensagemLimpa,
+                'created_at' => now(),
+                'updated_at' => now()
+            ]);
 
-        $msg = DB::table('carga_mensagens')->find($id);
+            $msg = DB::table('carga_mensagens')->find($id);
 
-        broadcast(new NovaMensagemChat($msg, $carga->id))->toOthers();
+            broadcast(new NovaMensagemChat($msg, $carga->id))->toOthers();
 
-        return response()->json($msg, 201);
+            return response()->json($msg, 201);
+            
+        } catch (Throwable $e) {
+            Log::error('Erro ao despachar mensagem via Socket', ['error' => $e->getMessage()]);
+            return response()->json(['error' => 'Falha interna ao processar a mensagem.'], 500);
+        }
     }
 }

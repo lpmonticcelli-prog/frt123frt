@@ -25,50 +25,48 @@ export default {
         },
         extend: {
             fontFamily: {
-                // 'Inter' é mandatória no B2B. Garante formatação tabular em dados financeiros e alta legibilidade.
                 sans: ['Inter', ...defaultTheme.fontFamily.sans],
-                // Mono estrita para Hashes de Carga, IDs de Transação e Logs.
                 mono: ['JetBrains Mono', ...defaultTheme.fontFamily.mono],
             },
             colors: {
-                // Paleta corporativa blindada (Cor Central de Ação)
+                // ==========================================
+                // PALETA OFICIAL 123FRETEI (Sincronizado com index.html)
+                // ==========================================
                 brand: {
-                    50: '#f0f9ff',
-                    100: '#e0f2fe',
-                    200: '#bae6fd',
-                    300: '#7dd3fc',
-                    400: '#38bdf8',
-                    500: '#0ea5e9', // Core Action Color (Azul 123fretei)
-                    600: '#0284c7', // Hover
-                    700: '#0369a1', // Active
-                    800: '#075985',
-                    900: '#0c4a6e',
-                    950: '#082f49',
+                    50: '#fff8f5',
+                    100: '#ffefeb',
+                    200: '#ffdad1',
+                    300: '#ffbba8',
+                    400: '#ff8e6e',
+                    500: '#ff5500', // A COR BASE DA PLATAFORMA (Botões, Destaques)
+                    600: '#e64d00', // Hover (--c-brand-hover do index.html)
+                    700: '#c23c00',
+                    800: '#993100',
+                    900: '#7a2b04',
+                    950: '#421300',
                 },
-                // Superfícies frias (Slate) para redução de carga cognitiva e fadiga visual
+                // Superfícies frias (Slate) para redução de carga cognitiva
                 surface: {
-                    50: '#f8fafc',
+                    50: '#f8fafc',  // --c-bg-alt do index.html
                     100: '#f1f5f9',
-                    200: '#e2e8f0', // Bordas sutis e Divisórias
+                    200: '#e2e8f0', // --c-border do index.html
                     300: '#cbd5e1',
-                    400: '#94a3b8', // Ícones desabilitados
-                    500: '#64748b', // Textos secundários
-                    600: '#475569', // Labels e Metadados
-                    700: '#334155', // Texto principal
-                    800: '#1e293b', // Sidebars
-                    900: '#0f172a',
-                    950: '#020617', // Headers profundos
+                    400: '#94a3b8',
+                    500: '#64748b', // --c-text-muted do index.html
+                    600: '#475569',
+                    700: '#334155',
+                    800: '#1e293b',
+                    900: '#0f172a', // --c-text-main do index.html
+                    950: '#020617', 
                 },
             },
             spacing: {
-                // Controle milimétrico para Viewports Mobile hostis (Notches, Barras do iOS/Android)
                 'safe-top': 'env(safe-area-inset-top)',
                 'safe-bottom': 'env(safe-area-inset-bottom)',
                 'safe-left': 'env(safe-area-inset-left)',
                 'safe-right': 'env(safe-area-inset-right)',
             },
             zIndex: {
-                // Grade restrita de camadas para evitar conflitos de empilhamento de Modais e Dropdowns
                 'dropdown': '1000',
                 'sticky': '1020',
                 'fixed': '1030',
@@ -77,26 +75,39 @@ export default {
                 'popover': '1060',
                 'tooltip': '1070',
                 'toast': '1080',
-                'max': '9999', // Global Loaders / Notificações Push Críticas
+                'max': '9999',
             },
             boxShadow: {
                 'clinical-sm': '0 1px 2px 0 rgba(15, 23, 42, 0.05)',
                 'clinical-md': '0 4px 6px -1px rgba(15, 23, 42, 0.08), 0 2px 4px -1px rgba(15, 23, 42, 0.04)',
                 'clinical-lg': '0 10px 15px -3px rgba(15, 23, 42, 0.1), 0 4px 6px -2px rgba(15, 23, 42, 0.05)',
+            },
+            keyframes: {
+                fadeIn: {
+                    '0%': { opacity: '0', transform: 'translateY(5px)' },
+                    '100%': { opacity: '1', transform: 'translateY(0)' },
+                },
+                scrollVerticalUp: {
+                    '0%': { transform: 'translateY(0)' },
+                    '100%': { transform: 'translateY(-50%)' },
+                }
+            },
+            animation: {
+                'fade-in': 'fadeIn 0.3s ease-out forwards',
+                'scroll-vertical-up': 'scrollVerticalUp linear infinite',
             }
         },
     },
 
     plugins: [
         forms,
-        // Injeção de Utilitários Cross-Browser para manter arquivos .vue limpos
         plugin(function({ addUtilities }) {
             addUtilities({
                 '.scrollbar-hide': {
-                    '-ms-overflow-style': 'none', /* IE e Edge */
-                    'scrollbar-width': 'none', /* Firefox */
+                    '-ms-overflow-style': 'none',
+                    'scrollbar-width': 'none',
                     '&::-webkit-scrollbar': {
-                        display: 'none' /* Chrome e Safari */
+                        display: 'none'
                     }
                 },
                 '.scrollbar-clinical': {

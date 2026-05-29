@@ -1,181 +1,199 @@
 <template>
-  <!-- TOPOLOGIA 12 COLUNAS (9 CONTEÚDO / 3 PUBLICIDADE) -->
-  <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 relative max-w-screen-2xl mx-auto">
+  <!-- DIV MESTRE: GARANTE ROTEAMENTO SEM TRAVAMENTO (ANTI-FRAGMENT) -->
+  <div class="w-full relative">
     
-    <!-- COLUNA PRINCIPAL (OPERAÇÃO LOGÍSTICA) -->
-    <div class="lg:col-span-9 space-y-6">
+    <!-- TOPOLOGIA 12 COLUNAS (9 CONTEÚDO / 3 PUBLICIDADE) -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 relative max-w-screen-2xl mx-auto">
       
-      <!-- HEADER MESA DE OPERAÇÕES -->
-      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-5 rounded-xl border border-surface-200 shadow-clinical-sm gap-4">
-        <div>
-          <h2 class="text-xl font-bold text-surface-900 tracking-tight">Painel de Controle Logístico</h2>
-          <p class="text-sm text-surface-500 mt-1">Gerencie suas cargas publicadas, lances ativos, em trânsito e auditoria.</p>
-        </div>
-        <div class="flex gap-3 w-full sm:w-auto">
-          <button @click="fetchCargas(1)" :disabled="loading" class="w-full sm:w-auto px-4 py-2 border border-surface-300 rounded-lg text-sm font-bold text-surface-700 bg-white hover:bg-surface-50 transition-colors disabled:opacity-50 flex items-center justify-center shadow-clinical-sm focus:outline-none focus:ring-2 focus:ring-surface-500">
-            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
-            {{ loading ? 'Sincronizando...' : 'Atualizar Painel' }}
-          </button>
-          <router-link :to="{ name: 'EmbarcadorNovaCarga' }" class="w-full sm:w-auto px-5 py-2 bg-surface-900 text-white rounded-lg text-sm font-bold shadow-clinical-sm hover:bg-surface-800 transition-colors flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-surface-500">
-            + Publicar Novo Frete
-          </router-link>
-        </div>
-      </div>
-
-      <!-- MURAL DE CARGAS -->
-      <div class="bg-white rounded-xl shadow-clinical-sm border border-surface-200 overflow-hidden">
+      <!-- COLUNA PRINCIPAL (OPERAÇÃO LOGÍSTICA) -->
+      <div class="lg:col-span-9 space-y-6">
         
-        <div v-if="loading && cargas?.length === 0" class="p-12 text-center text-surface-500 font-medium text-sm flex flex-col items-center">
-          <svg class="w-8 h-8 animate-spin text-brand-500 mb-3" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-          Sincronizando malha de operações...
-        </div>
-
-        <div v-else-if="!cargas || cargas?.length === 0" class="p-16 text-center">
-          <div class="mx-auto w-16 h-16 bg-surface-50 rounded-full flex items-center justify-center mb-4 border border-surface-100">
-            <svg class="w-8 h-8 text-surface-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2-2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path></svg>
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-5 rounded-xl border border-surface-200 shadow-clinical-sm gap-4">
+          <div>
+            <h2 class="text-xl font-bold text-surface-900 tracking-tight">Painel de Controle Logístico</h2>
+            <p class="text-sm text-surface-500 mt-1">Gerencie suas cargas publicadas, lances ativos, em trânsito e auditoria.</p>
           </div>
-          <h3 class="text-base font-bold text-surface-900 tracking-tight">Nenhuma carga encontrada</h3>
-          <p class="text-sm text-surface-500 mt-1">Você ainda não possui publicações nesta página.</p>
-          <div class="mt-6">
-            <router-link :to="{ name: 'EmbarcadorNovaCarga' }" class="inline-flex items-center rounded-lg bg-surface-900 px-5 py-2 text-sm font-bold text-white shadow-clinical-sm hover:bg-surface-800 transition-colors">
-              Publicar primeira carga
+          <div class="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+            <button @click="fetchCargas(1)" :disabled="loading" class="w-full sm:w-auto px-4 py-2 border border-surface-300 rounded-lg text-sm font-bold text-surface-700 bg-white hover:bg-surface-50 transition-colors disabled:opacity-50 flex items-center justify-center shadow-clinical-sm focus:outline-none focus:ring-2 focus:ring-surface-500">
+              <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+              {{ loading ? 'Sincronizando...' : 'Atualizar Painel' }}
+            </button>
+            <router-link :to="{ name: 'EmbarcadorNovaCarga' }" class="w-full sm:w-auto px-5 py-2 bg-brand-500 text-white rounded-lg text-sm font-bold shadow-clinical-sm hover:bg-brand-600 transition-colors flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-brand-500">
+              + Publicar Novo Frete
             </router-link>
           </div>
         </div>
 
-        <template v-else>
-          <div class="overflow-x-auto scrollbar-clinical">
-            <table class="min-w-full divide-y divide-surface-200 text-left">
-              <thead class="bg-surface-50">
-                <tr>
-                  <th scope="col" class="px-6 py-4 text-xs font-bold text-surface-500 uppercase tracking-wider">Rota / Produto</th>
-                  <th scope="col" class="px-6 py-4 text-xs font-bold text-surface-500 uppercase tracking-wider">Veículo</th>
-                  <th scope="col" class="px-6 py-4 text-xs font-bold text-surface-500 uppercase tracking-wider">Valor Oferta</th>
-                  <th scope="col" class="px-6 py-4 text-xs font-bold text-surface-500 uppercase tracking-wider">Status</th>
-                  <th scope="col" class="px-6 py-4 text-xs font-bold text-surface-500 uppercase tracking-wider">Motorista Associado</th>
-                  <th scope="col" class="px-6 py-4 text-right text-xs font-bold text-surface-500 uppercase tracking-wider">Ações</th>
-                </tr>
-              </thead>
-              <tbody class="bg-white divide-y divide-surface-100" :class="{ 'opacity-50 pointer-events-none': loading }">
-                <tr v-for="carga in cargas" :key="carga.id" class="hover:bg-surface-50/50 transition-colors">
-                  <td class="px-6 py-4 whitespace-nowrap">
-                    <div class="text-sm font-bold text-surface-900">{{ carga.cidade_origem }} → {{ carga.cidade_destino }}</div>
-                    <div class="text-xs text-surface-500">{{ carga.produto }} ({{ carga.peso_kg }} kg)</div>
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap">
-                    <div class="text-sm font-medium text-surface-900 capitalize">{{ carga.tipo_veiculo?.replace('_', ' ') }}</div>
-                    <div class="text-xs text-surface-500 mt-0.5 capitalize">{{ carga.tipo_carroceria?.replace('_', ' ') }}</div>
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm font-black text-surface-900 tabular-nums">
-                    {{ formatMoney(carga.valor_frete) }}
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap">
-                    <span :class="['px-3 py-1 inline-flex text-[10px] font-black uppercase tracking-wider rounded-md border', getStatusClass(carga.status)]">
-                      {{ carga.status?.replace('_', ' ') }}
-                    </span>
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap border-l border-surface-100 bg-surface-50/30">
-                    <div v-if="carga.motorista_id && carga.motorista">
-                      <div class="text-sm font-bold text-surface-900 flex items-center">
-                        {{ carga.motorista.user?.name || 'ID: ' + carga.motorista_id }}
-                        <button @click="abrirReputacao(carga.motorista)" title="Ver Métricas Detalhadas" :class="['ml-2 px-1.5 py-0.5 rounded text-[9px] uppercase font-bold border cursor-pointer hover:shadow-clinical-sm transition-all focus:outline-none focus:ring-2 focus:ring-surface-500', getTierBadge(carga.motorista.tier_reputacao)]">
-                          ⭐ {{ parseFloat(carga.motorista.score_geral || 0).toFixed(2) }} | {{ carga.motorista.tier_reputacao || 'NOVATO' }}
-                        </button>
-                      </div>
-                      <div class="text-[10px] font-bold text-surface-400 mt-1 uppercase tracking-widest flex items-center">
-                          <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
-                          Contato Oculto (Privacidade)
-                      </div>
-                    </div>
-                    <div v-else class="text-xs text-surface-400 italic font-medium">
-                      {{ carga.candidaturas?.filter(c => c.status === 'pendente').length || 0 }} Lances Pendentes
-                    </div>
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap text-right space-y-2 flex flex-col items-end">
+        <div class="bg-transparent lg:bg-white lg:rounded-xl lg:shadow-clinical-sm lg:border lg:border-surface-200 lg:overflow-hidden">
+          
+          <div v-if="loading && cargas?.length === 0" class="p-12 text-center text-surface-500 font-medium text-sm flex flex-col items-center bg-white rounded-xl shadow-sm border border-surface-200">
+            <svg class="w-8 h-8 animate-spin text-brand-500 mb-3" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+            Sincronizando malha de operações...
+          </div>
+
+          <div v-else-if="!cargas || cargas?.length === 0" class="p-12 sm:p-16 text-center bg-white rounded-xl shadow-sm border border-surface-200">
+            <div class="mx-auto w-16 h-16 bg-surface-50 rounded-full flex items-center justify-center mb-4 border border-surface-100">
+              <svg class="w-8 h-8 text-surface-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2-2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path></svg>
+            </div>
+            <h3 class="text-base font-bold text-surface-900 tracking-tight">Nenhuma carga encontrada</h3>
+            <p class="text-sm text-surface-500 mt-1">Você ainda não possui publicações nesta página.</p>
+            <div class="mt-6">
+              <router-link :to="{ name: 'EmbarcadorNovaCarga' }" class="inline-flex items-center rounded-lg bg-brand-500 px-5 py-2 text-sm font-bold text-white shadow-clinical-sm hover:bg-brand-600 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500">
+                Publicar primeira carga
+              </router-link>
+            </div>
+          </div>
+
+          <template v-else>
+            <div class="w-full">
+              <table class="min-w-full text-left border-collapse block lg:table">
+                <thead class="bg-surface-50 hidden lg:table-header-group">
+                  <tr>
+                    <th scope="col" class="px-6 py-4 text-xs font-bold text-surface-500 uppercase tracking-wider">Rota / Produto</th>
+                    <th scope="col" class="px-6 py-4 text-xs font-bold text-surface-500 uppercase tracking-wider">Veículo</th>
+                    <th scope="col" class="px-6 py-4 text-xs font-bold text-surface-500 uppercase tracking-wider">Valor Oferta</th>
+                    <th scope="col" class="px-6 py-4 text-xs font-bold text-surface-500 uppercase tracking-wider">Status</th>
+                    <th scope="col" class="px-6 py-4 text-xs font-bold text-surface-500 uppercase tracking-wider">Motorista Associado</th>
+                    <th scope="col" class="px-6 py-4 text-right text-xs font-bold text-surface-500 uppercase tracking-wider">Ações</th>
+                  </tr>
+                </thead>
+                <tbody class="block lg:table-row-group divide-y-0 lg:divide-y divide-surface-100" :class="{ 'opacity-50 pointer-events-none': loading }">
+                  
+                  <tr v-for="carga in cargas" :key="carga.id" class="block lg:table-row bg-white hover:bg-surface-50/50 transition-colors mb-4 lg:mb-0 rounded-xl lg:rounded-none shadow-clinical-sm lg:shadow-none border border-surface-200 lg:border-none overflow-hidden">
                     
-                    <div class="space-x-3 flex items-center">
-                      <template v-if="carga.status === 'publicada'">
-                        <button v-if="carga.candidaturas && carga.candidaturas.filter(c => c.status === 'pendente').length > 0" 
-                                @click="abrirModalLances(carga)" 
-                                class="inline-flex items-center px-3 py-1.5 bg-brand-600 text-white font-bold text-xs rounded hover:bg-brand-700 transition-colors shadow-clinical-sm animate-pulse focus:outline-none focus:ring-2 focus:ring-brand-500">
-                          Ver Lances ({{ carga.candidaturas.filter(c => c.status === 'pendente').length }})
-                        </button>
-                        <router-link :to="{ name: 'EmbarcadorEditarCarga', params: { id: carga.id } }" class="text-surface-600 hover:text-brand-800 font-bold transition-colors text-sm uppercase tracking-widest text-[10px] focus:outline-none">Editar</router-link>
-                        <button @click="cancelarCarga(carga.id)" class="text-rose-600 hover:text-rose-800 font-bold transition-colors text-sm uppercase tracking-widest text-[10px] focus:outline-none">Cancelar</button>
-                      </template>
-                      
-                      <template v-else-if="carga.status === 'em_auditoria'">
-                        <button @click="abrirChat(carga)" class="inline-flex items-center px-3 py-1.5 bg-brand-50 border border-brand-200 text-brand-700 font-bold text-xs rounded hover:bg-brand-100 transition-colors focus:outline-none">
-                          💬 Chat
-                        </button>
-                        <button @click="abrirModalPod(carga)" class="inline-flex items-center px-4 py-1.5 bg-amber-400 border border-amber-500 text-amber-900 font-black text-xs rounded hover:bg-amber-500 transition-colors shadow-clinical-sm animate-pulse focus:outline-none focus:ring-2 focus:ring-amber-500">
-                          ⚖️ Auditar Entrega
-                        </button>
-                      </template>
+                    <td class="block lg:table-cell px-4 py-3 lg:px-6 lg:py-4 border-b border-surface-100 lg:border-none">
+                      <div class="lg:hidden text-[10px] font-black text-surface-400 uppercase tracking-widest mb-1">Rota / Produto</div>
+                      <div class="text-sm font-bold text-surface-900">{{ carga.cidade_origem }} → {{ carga.cidade_destino }}</div>
+                      <div class="text-xs text-surface-500">{{ carga.produto }} ({{ carga.peso_kg }} kg)</div>
+                    </td>
+                    
+                    <td class="block lg:table-cell px-4 py-3 lg:px-6 lg:py-4 border-b border-surface-100 lg:border-none">
+                      <div class="lg:hidden text-[10px] font-black text-surface-400 uppercase tracking-widest mb-1">Veículo Ideal</div>
+                      <div class="text-sm font-medium text-surface-900 capitalize">{{ carga.tipo_veiculo?.replace('_', ' ') }}</div>
+                      <div class="text-xs text-surface-500 mt-0.5 capitalize">{{ carga.tipo_carroceria?.replace('_', ' ') }}</div>
+                    </td>
+                    
+                    <td class="block lg:table-cell px-4 py-3 lg:px-6 lg:py-4 border-b border-surface-100 lg:border-none">
+                      <div class="flex lg:block justify-between items-center">
+                        <div class="lg:hidden text-[10px] font-black text-surface-400 uppercase tracking-widest">Valor Oferta</div>
+                        <div class="text-sm font-black text-surface-900 tabular-nums">{{ formatMoney(carga.valor_frete) }}</div>
+                      </div>
+                    </td>
+                    
+                    <td class="block lg:table-cell px-4 py-3 lg:px-6 lg:py-4 border-b border-surface-100 lg:border-none">
+                      <div class="flex lg:block justify-between items-center">
+                        <div class="lg:hidden text-[10px] font-black text-surface-400 uppercase tracking-widest">Status</div>
+                        <span :class="['px-3 py-1.5 lg:py-1 inline-flex text-[10px] font-black uppercase tracking-wider rounded-md border', getStatusClass(carga.status)]">
+                          {{ carga.status?.replace('_', ' ') }}
+                        </span>
+                      </div>
+                    </td>
+                    
+                    <td class="block lg:table-cell px-4 py-3 lg:px-6 lg:py-4 border-b border-surface-100 lg:border-none lg:bg-surface-50/30 lg:border-l">
+                      <div class="lg:hidden text-[10px] font-black text-surface-400 uppercase tracking-widest mb-2">Motorista Associado</div>
+                      <div v-if="carga.motorista_id && carga.motorista">
+                        <div class="text-sm font-bold text-surface-900 flex flex-wrap items-center gap-2">
+                          {{ carga.motorista.user?.name || 'ID: ' + carga.motorista_id }}
+                          <button @click="abrirReputacao(carga.motorista)" title="Ver Métricas Detalhadas" :class="['px-1.5 py-0.5 rounded text-[9px] uppercase font-bold border cursor-pointer hover:shadow-clinical-sm transition-all focus:outline-none focus:ring-2 focus:ring-surface-500', getTierBadge(carga.motorista.tier_reputacao)]">
+                            ⭐ {{ parseFloat(carga.motorista.score_geral || 0).toFixed(2) }} | {{ carga.motorista.tier_reputacao || 'NOVATO' }}
+                          </button>
+                        </div>
+                        <div class="text-[10px] font-bold text-surface-400 mt-1 uppercase tracking-widest flex items-center">
+                            <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                            Contato Oculto (Privacidade)
+                        </div>
+                      </div>
+                      <div v-else class="text-xs text-surface-400 italic font-medium flex items-center h-full">
+                        <span class="bg-surface-100 text-surface-600 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider mr-2 lg:hidden">
+                          {{ carga.candidaturas?.filter(c => c.status === 'pendente').length || 0 }}
+                        </span>
+                        <span class="hidden lg:inline">{{ carga.candidaturas?.filter(c => c.status === 'pendente').length || 0 }}</span> Lances Pendentes
+                      </div>
+                    </td>
+                    
+                    <td class="block lg:table-cell px-4 py-4 lg:px-6 lg:py-4 bg-surface-50 lg:bg-transparent rounded-b-xl lg:rounded-none">
+                      <div class="flex flex-wrap lg:justify-end gap-2 lg:gap-3 items-center w-full">
+                        <template v-if="carga.status === 'publicada'">
+                          <button v-if="carga.candidaturas && carga.candidaturas.filter(c => c.status === 'pendente').length > 0" 
+                                  @click="abrirModalLances(carga)" 
+                                  class="w-full lg:w-auto inline-flex justify-center items-center px-4 py-2.5 lg:py-1.5 bg-brand-600 text-white font-bold text-xs rounded-lg lg:rounded hover:bg-brand-700 transition-colors shadow-clinical-sm animate-pulse focus:outline-none focus:ring-2 focus:ring-brand-500">
+                            Ver Lances ({{ carga.candidaturas.filter(c => c.status === 'pendente').length }})
+                          </button>
+                          <router-link :to="{ name: 'EmbarcadorEditarCarga', params: { id: carga.id } }" class="flex-1 lg:flex-none text-center bg-white lg:bg-transparent border lg:border-none border-surface-200 px-4 py-2 lg:px-2 lg:py-1 rounded-lg lg:rounded text-surface-600 hover:text-brand-800 font-bold transition-colors text-xs lg:text-[10px] uppercase tracking-widest focus:outline-none">Editar</router-link>
+                          <button @click="cancelarCarga(carga.id)" class="flex-1 lg:flex-none text-center bg-white lg:bg-transparent border lg:border-none border-surface-200 px-4 py-2 lg:px-2 lg:py-1 rounded-lg lg:rounded text-rose-600 hover:text-rose-800 font-bold transition-colors text-xs lg:text-[10px] uppercase tracking-widest focus:outline-none">Cancelar</button>
+                        </template>
+                        
+                        <template v-else-if="carga.status === 'em_auditoria'">
+                          <button @click="abrirChat(carga)" class="flex-1 lg:flex-none inline-flex justify-center items-center px-4 py-2.5 lg:py-1.5 bg-brand-50 border border-brand-200 text-brand-700 font-bold text-xs rounded-lg lg:rounded hover:bg-brand-100 transition-colors focus:outline-none">
+                            💬 Chat
+                          </button>
+                          <button @click="abrirModalPod(carga)" class="flex-1 lg:flex-none inline-flex justify-center items-center px-4 py-2.5 lg:py-1.5 bg-amber-400 border border-amber-500 text-amber-900 font-black text-xs rounded-lg lg:rounded hover:bg-amber-500 transition-colors shadow-clinical-sm animate-pulse focus:outline-none focus:ring-2 focus:ring-amber-500">
+                            ⚖️ Auditar
+                          </button>
+                        </template>
 
-                      <template v-else-if="['entregue', 'finalizada', 'concluida'].includes(carga.status)">
-                        <button @click="abrirModalPod(carga)" class="inline-flex items-center px-3 py-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold text-xs rounded hover:bg-emerald-100 transition-colors focus:outline-none">
-                          Ver Comprovantes
-                        </button>
-                      </template>
-                      
-                      <template v-else-if="carga.status === 'em_transito'">
-                        <button @click="abrirChat(carga)" class="inline-flex items-center px-3 py-1.5 bg-brand-100 border border-brand-300 text-brand-800 font-bold text-xs rounded hover:bg-brand-200 transition-colors focus:outline-none">
-                          💬 Chat da Operação
-                        </button>
-                        <router-link :to="{ name: 'EmbarcadorRastreamento', params: { id: carga.id } }" class="inline-flex items-center px-3 py-1.5 bg-surface-900 text-white text-xs font-bold rounded shadow-clinical-sm hover:bg-surface-800 transition-colors focus:outline-none">
-                          📍 Acompanhar Rota
-                        </router-link>
-                      </template>
-                      
-                      <template v-else-if="carga.status === 'alocada'">
-                        <button @click="abrirChat(carga)" class="inline-flex items-center px-3 py-1.5 bg-brand-100 border border-brand-300 text-brand-800 font-bold text-xs rounded hover:bg-brand-200 transition-colors focus:outline-none">
-                          💬 Chat da Operação
-                        </button>
-                      </template>
+                        <template v-else-if="['entregue', 'finalizada', 'concluida'].includes(carga.status)">
+                          <button @click="abrirModalPod(carga)" class="w-full lg:w-auto inline-flex justify-center items-center px-4 py-2.5 lg:py-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold text-xs rounded-lg lg:rounded hover:bg-emerald-100 transition-colors focus:outline-none">
+                            Ver Comprovantes
+                          </button>
+                        </template>
+                        
+                        <template v-else-if="carga.status === 'em_transito'">
+                          <button @click="abrirChat(carga)" class="flex-1 lg:flex-none inline-flex justify-center items-center px-4 py-2.5 lg:py-1.5 bg-brand-100 border border-brand-300 text-brand-800 font-bold text-xs rounded-lg lg:rounded hover:bg-brand-200 transition-colors focus:outline-none">
+                            💬 Chat
+                          </button>
+                          <router-link :to="{ name: 'EmbarcadorRastreamento', params: { id: carga.id } }" class="flex-1 lg:flex-none inline-flex justify-center items-center px-4 py-2.5 lg:py-1.5 bg-surface-900 text-white text-xs font-bold rounded-lg lg:rounded shadow-clinical-sm hover:bg-surface-800 transition-colors focus:outline-none">
+                            📍 Rota
+                          </router-link>
+                        </template>
+                        
+                        <template v-else-if="carga.status === 'alocada'">
+                          <button @click="abrirChat(carga)" class="w-full lg:w-auto inline-flex justify-center items-center px-4 py-2.5 lg:py-1.5 bg-brand-100 border border-brand-300 text-brand-800 font-bold text-xs rounded-lg lg:rounded hover:bg-brand-200 transition-colors focus:outline-none">
+                            💬 Chat da Operação
+                          </button>
+                        </template>
 
-                      <template v-else>
-                        <span class="text-surface-400 text-[10px] font-black uppercase tracking-wider">Processando...</span>
-                      </template>
-                    </div>
+                        <template v-else>
+                          <span class="w-full text-center text-surface-400 text-[10px] font-black uppercase tracking-wider py-2">Processando...</span>
+                        </template>
+                      </div>
 
-                    <button v-if="carga.publicacao_log" @click="abrirModalContrato(carga, 'embarcador')" class="inline-flex items-center px-2 py-1 bg-surface-100 text-surface-700 border border-surface-200 font-bold text-[10px] rounded hover:bg-surface-200 transition-colors shadow-clinical-sm mt-2 focus:outline-none uppercase tracking-widest">
-                      📄 Meu Certificado
-                    </button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div v-if="pagination.last_page > 1" class="px-6 py-4 bg-white border-t border-surface-200 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div class="text-sm text-surface-700 font-medium">
-              Página <span class="font-bold text-surface-900">{{ pagination.current_page }}</span> de <span class="font-bold text-surface-900">{{ pagination.last_page }}</span>
+                      <button v-if="carga.publicacao_log" @click="abrirModalContrato(carga, 'embarcador')" class="w-full lg:w-auto mt-3 lg:mt-2 inline-flex justify-center items-center px-4 py-2.5 lg:px-2 lg:py-1 bg-white lg:bg-surface-100 text-surface-700 border border-surface-200 font-bold text-xs lg:text-[10px] rounded-lg lg:rounded hover:bg-surface-50 lg:hover:bg-surface-200 transition-colors shadow-sm lg:shadow-clinical-sm focus:outline-none uppercase tracking-widest">
+                        📄 Meu Certificado
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
-            <div class="space-x-2">
-              <button @click="fetchCargas(pagination.current_page - 1)" :disabled="pagination.current_page === 1 || loading" class="px-4 py-2 border border-surface-300 rounded-lg text-sm font-bold text-surface-700 bg-white hover:bg-surface-50 disabled:opacity-50 transition-colors shadow-clinical-sm focus:outline-none focus:ring-2 focus:ring-surface-500">
-                Anterior
-              </button>
-              <button @click="fetchCargas(pagination.current_page + 1)" :disabled="pagination.current_page === pagination.last_page || loading" class="px-4 py-2 border border-surface-300 rounded-lg text-sm font-bold text-surface-700 bg-white hover:bg-surface-50 disabled:opacity-50 transition-colors shadow-clinical-sm focus:outline-none focus:ring-2 focus:ring-surface-500">
-                Próxima
-              </button>
+
+            <div v-if="pagination.last_page > 1" class="px-6 py-4 bg-white border-t lg:border border-surface-200 lg:rounded-b-xl flex flex-col sm:flex-row items-center justify-between gap-4 mt-2 lg:mt-0 shadow-clinical-sm">
+              <div class="text-sm text-surface-700 font-medium">
+                Página <span class="font-bold text-surface-900">{{ pagination.current_page }}</span> de <span class="font-bold text-surface-900">{{ pagination.last_page }}</span>
+              </div>
+              <div class="space-x-2 w-full sm:w-auto flex justify-between sm:justify-end">
+                <button @click="fetchCargas(pagination.current_page - 1)" :disabled="pagination.current_page === 1 || loading" class="flex-1 sm:flex-none px-4 py-2 border border-surface-300 rounded-lg text-sm font-bold text-surface-700 bg-white hover:bg-surface-50 disabled:opacity-50 transition-colors shadow-clinical-sm focus:outline-none focus:ring-2 focus:ring-surface-500">
+                  Anterior
+                </button>
+                <button @click="fetchCargas(pagination.current_page + 1)" :disabled="pagination.current_page === pagination.last_page || loading" class="flex-1 sm:flex-none px-4 py-2 border border-surface-300 rounded-lg text-sm font-bold text-surface-700 bg-white hover:bg-surface-50 disabled:opacity-50 transition-colors shadow-clinical-sm focus:outline-none focus:ring-2 focus:ring-surface-500">
+                  Próxima
+                </button>
+              </div>
             </div>
-          </div>
-        </template>
+          </template>
+        </div>
+
       </div>
 
-    </div>
-
-    <!-- COLUNA LATERAL DIREITA: ADTECH (3 COLUNAS) -->
-    <div class="hidden lg:block lg:col-span-3">
-      <div class="sticky top-6 h-[calc(100vh-140px)] w-full">
-         <AdCarousel posicionamento="direita" />
+      <div class="hidden lg:block lg:col-span-3">
+        <div class="sticky top-6 h-[calc(100vh-140px)] w-full">
+           <AdCarousel posicionamento="direita" />
+        </div>
       </div>
+
     </div>
 
     <!-- MODAIS GLOBAIS -->
-
-    <!-- Lances Modal -->
     <div v-if="showModalLances" class="fixed inset-0 z-modal overflow-y-auto" role="dialog" aria-modal="true">
       <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
         <div class="fixed inset-0 bg-surface-950/80 transition-opacity backdrop-blur-sm" @click="fecharModalLances"></div>
@@ -227,7 +245,6 @@
       </div>
     </div>
 
-    <!-- POD (Prova de Entrega) Modal -->
     <div v-if="showModalPod" class="fixed inset-0 z-modal overflow-y-auto" role="dialog" aria-modal="true">
       <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
         <div class="fixed inset-0 bg-surface-950/80 transition-opacity backdrop-blur-sm" @click="fecharModalPod"></div>
@@ -344,7 +361,6 @@
       </div>
     </div>
 
-    <!-- Reputação Motorista Modal -->
     <div v-if="showModalReputacao" class="fixed inset-0 z-modal overflow-y-auto" role="dialog" aria-modal="true">
       <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
         <div class="fixed inset-0 bg-surface-950/80 transition-opacity backdrop-blur-sm" @click="showModalReputacao = false"></div>
@@ -402,7 +418,6 @@
       </div>
     </div>
 
-    <!-- Chat Modal -->
     <div v-if="showModalChat" class="fixed inset-0 z-modal overflow-y-auto" role="dialog" aria-modal="true">
       <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
         
@@ -443,7 +458,6 @@
       </div>
     </div>
 
-    <!-- Certificado Contrato Modal -->
     <div v-if="showModalContrato" class="fixed inset-0 z-modal overflow-y-auto print:static print:z-auto print:inset-auto" role="dialog" aria-modal="true">
       <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0 print:block print:p-0 print:min-h-0">
         <div class="fixed inset-0 bg-surface-950/80 transition-opacity backdrop-blur-sm print:hidden" @click="fecharModalContrato"></div>
@@ -485,7 +499,6 @@ const cargas = ref([]);
 const loading = ref(true);
 const pagination = ref({ current_page: 1, last_page: 1, total: 0 });
 
-// Lógica de Modais Base
 const showModalPod = ref(false);
 const showModalContrato = ref(false); 
 const showModalLances = ref(false);
@@ -509,7 +522,6 @@ const formAvaliacao = ref({
   comentarios: ''
 });
 
-// Helpers Visuais (Atualizados para o Design System)
 const getStatusClass = (status) => {
   const classes = {
     publicada: 'bg-brand-50 text-brand-700 border-brand-200',
@@ -534,7 +546,6 @@ const getTierBadge = (tier) => {
   return badges[tier?.toLowerCase()] || badges.novato;
 };
 
-// Formatação Defensiva: Extração do Intl para Singleton (Evita Memory Thrashing)
 const moneyFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 const formatMoney = (value) => {
   const num = parseFloat(value);
@@ -557,7 +568,6 @@ const candidaturasPendentes = computed(() => {
   return cargaSelecionada.value.candidaturas.filter(c => c.status === 'pendente');
 });
 
-// Ações (API & Modais)
 const fetchCargas = async (page = 1) => {
   loading.value = true;
   try {
@@ -629,13 +639,11 @@ const fecharModalPod = () => { showModalPod.value = false; if(!showModalContrato
 
 const abrirReputacao = (motorista) => { motoristaSelecionado.value = motorista; showModalReputacao.value = true; };
 
-// Chat
 const abrirChat = async (carga) => {
   cargaChatAtivo.value = carga;
   showModalChat.value = true;
   await carregarMensagens(carga.id);
 
-  // 🔥 CONECTA NO WEBSOCKET EXCLUSIVO DESTA CARGA
   if (window.Echo) {
     window.Echo.channel(`chat.${carga.id}`)
       .listen('.NovaMensagem', (e) => {
@@ -649,7 +657,6 @@ const abrirChat = async (carga) => {
 };
 
 const fecharChat = () => {
-  // 🔥 DESCONECTA DO WEBSOCKET PARA NÃO DUPLICAR MENSAGENS
   if (window.Echo && cargaChatAtivo.value) {
     window.Echo.leaveChannel(`chat.${cargaChatAtivo.value.id}`);
   }

@@ -14,24 +14,6 @@ use Illuminate\Support\Facades\DB;
 class ParceiroController extends Controller
 {
     /**
-     * MOTOR ZERO TRUST (DevSecOps)
-     * Isolamento de Tenant, Anti-IDOR e Rate Limiting Direcionado (Anti-DDoS/Botnets)
-     */
-    public function __construct()
-    {
-        // 1. Proteção Estrita de Identidade (Apenas usuários autenticados, exceto clique de telemetria)
-        $this->middleware('auth:sanctum')->except(['registrarClique']);
-
-        // 2. Proteção Anti-IDOR (Apenas Administradores podem ler métricas globais e escrever no banco)
-        $this->middleware('role:admin')->only(['index', 'store', 'update', 'destroy']);
-
-        // 3. Rate Limiting (Aceleração e mitigação de DDoS L7 por IP/Tenant)
-        $this->middleware('throttle:30,1')->only(['store', 'update', 'destroy']); // Escrita pesada
-        $this->middleware('throttle:120,1')->only(['listarPorPublico', 'index']); // Leitura / Leilão GPU
-        $this->middleware('throttle:10,1')->only(['registrarClique', 'registrarConversao']); // Anti-Fraude CPA/CPC
-    }
-
-    /**
      * Sanitização Termal Estrita (Defesa em Profundidade contra Stored XSS).
      */
     private function sanitizeText(?string $payload): ?string
@@ -201,8 +183,8 @@ class ParceiroController extends Controller
         // 1. Captação Sanitizada do Posicionamento exigido pelo Frontend
         $posicionamento = $request->query('posicionamento');
 
-        // 2. Determinação de Escopo do Usuário Logado (Fallback defensivo)
-        $role = $request->user() ? $request->user()->role->slug : 'motorista';
+        // ZT-DEFENSE: Operador Nullsafe (?->) previne crash 500
+        $role = $request->user()?->role?->slug ?? 'motorista';
 
         // 3. O construtor Query inicia com o escopo global de ativos (CPA/CPC e Data)
         $query = Parceiro::ativosPublicos()
@@ -264,4 +246,4 @@ class ParceiroController extends Controller
         
         return response()->json(['success' => true]);
     }
-}
+}   

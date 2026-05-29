@@ -40,4 +40,18 @@ return [
         'driver' => env('PEF_DRIVER', 'mock'),
     ],
 
+    // ==========================================
+    // INTEGRAÇÃO DE RISCO: TRANSAT (GR)
+    // ==========================================
+    // ZT-DEFENSE: Mapeamento de variáveis para permitir desvio seguro para Mock Server local
+    'transat' => [
+        'base_url' => env('TRANSAT_BASE_URL'),
+        'auth_url' => env('TRANSAT_AUTH_URL'),
+        'username' => env('TRANSAT_USERNAME'),
+        'password' => env('TRANSAT_PASSWORD'),
+        'cliente_id' => env('TRANSAT_CLIENTE_ID'),
+        'empresa_id' => env('TRANSAT_EMPRESA_ID'),
+        'webhook_secret' => env('TRANSAT_WEBHOOK_SECRET'),
+    ],
+
 ];

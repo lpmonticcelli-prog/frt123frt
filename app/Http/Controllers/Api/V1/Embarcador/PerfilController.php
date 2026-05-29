@@ -9,22 +9,29 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 use App\Services\ReceitaWSService;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Throwable;
 
 class PerfilController extends Controller
 {
+    private const ROLE_EMBARCADOR = 'embarcador';
+    private const STATUS_PENDENTE = 'pending';
+    private const STATUS_EM_ANALISE = 'em_analise';
+
     /**
-     * Retorna os dados atuais do perfil do Embarcador logado
+     * Retorna o Contrato de Dados (Payload) do perfil do Embarcador.
      */
     public function show(Request $request): JsonResponse
     {
         $user = $request->user();
+        $user->loadMissing(['role', 'embarcador']);
         
-        // Defesa Universal IDOR: Apenas Embarcadores acessam
-        if ($user->role->slug !== 'embarcador' || !$user->embarcador) {
-            abort(403, 'Acesso negado. Perfil de embarcador não encontrado ou tipo de conta inválido.');
+        if (!$user->role || $user->role->slug !== self::ROLE_EMBARCADOR || !$user->embarcador) {
+            Log::warning('Tentativa de L7 de acesso a perfil de embarcador bloqueada.', ['user_id' => $user->id]);
+            return response()->json(['error' => 'Acesso negado. Perfil corrompido ou tipo de conta inválido.'], 403);
         }
 
         $embarcador = $user->embarcador;
@@ -41,27 +48,28 @@ class PerfilController extends Controller
             'bairro' => $embarcador->bairro,
             'cidade' => $embarcador->cidade,
             'uf' => $embarcador->uf,
-            'status_conta' => $user->status, // pending, em_analise, active, rejected
+            'status_conta' => $user->status,
             
-            // ZT-DEFENSE: Substituição da URL Pública por Proxy Autenticado
+            // Proxy Autenticado (Independente de S3/Local)
             'documento_kyc_url' => $embarcador->documento_kyc ? url("/api/v1/embarcador/perfil/documento") : null,
-        ]);
+        ], 200);
     }
 
     /**
-     * Atualiza os dados, valida o CNPJ na Receita Federal e faz o upload do documento KYC
+     * Processamento ACID de Dados, ReceitaWS e Documentos (KYC).
      */
     public function update(Request $request, ReceitaWSService $receitaWSService): JsonResponse
     {
         $user = $request->user();
+        $user->loadMissing(['role', 'embarcador']);
         
-        if ($user->role->slug !== 'embarcador') {
-            abort(403, 'Acesso negado.');
+        if (!$user->role || $user->role->slug !== self::ROLE_EMBARCADOR || !$user->embarcador) {
+            return response()->json(['error' => 'Acesso negado.'], 403);
         }
 
         $embarcador = $user->embarcador;
 
-        // VALIDAÇÃO CONTRA SHELL INJECTION E TAMANHO DE PAYLOAD
+        // Validação Rígida
         $validated = $request->validate([
             'razao_social' => 'required|string|max:255',
             'cnpj' => [
@@ -79,54 +87,49 @@ class PerfilController extends Controller
             'bairro' => 'nullable|string|max:255',
             'cidade' => 'nullable|string|max:255',
             'uf' => 'nullable|string|size:2',
-            'documento_kyc' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120', // Máx 5MB
+            'documento_kyc' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
         ], [
             'cnpj.unique' => 'Este CNPJ já está cadastrado em outra conta.',
-            'documento_kyc.mimes' => 'Arquivo não permitido. O documento deve ser um PDF, JPG ou PNG.',
-            'documento_kyc.max' => 'O arquivo é muito grande. Não pode ter mais de 5MB.'
+            'documento_kyc.mimes' => 'Arquivo suspeito. Apenas PDF, JPG ou PNG são permitidos.',
+            'documento_kyc.max' => 'Payload recusa arquivos superiores a 5MB.'
         ]);
 
         $statusConta = $user->status;
-        $documentoPath = $embarcador->documento_kyc;
+        $documentoPathAtual = $embarcador->documento_kyc;
+        $novoDocumentoUpload = null; // Track para Rollback de I/O
 
-        // Regra de Negócio: Se enviar novo documento ou trocar CNPJ, volta para análise
         $cnpjAlterado = $embarcador->cnpj !== $validated['cnpj'];
-        $novoDocumento = $request->hasFile('documento_kyc');
+        $enviouNovoDocumento = $request->hasFile('documento_kyc');
 
-        // =================================================================
-        // AUDITORIA TÉCNICA: Validação na Receita Federal em tempo real
-        // Executamos a chamada à API APENAS se o CNPJ for alterado ou for o primeiro cadastro, 
-        // poupando limite de requisições da ReceitaWS.
-        // =================================================================
-        if ($cnpjAlterado || $statusConta === 'pending') {
-            $analiseCNPJ = $receitaWSService->validarCNPJ($validated['cnpj']);
-            
-            if (!$analiseCNPJ['valido']) {
-                // Retorna 422 ao Vue.js bloqueando a ação. O utilizador verá o motivo (ex: Inapta, Baixada)
-                return response()->json(['message' => $analiseCNPJ['mensagem']], 422);
+        // Auditoria Externa (Antes da Transação para não prender o banco)
+        if ($cnpjAlterado || $statusConta === self::STATUS_PENDENTE) {
+            try {
+                $analiseCNPJ = $receitaWSService->validarCNPJ($validated['cnpj']);
+                if (!$analiseCNPJ['valido']) {
+                    return response()->json(['message' => $analiseCNPJ['mensagem']], 422);
+                }
+            } catch (Throwable $e) {
+                Log::error('Falha de Integração com ReceitaWS', ['error' => $e->getMessage()]);
+                return response()->json(['error' => 'Falha ao validar CNPJ no servidor do governo. Tente novamente.'], 503);
             }
-            
-            // Opcional de integridade: Descomente a linha abaixo para forçar a Razão Social a ser idêntica à da Receita Federal.
-            // $validated['razao_social'] = $analiseCNPJ['razao_social'];
         }
 
-        if ($novoDocumento) {
-            // ZT-DEFENSE: Apaga o arquivo antigo do cofre seguro (local) para economizar espaço
-            if ($documentoPath && Storage::disk('local')->exists($documentoPath)) {
-                Storage::disk('local')->delete($documentoPath);
+        if ($cnpjAlterado || $enviouNovoDocumento) {
+            $statusConta = self::STATUS_EM_ANALISE;
+        }
+
+        DB::beginTransaction();
+
+        try {
+            if ($enviouNovoDocumento) {
+                // Operação de I/O Abstrata (S3 ou Local)
+                $novoDocumentoUpload = $request->file('documento_kyc')->store('kyc/embarcadores_' . $embarcador->id);
+                
+                if (!$novoDocumentoUpload) {
+                    throw new \RuntimeException('Falha no subsistema de disco ao gravar o KYC.');
+                }
             }
-            
-            // ZT-DEFENSE: Salva o novo arquivo isolado na pasta do embarcador no disco local (NÃO PÚBLICO)
-            $documentoPath = $request->file('documento_kyc')->store('kyc/embarcadores/' . $embarcador->id, 'local');
-        }
 
-        if ($cnpjAlterado || $novoDocumento) {
-            // Padronizado 'em_analise' para sincronizar com o Controller do Administrador
-            $statusConta = 'em_analise';
-        }
-
-        // Atualização Atômica
-        DB::transaction(function () use ($user, $embarcador, $validated, $statusConta, $documentoPath) {
             $user->update([
                 'phone' => $validated['telefone'],
                 'status' => $statusConta
@@ -143,36 +146,56 @@ class PerfilController extends Controller
                 'bairro' => $validated['bairro'] ?? null,
                 'cidade' => $validated['cidade'] ?? null,
                 'uf' => strtoupper($validated['uf'] ?? ''),
-                'documento_kyc' => $documentoPath,
+                'documento_kyc' => $novoDocumentoUpload ?? $documentoPathAtual,
             ]);
-        });
 
-        return response()->json([
-            'message' => 'Perfil atualizado com sucesso. Dados verificados na Receita Federal.',
-            'status_conta' => $statusConta,
-            // Retorna o Proxy Seguro
-            'documento_kyc_url' => $documentoPath ? url("/api/v1/embarcador/perfil/documento") : null,
-        ]);
+            DB::commit();
+
+            // Saneamento Pós-Commit: Apaga o arquivo antigo APENAS se o banco atualizou com sucesso
+            if ($enviouNovoDocumento && $documentoPathAtual && Storage::exists($documentoPathAtual)) {
+                Storage::delete($documentoPathAtual);
+            }
+
+            return response()->json([
+                'message' => 'Perfil atualizado com sucesso. Dados verificados.',
+                'status_conta' => $statusConta,
+                'documento_kyc_url' => ($novoDocumentoUpload ?? $documentoPathAtual) ? url("/api/v1/embarcador/perfil/documento") : null,
+            ], 200);
+
+        } catch (Throwable $e) {
+            DB::rollBack();
+            
+            // Compensação de I/O: Previne arquivos órfãos
+            if ($novoDocumentoUpload && Storage::exists($novoDocumentoUpload)) {
+                Storage::delete($novoDocumentoUpload);
+            }
+
+            Log::critical('Falha atômica ao atualizar perfil de Embarcador', [
+                'embarcador_id' => $embarcador->id,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json(['error' => 'Falha interna ao processar a atualização dos dados.'], 500);
+        }
     }
 
     /**
-     * ZT-DEFENSE: Servidor de Arquivo Seguro (Proxy Local)
-     * Entrega o documento KYC diretamente da memória sem expor a URI física.
+     * Proxy Binário Seguro (Zero Trust File Access).
      */
     public function exibirDocumento(Request $request): StreamedResponse|JsonResponse
     {
         $user = $request->user();
 
-        if ($user->role->slug !== 'embarcador' || !$user->embarcador) {
-            abort(403, 'Acesso negado.');
+        if (!$user->role || $user->role->slug !== self::ROLE_EMBARCADOR || !$user->embarcador) {
+            return response()->json(['error' => 'Acesso negado.'], 403);
         }
 
         $path = $user->embarcador->documento_kyc;
 
-        if (!$path || !Storage::disk('local')->exists($path)) {
+        if (!$path || !Storage::exists($path)) {
             return response()->json(['error' => 'Documento não localizado no cofre seguro.'], 404);
         }
 
-        return Storage::disk('local')->response($path);
+        return Storage::response($path);
     }
 }

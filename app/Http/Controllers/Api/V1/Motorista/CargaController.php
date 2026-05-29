@@ -15,15 +15,24 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use Throwable;
 
 class CargaController extends Controller
 {
-    protected CandidaturaService $candidaturaService;
+    private const ROLE_MOTORISTA = 'motorista';
+    private const STATUS_PUBLICADA = 'publicada';
+    private const STATUS_PENDENTE = 'pendente';
+    private const STATUS_AGUARDANDO_COLETA = 'aguardando_coleta';
+    private const STATUS_ALOCADA = 'alocada';
+    private const STATUS_EM_TRANSITO = 'em_transito';
+    private const STATUS_EM_AUDITORIA = 'em_auditoria';
+    private const STATUS_CANCELADA_MOTORISTA = 'cancelada_motorista';
+    private const STATUS_CANCELADO = 'cancelado';
 
-    public function __construct(CandidaturaService $candidaturaService)
-    {
-        $this->candidaturaService = $candidaturaService;
-    }
+    public function __construct(
+        private readonly CandidaturaService $candidaturaService
+    ) {}
 
     /**
      * Sanitização Termal Estrita (Defesa contra XSS/Null Byte injetados via Socket).
@@ -43,7 +52,7 @@ class CargaController extends Controller
         return response()->json([
             'status' => 'success',
             'data' => Carga::with(['embarcador.user:id,name,email'])
-                ->where('status', 'publicada')
+                ->where('status', self::STATUS_PUBLICADA)
                 ->orderBy('created_at', 'desc')
                 ->paginate(20)
         ], 200);
@@ -56,12 +65,12 @@ class CargaController extends Controller
             return response()->json(['error' => 'Perfil de motorista não localizado.'], 403);
         }
 
-        // Puxa cargas alocadas OU cargas onde o motorista tem lances pendentes
+        // Recupera cargas alocadas OU lances pendentes em uma única query
         $cargas = Carga::with(['embarcador', 'candidaturas'])
             ->where(function ($query) use ($motoristaId) {
                 $query->where('motorista_id', $motoristaId)
                       ->orWhereHas('candidaturas', function ($sub) use ($motoristaId) {
-                          $sub->where('motorista_id', $motoristaId)->where('status', 'pendente');
+                          $sub->where('motorista_id', $motoristaId)->where('status', self::STATUS_PENDENTE);
                       });
             })
             ->orderBy('created_at', 'desc')
@@ -74,17 +83,17 @@ class CargaController extends Controller
     {
         $motorista = $request->user()->motorista;
         if (!$motorista) {
-            return response()->json(['error' => 'Acesso negado. Crie o seu perfil.'], 403);
+            return response()->json(['error' => 'Acesso negado. Perfil incompleto.'], 403);
         }
 
-        $carga = Carga::findOrFail($id);
-
         try {
-            // Delegação estrita para a Camada de Domínio
+            $carga = Carga::findOrFail($id);
+            
+            // Delegação estrita para a Camada de Domínio Logístico
             $candidatura = $this->candidaturaService->aplicar($motorista, $carga);
 
             return response()->json([
-                'message' => 'Candidatura registrada com sucesso! Aguarde a aprovação do embarcador.',
+                'message' => 'Lance registrado. Aguarde a aprovação da transportadora.',
                 'data' => [
                     'candidatura_id' => $candidatura->id,
                     'status' => $candidatura->status,
@@ -92,8 +101,14 @@ class CargaController extends Controller
                 ]
             ], 200);
 
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+             return response()->json(['error' => $e->getMessage()], $e->getStatusCode());
         } catch (\Exception $e) {
-            Log::warning("[Bidding] Falha na candidatura: Motorista {$motorista->id} na Carga {$carga->id}. Motivo: {$e->getMessage()}");
+            Log::warning("[Bidding] Falha de candidatura interceptada", [
+                'motorista_id' => $motorista->id,
+                'carga_id' => $id,
+                'motivo' => $e->getMessage()
+            ]);
             return response()->json(['error' => $e->getMessage()], 409);
         }
     }
@@ -101,109 +116,157 @@ class CargaController extends Controller
     public function cancelarAceite(Request $request, int $id, PefGatewayInterface $pefGateway): JsonResponse
     {
         $motorista = $request->user()->motorista;
-        $carga = Carga::findOrFail($id);
+        
+        if (!$motorista) {
+            return response()->json(['error' => 'Acesso restrito.'], 403);
+        }
 
         try {
-            // Cenário 1: Quebra de Contrato (Motorista já aprovado cancela a viagem)
+            $carga = Carga::findOrFail($id);
+
+            // Cenário 1: Quebra de Contrato (Motorista cancela após ser escolhido e faturado no CIOT)
             if ($carga->motorista_id === $motorista->id) {
+                
+                DB::beginTransaction();
                 
                 $this->candidaturaService->cancelarPosAprovacao($motorista, $carga);
 
-                // Expurgo de recursos de terceiros (CIOT)
-                $ciot = Ciot::where('carga_id', $carga->id)->first();
+                // Expurgo de recursos fiduciários
+                $ciot = Ciot::where('carga_id', $carga->id)->lockForUpdate()->first();
                 if ($ciot) {
                     $pefGateway->cancelarCiot($ciot->codigo_ciot);
-                    $ciot->update(['status' => 'cancelado']);
-                    $ciot->delete();
+                    $ciot->update(['status' => self::STATUS_CANCELADO]);
+                    $ciot->delete(); // Soft delete por conformidade legal
                 }
+                
+                DB::commit();
 
                 return response()->json([
-                    'message' => 'Carga devolvida. ALERTA DE COMPLIANCE: Devido ao cancelamento após aprovação, seu perfil foi suspenso por 24 horas.'
+                    'message' => 'Carga devolvida ao mercado. ALERTA: Devido à quebra de contrato, sua conta foi penalizada/suspensa.'
                 ], 200);
             } 
             
             // Cenário 2: Retirada pacífica de Lance (Candidatura Pendente)
             $candidatura = CargaCandidatura::where('carga_id', $carga->id)
                 ->where('motorista_id', $motorista->id)
-                ->where('status', 'pendente')
+                ->where('status', self::STATUS_PENDENTE)
                 ->first();
 
             if ($candidatura) {
-                $candidatura->update(['status' => 'cancelada_motorista']);
-                return response()->json(['message' => 'Candidatura retirada com sucesso.'], 200);
+                $candidatura->update(['status' => self::STATUS_CANCELADA_MOTORISTA]);
+                return response()->json(['message' => 'Lance removido com sucesso.'], 200);
             }
 
-            return response()->json(['error' => 'Nenhuma candidatura ativa ou carga atribuída encontrada para cancelamento.'], 404);
+            return response()->json(['error' => 'Nenhuma candidatura ativa encontrada para este frete.'], 404);
 
-        } catch (\Exception $e) {
-            return response()->json(['error' => $e->getMessage()], 400);
+        } catch (Throwable $e) {
+            if (DB::transactionLevel() > 0) {
+                DB::rollBack();
+            }
+            Log::critical('Falha ao cancelar aceite', ['carga_id' => $id, 'error' => $e->getMessage()]);
+            return response()->json(['error' => 'Erro interno ao processar o cancelamento.'], 500);
         }
     }
 
     public function iniciarViagem(Request $request, int $id): JsonResponse
     {
-        DB::transaction(function () use ($request, $id) {
-            $carga = Carga::lockForUpdate()->findOrFail($id);
-            
-            if ($carga->motorista_id !== $request->user()->motorista->id) {
-                abort(403, 'Operação negada. Propriedade da carga violada.');
-            }
-            
-            // ZT-DEFENSE: A restrição foi severamente corrigida. 
-            // O motorista NUNCA pode iniciar a viagem se estiver "em_analise_gr" ou "processando_aceite".
-            // A viagem só é válida quando o motor de CIOT e a Seguradora dão ok.
-            if (!in_array($carga->status, ['aguardando_coleta', 'alocada'], true)) {
-                abort(400, 'Status inválido. A operação não pode ser iniciada pois aguarda liberação jurídica (GR) ou fiduciária (CIOT).');
-            }
+        try {
+            DB::transaction(function () use ($request, $id) {
+                $carga = Carga::where('id', $id)->lockForUpdate()->firstOrFail();
+                
+                if ($carga->motorista_id !== $request->user()->motorista->id) {
+                    abort(403, 'Acesso negado. Frete alocado a terceiros.');
+                }
+                
+                // Validação de Compliance Fiduciária e Risco (GR)
+                if (!in_array($carga->status, [self::STATUS_AGUARDANDO_COLETA, self::STATUS_ALOCADA], true)) {
+                    abort(400, 'A viagem não pode ser iniciada. Aguarde liberação jurídica (Trans Sat) ou fiduciária (CIOT).');
+                }
 
-            $carga->update(['status' => 'em_transito']);
-            
-            Log::info("[Logística] Motorista ID {$request->user()->motorista->id} iniciou rota para Carga ID {$carga->id}");
-        });
+                $carga->update(['status' => self::STATUS_EM_TRANSITO]);
+                
+                Log::info("[Logística] Viagem iniciada", ['motorista_id' => $request->user()->motorista->id, 'carga_id' => $carga->id]);
+            });
 
-        return response()->json(['message' => 'Viagem iniciada.'], 200);
+            return response()->json(['message' => 'Boa viagem! Acompanhamento por GPS ativado.'], 200);
+            
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            return response()->json(['error' => $e->getMessage()], $e->getStatusCode());
+        } catch (Throwable $e) {
+            Log::error('Erro ao iniciar viagem', ['carga_id' => $id, 'error' => $e->getMessage()]);
+            return response()->json(['error' => 'Falha interna ao inicializar telemetria do frete.'], 500);
+        }
     }
 
+    /**
+     * O Cofre: Finalização Crítica de Entrega (Comprovantes).
+     */
     public function finalizarEntrega(Request $request, int $id): JsonResponse
     {
         $request->validate([
             'foto_canhoto' => 'required|image|max:10240',
             'foto_carga'   => 'required|image|max:10240',
+        ], [
+            'image' => 'Evidências devem ser obrigatoriamente imagens fotográficas (JPG/PNG).',
+            'max' => 'Para evitar exaustão do servidor, envie fotos com até 10MB.'
         ]);
 
-        DB::transaction(function () use ($request, $id) {
-            $carga = Carga::lockForUpdate()->findOrFail($id);
+        $motoristaId = $request->user()->motorista->id;
+        $pathCanhoto = null;
+        $pathCarga = null;
+
+        try {
+            DB::beginTransaction();
             
-            if ($carga->motorista_id !== $request->user()->motorista->id) {
+            $carga = Carga::where('id', $id)->lockForUpdate()->firstOrFail();
+            
+            if ($carga->motorista_id !== $motoristaId) {
                 abort(403, 'Operação negada.');
             }
             
-            if ($carga->status !== 'em_transito') {
-                abort(400, 'Status logístico inválido para finalização.');
+            if ($carga->status !== self::STATUS_EM_TRANSITO) {
+                abort(400, 'Status logístico inválido para finalização (' . $carga->status . ').');
             }
 
-            // ZT-DEFENSE: Proteção de Dados (PII). Migração do disco public para o cofre interno (local).
-            // A extensão da imagem original é mantida para garantir a correta renderização e hash futuro.
-            $pathCanhoto = $request->file('foto_canhoto')->store("pod/carga_{$carga->id}", 'local');
-            $pathCarga = $request->file('foto_carga')->store("pod/carga_{$carga->id}", 'local');
+            // Operação LFI Secure & Cloud Agnostic
+            $prefix = "pod/carga_{$carga->id}";
+            $pathCanhoto = $request->file('foto_canhoto')->store($prefix);
+            $pathCarga = $request->file('foto_carga')->store($prefix);
+
+            if (!$pathCanhoto || !$pathCarga) {
+                throw new \RuntimeException('Falha no subsistema de armazenamento. As evidências não foram persistidas.');
+            }
 
             $carga->update([
-                'status' => 'em_auditoria',
-                // ZT-DEFENSE: Não exportamos a URL gerada por Storage::url. Apenas o path.
-                // O Embarcador e o Admin consumirão a foto através de um endpoint Proxy Authenticado.
+                'status' => self::STATUS_EM_AUDITORIA,
                 'foto_canhoto' => $pathCanhoto,
                 'foto_carga' => $pathCarga
             ]);
             
-            Log::info("[POD] Motorista ID {$request->user()->motorista->id} finalizou a Carga ID {$carga->id}. Evidências arquivadas em cofre.");
-        });
+            DB::commit();
 
-        return response()->json(['message' => 'Entrega finalizada. A carga agora aguarda avaliação de reputação pelo Embarcador.'], 200);
+            Log::info("[POD] Finalização de Frete concluída", [
+                'motorista_id' => $motoristaId, 
+                'carga_id' => $carga->id
+            ]);
+
+            return response()->json(['message' => 'Viagem finalizada. O canhoto foi enviado para a auditoria do contratante.'], 200);
+
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            DB::rollBack();
+            return response()->json(['error' => $e->getMessage()], $e->getStatusCode());
+        } catch (Throwable $e) {
+            DB::rollBack();
+            
+            // Reversão de I/O (Evita lixo no disco/S3)
+            if ($pathCanhoto && Storage::exists($pathCanhoto)) Storage::delete($pathCanhoto);
+            if ($pathCarga && Storage::exists($pathCarga)) Storage::delete($pathCarga);
+
+            Log::critical('Falha catastrófica ao finalizar frete', ['carga_id' => $id, 'error' => $e->getMessage()]);
+            return response()->json(['error' => 'Falha severa de rede ou armazenamento. Tente enviar novamente em instantes.'], 500);
+        }
     }
 
-    // =====================================================================
-    // CHAT ZERO TRUST (WEBSOCKETS EM TEMPO REAL)
-    // =====================================================================
     public function getChat(Request $request, int $id): JsonResponse
     {
         $carga = Carga::findOrFail($id);
@@ -231,22 +294,28 @@ class CargaController extends Controller
         
         $request->validate(['mensagem' => 'required|string|max:1000']);
         
-        // ZT-DEFENSE: Sanitização do payload para bloquear Stored XSS
         $mensagemLimpa = $this->sanitizeText($request->mensagem);
 
-        $msgId = DB::table('carga_mensagens')->insertGetId([
-            'carga_id' => $carga->id,
-            'remetente_id' => $user->motorista->id,
-            'remetente_tipo' => 'motorista',
-            'mensagem' => $mensagemLimpa,
-            'created_at' => now(), 
-            'updated_at' => now()
-        ]);
+        try {
+            $msgId = DB::table('carga_mensagens')->insertGetId([
+                'carga_id' => $carga->id,
+                'remetente_id' => $user->motorista->id,
+                'remetente_tipo' => self::ROLE_MOTORISTA,
+                'mensagem' => $mensagemLimpa,
+                'created_at' => now(), 
+                'updated_at' => now()
+            ]);
 
-        $mensagemSalva = DB::table('carga_mensagens')->find($msgId);
+            $mensagemSalva = DB::table('carga_mensagens')->find($msgId);
 
-        broadcast(new NovaMensagemChat($mensagemSalva, $carga->id))->toOthers();
+            // Transmissão Assíncrona para o Frontend Logístico (Pusher/Reverb)
+            broadcast(new NovaMensagemChat($mensagemSalva, $carga->id))->toOthers();
 
-        return response()->json($mensagemSalva, 201);
+            return response()->json($mensagemSalva, 201);
+            
+        } catch (Throwable $e) {
+            Log::error('Erro ao transmitir mensagem no chat (Motorista)', ['error' => $e->getMessage()]);
+            return response()->json(['error' => 'Erro interno ao tentar enviar a mensagem. Verifique sua conexão.'], 500);
+        }
     }
 }

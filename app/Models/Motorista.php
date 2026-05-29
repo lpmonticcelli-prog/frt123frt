@@ -23,15 +23,17 @@ class Motorista extends Model
         'doc_selfie_cnh',           // KYC: Nova Prova de Vida (Selfie + CNH)
         'doc_rntrc',                // KYC: Caminho do documento RNTRC
         'doc_comprovante_endereco', // KYC: Caminho do comprovante de endereço
-        'status_verificacao',       // KYC: Status da análise (pendente, em_analise, aprovado, rejeitado)
-        // NOVOS CAMPOS: SISTEMA DE REPUTAÇÃO E ANTI-TRUST
+        'status_verificacao',       // KYC: Status da análise interna
         'score_geral',
         'total_viagens',
         'tier_reputacao',
-        'suspenso_ate'
+        'suspenso_ate',
+        // ZT-DEFENSE: Colunas da Gerenciadora de Risco (Trans Sat)
+        'gr_status',
+        'gr_referencia',
+        'gr_biometria_url'          // <-- ADICIONADO: URL dinâmica para o QR Code da Biometria Facial
     ];
 
-    // Casts garantem que o Laravel converta os dados para os tipos corretos na API
     protected $casts = [
         'validade_cnh' => 'date',
         'is_disponivel' => 'boolean',
@@ -40,7 +42,7 @@ class Motorista extends Model
     ];
 
     /**
-     * Relacionamento com a tabela de usuários (Autenticação e Dados Básicos)
+     * Relacionamento com a tabela de usuários
      */
     public function user()
     {
@@ -48,17 +50,16 @@ class Motorista extends Model
     }
 
     /**
-     * Relacionamento Estrutural: 
-     * Um motorista possui/realiza VÁRIAS cargas (histórico e frete atual).
+     * Relacionamento com as Cargas
      */
     public function cargas()
     {
         return $this->hasMany(Carga::class);
     }
 
-    // =========================================================
-    // NOVO PARADIGMA: MARKETPLACE & REPUTAÇÃO (BIDDING)
-    // =========================================================
+    /**
+     * Relacionamentos de Marketplace e Reputação
+     */
     public function candidaturas()
     {
         return $this->hasMany(CargaCandidatura::class);
@@ -67,5 +68,40 @@ class Motorista extends Model
     public function avaliacoes()
     {
         return $this->hasMany(Avaliacao::class);
+    }
+
+    // =========================================================
+    // REGRAS DE NEGÓCIO: GERENCIADORA DE RISCO (ZERO TRUST)
+    // =========================================================
+    
+    /**
+     * Verifica se o motorista está com status liberado pela GR.
+     */
+    public function isAprovadoGr(): bool
+    {
+        return $this->gr_status === 'aprovado';
+    }
+
+    /**
+     * Verifica se o motorista está pendente de biometria facial na GR.
+     */
+    public function aguardaBiometriaGr(): bool
+    {
+        return $this->gr_status === 'aguardando_biometria';
+    }
+
+    /**
+     * Regra de bloqueio absoluto para candidaturas.
+     * O motorista só pode se candidatar se:
+     * 1. O KYC interno estiver aprovado.
+     * 2. A Gerenciadora de Risco (Trans Sat) estiver como 'aprovado'.
+     * 3. Não estiver cumprindo suspensão disciplinar.
+     */
+    public function podeAceitarFrete(): bool
+    {
+        $semSuspensao = is_null($this->suspenso_ate) || $this->suspenso_ate->isPast();
+        $kycAprovado = $this->status_verificacao === 'aprovado';
+        
+        return $kycAprovado && $this->isAprovadoGr() && $semSuspensao;
     }
 }

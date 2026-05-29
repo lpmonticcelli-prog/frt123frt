@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\V1\Embarcador\AuditoriaController;
 use App\Http\Controllers\Api\V1\Motorista\CargaController as MotoristaCargaController;
 use App\Http\Controllers\Api\V1\Motorista\PerfilController as MotoristaPerfilController;
 use App\Http\Controllers\Api\V1\Motorista\CarteiraController;
+use App\Http\Controllers\Api\V1\Motorista\GrController;
 use App\Http\Controllers\Api\V1\Admin\AdminController;
 use App\Http\Controllers\Api\V1\Admin\ParceiroController;
 use App\Http\Controllers\Api\V1\Admin\FaturamentoController as AdminFaturamentoController;
@@ -26,6 +27,8 @@ Route::prefix('v1')->group(function () {
     // =========================================================
     // AUTENTICAÇÃO E IDENTIDADE
     // =========================================================
+    // As rotas de login/recuperação de senha MANTÊM a trava nativa, 
+    // pois são a primeira linha de defesa contra Força Bruta e não passam pelo middleware global de API.
     Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
     Route::post('/forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:3,1');
     Route::post('/reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:5,1');
@@ -45,6 +48,7 @@ Route::prefix('v1')->group(function () {
         // =========================================================
         Route::get('/suporte/faqs', [FaqController::class, 'index']);
         Route::get('/suporte/tickets', [TicketController::class, 'index']);
+        // Ticket e Hub de Parceiros mantêm as suas travas específicas de negócio
         Route::post('/suporte/tickets', [TicketController::class, 'store'])->middleware('throttle:5,1');
         Route::get('/suporte/tickets/{ticket}', [TicketController::class, 'show']);
         Route::post('/suporte/tickets/{ticket}/mensagens', [TicketController::class, 'reply'])->middleware('throttle:15,1');
@@ -83,20 +87,20 @@ Route::prefix('v1')->group(function () {
         // =========================================================
         Route::middleware('ability:motorista')->prefix('motorista')->group(function () {
             Route::get('perfil', [MotoristaPerfilController::class, 'show']);
-            Route::post('perfil/documentos', [MotoristaPerfilController::class, 'uploadDocumentos']); 
+            Route::post('perfil', [MotoristaPerfilController::class, 'update']); 
             Route::get('perfil/documento/{tipo}', [MotoristaPerfilController::class, 'exibirDocumento']); 
             
-            Route::get('carteira/extrato', [CarteiraController::class, 'extrato']);
+            // ZT-DEFENSE: A Rota está LIVRE! 
+            // O Rate Limiting agora é controlado de forma inteligente pelo AppServiceProvider
+            Route::post('perfil/gr/solicitar', [GrController::class, 'solicitarAnalise']);
             
+            Route::get('carteira/extrato', [CarteiraController::class, 'extrato']);
             Route::get('cargas/disponiveis', [MotoristaCargaController::class, 'disponiveis']);
             Route::get('cargas/minhas', [MotoristaCargaController::class, 'minhasCargas']);
             Route::post('cargas/{id}/aceitar', [MotoristaCargaController::class, 'aceitar'])->middleware('throttle:10,1');
             Route::delete('cargas/{id}/aceitar', [MotoristaCargaController::class, 'cancelarAceite']);
             Route::post('cargas/{id}/iniciar-viagem', [MotoristaCargaController::class, 'iniciarViagem']);
-            
-            // ZT-DEFENSE: Mapeamento Atômico do Envio Seguro de POD (Substitui as Rotas Zumbis)
             Route::post('cargas/{id}/finalizar', [MotoristaCargaController::class, 'finalizarEntrega']);
-
             Route::get('cargas/{carga}/chat', [MotoristaCargaController::class, 'getChat']);
             Route::post('cargas/{carga}/chat', [MotoristaCargaController::class, 'storeChat'])->middleware('throttle:20,1');
         });
@@ -105,13 +109,9 @@ Route::prefix('v1')->group(function () {
         // DOMÍNIO: ADMIN
         // =========================================================
         Route::middleware('ability:admin')->prefix('admin')->group(function () {
-
-            // Dashboards e Relatórios
             Route::get('/dashboard', [AdminController::class, 'dashboardMetrics']);
             Route::get('/dashboard-stats', [AdminController::class, 'getDashboardStats']);
 
-            // 🛑 PREVENÇÃO DE ROUTE SHADOWING: Rotas de Fretes organizadas
-            // As rotas estáticas absolutas DEVEM preceder as dinâmicas ({id})
             Route::get('/fretes', [AdminController::class, 'listarFretes']);
             Route::get('/fretes/concluidos', [AdminController::class, 'fretesConcluidos']);
             Route::get('/operacoes/fretes', [AdminController::class, 'listarMuralFretes']);
@@ -119,17 +119,14 @@ Route::prefix('v1')->group(function () {
             Route::get('/fretes/{id}', [AdminController::class, 'detalhesFrete']);
             Route::get('/fretes/{id}/auditoria', [AdminController::class, 'auditoriaCarga']);
             
-            // ZT-DEFENSE: Proxy seguro de documentos (LFI Aniquilado)
             Route::get('/auditoria/documento', [AdminController::class, 'exibirDocumentoAuditoria']);
             Route::get('/kyc/documento', [AdminController::class, 'exibirDocumentoKyc']);
 
-            // Disputas
             Route::get('/disputas', [AdminController::class, 'listarDisputas']);
             Route::get('/operacoes/disputas', [AdminController::class, 'listarDisputas']);
             Route::post('/disputas/{id}/resolver', [AdminController::class, 'resolverDisputa']);
             Route::post('/operacoes/disputas/{carga}/resolver', [AdminController::class, 'resolverDisputa']);
             
-            // Faturamento
             Route::get('/faturamento/radar', [AdminFaturamentoController::class, 'radar']);
             Route::get('/faturamento/ciclos', [AdminFaturamentoController::class, 'listarCiclos']);
             Route::post('/faturamento/gerar', [AdminFaturamentoController::class, 'gerarFaturasManuais']);
@@ -138,7 +135,6 @@ Route::prefix('v1')->group(function () {
             Route::post('/faturamento/congelar/{embarcadorId}', [AdminFaturamentoController::class, 'congelar']);
             Route::get('/financeiro/extrato', [AdminController::class, 'extratoTaxas']);
             
-            // Variáveis Globais e Staff
             Route::get('/config/variaveis', [AdminController::class, 'listarVariaveis']);
             Route::put('/config/variaveis', [AdminController::class, 'atualizarVariaveis']);
             Route::put('/variaveis', [AdminController::class, 'atualizarVariaveis']);
@@ -150,7 +146,6 @@ Route::prefix('v1')->group(function () {
             Route::put('/config/staff/{usuario}', [AdminController::class, 'atualizarStaff']);
             Route::put('/staff/{usuario}', [AdminController::class, 'atualizarStaff']); 
             
-            // Usuários e CRM
             Route::get('/usuarios', [AdminController::class, 'listarTodosUsuarios']);
             Route::get('/usuarios-pendentes', [AdminController::class, 'usuariosPendentes']);
             Route::post('/usuarios/{usuario}/analise', [AdminController::class, 'analisarUsuario']);
@@ -178,7 +173,6 @@ Route::prefix('v1')->group(function () {
             Route::post('/parceiros-api', [AdminController::class, 'gerarTokenParceiro']);
             Route::post('/parceiros-api/{tokenId}/revogar', [AdminController::class, 'revogarTokenParceiro']);
             
-            // Mesa de Operações (Tickets)
             Route::get('/suporte/tickets', [TicketController::class, 'index']);
             Route::get('/suporte/tickets/{ticket}', [TicketController::class, 'show']);
             Route::post('/suporte/tickets/{ticket}/assumir', [TicketController::class, 'assumirTicket']);
@@ -200,7 +194,7 @@ Route::prefix('v1/localidades')->group(function () {
 });
 
 // =========================================================
-// WEBHOOKS (Fora da blindagem Sanctum, protegidos por Token Interno)
+// WEBSOCKETS (Fora da blindagem Sanctum, protegidos por Token Interno)
 // =========================================================
 Route::post('/v1/webhooks/pef', [PefWebhookController::class, 'handleCallback'])->name('webhook.pef');
 Route::post('/v1/webhooks/transat', [TransatWebhookController::class, 'handleCallback'])->name('webhook.transat');
