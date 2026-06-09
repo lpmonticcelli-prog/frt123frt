@@ -25,7 +25,7 @@ const routes = [
             { path: 'faturas', name: 'EmbarcadorFaturas', component: () => import('../views/Embarcador/Faturas.vue'), meta: { title: 'Minhas Faturas' } },
             { path: 'perfil', name: 'EmbarcadorPerfil', component: () => import('../views/Embarcador/Perfil.vue'), meta: { title: 'Minha Conta' } },
             { path: 'faq', name: 'EmbarcadorFaq', component: () => import('../views/Hub/FaqView.vue'), meta: { title: 'Central de Ajuda (FAQ)' } },
-            { path: 'loja', name: 'EmbarcadorLoja', component: () => import('../views/Hub/LojaView.vue'), meta: { title: 'Loja VIWE SyS' } },
+            { path: 'loja', name: 'EmbarcadorLoja', component: () => import('../views/Hub/LojaView.vue'), meta: { title: 'Loja' } },
             { path: 'voucher', name: 'EmbarcadorVoucher', component: () => import('../views/Hub/VoucherView.vue'), meta: { title: 'Gestão de Vouchers' } },
             { path: 'parceiros', name: 'EmbarcadorParceiros', component: () => import('../views/Hub/ParceirosView.vue'), meta: { title: 'Parceiros Estratégicos' } }
         ]
@@ -47,7 +47,7 @@ const routes = [
             { path: 'suporte', name: 'MotoristaMeusChamados', component: () => import('../views/Motorista/MeusChamados.vue'), meta: { title: 'Central de Suporte (SAC)' } },
             { path: 'perfil', name: 'MotoristaPerfil', component: () => import('../views/Motorista/Perfil.vue'), meta: { title: 'Minha Conta' } },
             { path: 'faq', name: 'MotoristaFaq', component: () => import('../views/Hub/FaqView.vue'), meta: { title: 'Central de Ajuda (FAQ)' } },
-            { path: 'loja', name: 'MotoristaLoja', component: () => import('../views/Hub/LojaView.vue'), meta: { title: 'Loja VIWE SyS' } },
+            { path: 'loja', name: 'MotoristaLoja', component: () => import('../views/Hub/LojaView.vue'), meta: { title: 'Loja' } },
             { path: 'voucher', name: 'MotoristaVoucher', component: () => import('../views/Hub/VoucherView.vue'), meta: { title: 'Meus Vouchers' } },
             { path: 'parceiros', name: 'MotoristaParceiros', component: () => import('../views/Hub/ParceirosView.vue'), meta: { title: 'Parceiros Estratégicos' } }
         ]
