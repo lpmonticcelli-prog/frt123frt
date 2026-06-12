@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -14,53 +15,54 @@ return Application::configure(basePath: dirname(__DIR__))
         channels: __DIR__.'/../routes/channels.php',
         health: '/up',
         then: function () {
-            // =========================================================
-            // 🔒 ZERO TRUST: Mocks Dinâmicos e Rate Limit Contextual
-            // =========================================================
             if (app()->environment('local', 'testing')) {
-                // Em dev: Carrega a API LIVRE de Rate Limit e Injeta os Mocks
-                Route::middleware('api')
-                    ->prefix('api')
-                    ->group(base_path('routes/api.php'));
-
-                Route::middleware('api')
-                    ->prefix('api')
-                    ->group(base_path('routes/mock.php'));
+                Route::middleware('api')->prefix('api')->group(base_path('routes/api.php'));
+                Route::middleware('api')->prefix('api')->group(base_path('routes/mock.php'));
             } else {
-                // Em Produção: Carrega a API COM PROTEÇÃO MÁXIMA (throttle:api)
-                Route::middleware(['api', 'throttle:api'])
-                    ->prefix('api')
-                    ->group(base_path('routes/api.php'));
+                Route::middleware(['api', 'throttle:api'])->prefix('api')->group(base_path('routes/api.php'));
             }
         },
     )
     ->withMiddleware(function (Middleware $middleware) {
-        
-        // ==========================================
-        // ZERO TRUST: CONFIANÇA DE PROXY (WAF/ELB)
-        // ==========================================
-        // Garante que o Rate Limiting (Throttle) bloqueie o IP REAL do atacante,
-        // e não o IP do Cloudflare, AWS Load Balancer ou Nginx.
-        $middleware->trustProxies(at: '*'); 
+        $middleware->trustProxies(at: [
+            '127.0.0.1',
+            '10.0.0.0/8',
+            '172.16.0.0/12',
+            '192.168.0.0/16',
+        ]); 
 
-        // ==========================================
-        // SANCTUM: HABILITA SESSÃO/COOKIES NA API
-        // ==========================================
+        $middleware->trustProxies(headers: 
+            Request::HEADER_X_FORWARDED_FOR | 
+            Request::HEADER_X_FORWARDED_HOST | 
+            Request::HEADER_X_FORWARDED_PORT | 
+            Request::HEADER_X_FORWARDED_PROTO | 
+            Request::HEADER_X_FORWARDED_AWS_ELB
+        );
+
         $middleware->statefulApi();
 
-        // ==========================================
-        // REGISTRO DE MIDDLEWARES CUSTOMIZADOS
-        // ==========================================
+        // 1ª Camada: O WAF inspeciona o Payload e a URI
+        $middleware->append(\App\Http\Middleware\ZeroTrustWaf::class);
+
+        // 2ª Camada: O Escudo Anti-Stealer inspeciona globalmente a integridade física de quem fez a requisição
+        $middleware->appendToGroup('web', \App\Http\Middleware\AntiStealerShield::class);
+        $middleware->appendToGroup('api', \App\Http\Middleware\AntiStealerShield::class);
+
         $middleware->alias([
-            // Controle de Acesso Base (Role Baseado em Tabela Própria)
             'role' => \App\Http\Middleware\CheckRole::class,
-            
-            // Controle de Acesso Sanctum (Token Abilities) - Restauração
             'abilities' => \Laravel\Sanctum\Http\Middleware\CheckAbilities::class,
             'ability' => \Laravel\Sanctum\Http\Middleware\CheckForAnyAbility::class,
+            'idempotency' => \App\Http\Middleware\IdempotencyKey::class, 
         ]);
-        
     })
     ->withExceptions(function (Exceptions $exceptions) {
-        // Tratamento de exceções customizadas
+        $exceptions->shouldRenderJsonWhen(function (Request $request) {
+            return $request->expectsJson() || $request->is('api/*');
+        });
+        
+        $exceptions->dontReport([
+            \Illuminate\Auth\AuthenticationException::class,
+            \Illuminate\Validation\ValidationException::class,
+            \Symfony\Component\HttpKernel\Exception\HttpException::class,
+        ]);
     })->create();

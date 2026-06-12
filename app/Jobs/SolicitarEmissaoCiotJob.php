@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Jobs;
 
 use App\Models\Ciot;
@@ -11,40 +13,41 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
+use Throwable;
 
 class SolicitarEmissaoCiotJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public int $tries = 3;
-    public array $backoff = [10, 30, 60];
+    // Resiliência Governamental: Exponential Backoff para absorver quedas da ANTT
+    public int $tries = 5;
+    public array $backoff = [5, 15, 45, 120, 300];
 
-    protected int $ciotId;
-
-    public function __construct(int $ciotId)
-    {
-        $this->ciotId = $ciotId;
-    }
+    public function __construct(protected int $ciotId) {}
 
     public function handle(PefGatewayInterface $pefGateway): void
     {
         $ciot = Ciot::with('carga')->find($this->ciotId);
 
+        // Idempotência
         if (!$ciot || $ciot->status !== 'processando') {
-            Log::warning("[Worker] CIOT {$this->ciotId} não encontrado ou já processado.");
+            Log::warning("[Worker/PEF] Emissão abortada: CIOT {$this->ciotId} não encontrado ou já processado.");
             return;
         }
 
         try {
-            // O Gateway injetado aqui é o MockPefGateway (definido no PefServiceProvider)
+            // ZT-DEFENSE: A requisição de rede opera fora da transaction SQL
             $response = $pefGateway->emitirCiot($ciot->carga);
 
-            if (!$response->sucesso) {
-                throw new \Exception("Gateway de Pagamento recusou a emissão do CIOT.");
+            if (!$response->sucesso || empty($response->codigoCiot)) {
+                throw new \Exception("A Integradora PEF recusou a geração do CIOT.");
             }
 
             DB::transaction(function () use ($ciot, $response) {
-                $ciot->update([
+                $ciotLock = Ciot::where('id', $this->ciotId)->lockForUpdate()->first();
+                if ($ciotLock->status === 'emitido') return;
+
+                $ciotLock->update([
                     'codigo_ciot' => $response->codigoCiot,
                     'imposto_inss' => $response->inss,
                     'imposto_sest_senat' => $response->sestSenat,
@@ -53,26 +56,27 @@ class SolicitarEmissaoCiotJob implements ShouldQueue
                     'taxa_123fretei' => $response->taxa123fretei,
                     'valor_frete_liquido' => $response->liquidoMotorista,
                     'pef_payload_response' => $response->payloadOriginal,
-                    // AUTO-APROVAÇÃO MOCK: Ignoramos a espera pelo webhook da ANTT
                     'status' => 'emitido' 
                 ]);
 
-                // DESTRAVA A CARGA NO FRONTEND: O Motorista já pode ver o botão "Iniciar Viagem"
-                $ciot->carga->update(['status' => 'aguardando_coleta']);
+                $ciotLock->carga->update(['status' => 'aguardando_coleta']);
             });
 
-            Log::info("[Worker] MOCK CIOT {$response->codigoCiot} gerado com sucesso. Carga liberada para transporte.");
+            Log::info("[Worker/ANTT] Sucesso: CIOT {$response->codigoCiot} homologado.");
 
-        } catch (\Exception $e) {
-            Log::error("[Worker] Falha na emissão do CIOT: " . $e->getMessage());
+        } catch (Throwable $e) {
+            Log::error("[Worker/PEF] Falha na emissão do CIOT {$this->ciotId}: " . $e->getMessage());
             
-            // Se falhar todas as tentativas, aborta o contrato e devolve a carga ao mural
+            // Circuit Breaker
             if ($this->attempts() >= $this->tries) {
                 DB::transaction(function() use ($ciot) {
-                    $ciot->update(['status' => 'cancelado']);
-                    $ciot->carga->update(['status' => 'publicada', 'motorista_id' => null]);
+                    $ciotLock = Ciot::where('id', $this->ciotId)->lockForUpdate()->first();
+                    if ($ciotLock) {
+                        $ciotLock->update(['status' => 'cancelado']);
+                        $ciotLock->carga->update(['status' => 'publicada', 'motorista_id' => null]);
+                    }
                 });
-                Log::critical("[Worker] Carga {$ciot->carga_id} devolvida ao mural após falha catastrófica no PEF.");
+                Log::critical("[Circuit Breaker] Falha total da Pamcard/Repom. Carga {$ciot->carga_id} recuada.");
             }
             throw $e; 
         }

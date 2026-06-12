@@ -17,17 +17,25 @@ class Carga extends Model
         'tipo_carroceria', 'uf_origem', 'cidade_origem', 'uf_destino',        
         'cidade_destino', 'distancia_km', 'valor_frete', 'taxa_plataforma',   
         'status', 'foto_canhoto', 'foto_carga', 'data_coleta', 'data_entrega_prevista',
+        // ZT-DEFENSE: Correção do Mass Assignment Exception 
+        // Sync de Schema exigido para averbação dos Webooks B2B
+        'transat_referencia', 'transat_biometria_url', 'transat_laudo_raw', 'em_auditoria_desde'
     ];
 
-    protected $casts = [
-        'data_coleta' => 'date',
-        'data_entrega_prevista' => 'datetime',
-        'peso_kg' => 'decimal:2',
-        'cubagem_m3' => 'decimal:2',
-        'distancia_km' => 'decimal:2',
-        'valor_frete' => 'decimal:2',
-        'taxa_plataforma' => 'decimal:2',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'data_coleta' => 'date',
+            'data_entrega_prevista' => 'datetime',
+            'em_auditoria_desde' => 'datetime',
+            'peso_kg' => 'decimal:2',
+            'cubagem_m3' => 'decimal:2',
+            'distancia_km' => 'decimal:2',
+            'valor_frete' => 'decimal:2',
+            'taxa_plataforma' => 'decimal:2',
+            'transat_laudo_raw' => 'array',
+        ];
+    }
 
     public function embarcador() 
     { 
@@ -39,9 +47,6 @@ class Carga extends Model
         return $this->belongsTo(Motorista::class); 
     }
 
-    // =========================================================
-    // RELACIONAMENTOS LEGADOS (Mesa de Operações e Auditoria)
-    // =========================================================
     public function aceite_log() { return $this->hasOne(CargaAceiteLog::class, 'carga_id', 'id'); }
     public function publicacao_log() { return $this->hasOne(CargaPublicacaoLog::class, 'carga_id', 'id'); }
     public function ciot() { return $this->hasOne(Ciot::class, 'carga_id', 'id'); }
@@ -49,9 +54,6 @@ class Carga extends Model
     public function aceitesLog() { return $this->hasMany(CargaAceiteLog::class, 'carga_id', 'id'); }
     public function publicacoesLog() { return $this->hasMany(CargaPublicacaoLog::class, 'carga_id', 'id'); }
 
-    // =========================================================
-    // NOVO PARADIGMA: MARKETPLACE & REPUTAÇÃO (BIDDING)
-    // =========================================================
     public function candidaturas() 
     { 
         return $this->hasMany(CargaCandidatura::class, 'carga_id', 'id'); 

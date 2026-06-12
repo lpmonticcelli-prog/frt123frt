@@ -1,70 +1,68 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use App\Models\Carga;
 use App\Models\Ciot;
 use App\Contracts\PefGatewayInterface;
+use App\Jobs\LiquidarFreteJob;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class ProcessarSlaLiquidacao extends Command
 {
-    /**
-     * The name and signature of the console command.
-     *
-     * @var string
-     */
     protected $signature = 'fretei:liquidar-sla';
 
-    /**
-     * The console command description.
-     *
-     * @var string
-     */
     protected $description = 'Audita e liquida automaticamente fretes que estouraram o SLA do Embarcador';
 
-    /**
-     * Execute the console command.
-     */
-    public function handle(PefGatewayInterface $pefGateway)
+    public function handle(PefGatewayInterface $pefGateway): int
     {
-        $this->info('[123FRETEI WORKER] Iniciando auditoria de SLA de Liquidação...');
+        $this->info('[123FRETEI WORKER] Iniciando auditoria de SLA (24h) de Liquidação...');
 
-        // Define o teto do SLA: 24 horas atrás
         $limiteSla = now()->subHours(24);
 
         $cargasVencidas = Carga::where('status', 'em_auditoria')
+            ->whereNotNull('em_auditoria_desde')
             ->where('em_auditoria_desde', '<=', $limiteSla)
             ->get();
 
         if ($cargasVencidas->isEmpty()) {
-            $this->info('Nenhuma carga com SLA estourado neste ciclo.');
+            $this->info('Nenhuma carga com SLA estourado neste ciclo de auditoria.');
             return Command::SUCCESS;
         }
 
         foreach ($cargasVencidas as $carga) {
             try {
-                DB::transaction(function () use ($carga, $pefGateway) {
-                    $ciot = Ciot::where('carga_id', $carga->id)->first();
+                DB::transaction(function () use ($carga) {
                     
-                    if ($ciot && $ciot->status === 'emitido') {
-                        // Força a liquidação financeira na Instituição de Pagamento
-                        $pefGateway->liquidarFrete($ciot->codigo_ciot);
-                        $ciot->update(['status' => 'liquidado']);
+                    // ZT-DEFENSE: Lock Pessimista evita que o Embarcador e o Cronjob aprovem simultaneamente
+                    $cargaLock = Carga::where('id', $carga->id)->lockForUpdate()->firstOrFail();
+                    
+                    if ($cargaLock->status !== 'em_auditoria') {
+                        return; 
                     }
 
-                    // Encerra o ciclo de vida da carga
-                    $carga->update(['status' => 'entregue']);
+                    $cargaLock->update(['status' => 'finalizada']);
+
+                    $ciot = Ciot::where('carga_id', $cargaLock->id)->lockForUpdate()->first();
+                    
+                    if ($ciot && !in_array($ciot->status, ['liquidado', 'processando_liquidacao'], true)) {
+                        $ciot->update(['status' => 'processando_liquidacao']);
+                        // Delega ao Job especialista para evitar o gargalo do loop do cron
+                        LiquidarFreteJob::dispatch((string) $ciot->codigo_ciot)->onQueue('financeiro');
+                    }
                 });
 
-                Log::info("[AUTO-LIQUIDAÇÃO] Carga {$carga->id} liquidada por estouro de SLA.");
-                $this->line("Carga {$carga->id} liquidada e motorista pago com sucesso.");
+                Log::info("[AUTO-LIQUIDAÇÃO] Carga {$carga->id} transacionada para liquidação por SLA.");
+                $this->line("Carga {$carga->id}: Motorista aprovado tacitamente.");
 
-            } catch (\Exception $e) {
+            } catch (Throwable $e) {
                 Log::error("[CRÍTICO - FALHA AUTO-LIQUIDAÇÃO] Carga {$carga->id}: " . $e->getMessage());
-                $this->error("Falha ao liquidar carga {$carga->id}. Verifique os logs.");
+                $this->error("Falha ao injetar carga {$carga->id} no pipeline de pagamentos.");
             }
         }
 

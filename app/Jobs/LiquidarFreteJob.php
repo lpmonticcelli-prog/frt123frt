@@ -1,9 +1,12 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Jobs;
 
 use App\Models\Ciot;
 use App\Models\Transacao;
+use App\Models\PagamentoEscrow;
 use App\Contracts\PefGatewayInterface;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -12,6 +15,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
+use Throwable;
 
 class LiquidarFreteJob implements ShouldQueue
 {
@@ -20,36 +24,39 @@ class LiquidarFreteJob implements ShouldQueue
     public int $tries = 3;
     public array $backoff = [15, 45, 90]; 
 
-    protected string $codigoCiot;
-
-    public function __construct(string $codigoCiot)
-    {
-        $this->codigoCiot = $codigoCiot;
-    }
+    public function __construct(protected string $codigoCiot) {}
 
     public function handle(PefGatewayInterface $pefGateway): void
     {
-        DB::transaction(function () use ($pefGateway) {
-            // Eager load da carga para acedermos ao ID do motorista
-            $ciot = Ciot::with('carga')->where('codigo_ciot', $this->codigoCiot)->lockForUpdate()->first();
+        if (empty($this->codigoCiot)) {
+            Log::error("[Worker/Financeiro] Erro Crítico: Tentativa de liquidar CIOT nulo.");
+            return;
+        }
 
-            if (!$ciot) {
-                Log::error("[Worker] CIOT {$this->codigoCiot} não localizado.");
-                return;
-            }
+        $ciotCheck = Ciot::where('codigo_ciot', $this->codigoCiot)->first();
 
-            if ($ciot->status === 'liquidado') {
-                return; // Idempotência
-            }
+        if (!$ciotCheck) {
+            Log::error("[Worker/Financeiro] CIOT {$this->codigoCiot} não localizado na malha.");
+            return;
+        }
 
-            try {
-                // Em laboratório, o Mock do PEF deve retornar true.
-                $sucesso = $pefGateway->liquidarFrete($this->codigoCiot);
-                
-                if ($sucesso) {
+        if ($ciotCheck->status === 'liquidado') {
+            return; 
+        }
+
+        try {
+            // ZT-DEFENSE: Comunicação de liquidação HTTP externa fora do DB::transaction
+            $sucesso = $pefGateway->liquidarFrete($this->codigoCiot);
+            
+            if ($sucesso) {
+                DB::transaction(function () {
+                    // Double-Check Locking absoluto para evitar saque duplicado do Escrow
+                    $ciot = Ciot::with('carga')->where('codigo_ciot', $this->codigoCiot)->lockForUpdate()->firstOrFail();
+
+                    if ($ciot->status === 'liquidado') return;
+
                     $ciot->update(['status' => 'liquidado']);
                     
-                    // CIRURGIA: Depósito automático na Carteira do Motorista (Valor Líquido)
                     Transacao::create([
                         'motorista_id' => $ciot->carga->motorista_id,
                         'carga_id' => $ciot->carga_id,
@@ -58,12 +65,20 @@ class LiquidarFreteJob implements ShouldQueue
                         'descricao' => "Liquidação PEF - CIOT: {$ciot->codigo_ciot}"
                     ]);
 
-                    Log::info("[Worker] CIOT {$this->codigoCiot} liquidado. R$ {$ciot->valor_frete_liquido} creditados na carteira do motorista.");
-                }
-            } catch (\Exception $e) {
-                Log::error("[Worker] Falha na liquidação do CIOT {$this->codigoCiot}: " . $e->getMessage());
-                throw $e;
+                    PagamentoEscrow::where('carga_id', $ciot->carga_id)
+                        ->where('status', 'liquidado')
+                        ->update(['status' => 'estornado']);
+
+                    $ciot->carga->update(['status' => 'concluida']);
+
+                    Log::info("[Worker/Treasury] CIOT {$this->codigoCiot} liquidado. Split Executado. R$ {$ciot->valor_frete_liquido} repassados à carteira do motorista.");
+                });
+            } else {
+                throw new \Exception("A Integradora financeira bloqueou a ordem de saque para o CIOT {$this->codigoCiot}.");
             }
-        }, 3);
+        } catch (Throwable $e) {
+            Log::error("[Worker/Treasury] Falha na liquidação do CIOT {$this->codigoCiot}: " . $e->getMessage());
+            throw $e;
+        }
     }
 }

@@ -26,7 +26,9 @@ class AdminPanelProvider extends PanelProvider
         return $panel
             ->default()
             ->id('admin')
-            ->path('admin')
+            // ZT-DEFENSE: Ofuscação de Rota (Anti-Scanning de Força Bruta).
+            // Em produção, adicione a variável FILAMENT_PATH no .env (Ex: FILAMENT_PATH=backoffice_sec_123)
+            ->path(env('FILAMENT_PATH', 'painel-restrito'))
             ->login()
             ->colors([
                 'primary' => Color::Amber,

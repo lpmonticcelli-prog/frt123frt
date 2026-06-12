@@ -3,7 +3,10 @@ import axios from 'axios';
 
 export const useAuthStore = defineStore('auth', {
     state: () => ({
-        user: JSON.parse(localStorage.getItem('user')) || null,
+        // ZT-DEFENSE: Extinção de LocalStorage (CWE-312).
+        // A sessão agora existe puramente na RAM do navegador, ancorada pelo Cookie HttpOnly.
+        // Malwares que varrem o disco rígido buscando Json/LocalStorage não acharão credenciais.
+        user: null, 
     }),
 
     getters: {
@@ -13,25 +16,24 @@ export const useAuthStore = defineStore('auth', {
     actions: {
         clearAuth() {
             this.user = null;
+            // Purga vestígios legados de ataques passados
             localStorage.removeItem('user');
+            localStorage.removeItem('auth');
+            sessionStorage.clear();
         },
 
         async login(credentials) {
-            // O Handshake do Sanctum continua na raiz
             await axios.get('/sanctum/csrf-cookie');
-            
-            // O Login segue a sua arquitetura V1
             const { data } = await axios.post('/api/v1/login', credentials);
             
             this.user = data.user || data; 
-            localStorage.setItem('user', JSON.stringify(this.user));
         },
 
         async logout() {
             try { 
                 await axios.post('/api/v1/logout'); 
             } catch (e) {
-                console.warn("[Security] Sessão já expirada no servidor.");
+                console.warn("[Security] Sessão limpa ou ejetada pelo WAF.");
             } finally {
                 this.clearAuth();
             }
@@ -39,12 +41,10 @@ export const useAuthStore = defineStore('auth', {
 
         async fetchUser() {
             try {
-                // A validação de sessão segue a sua arquitetura V1
                 const { data } = await axios.get('/api/v1/me');
                 this.user = data;
-                localStorage.setItem('user', JSON.stringify(this.user));
             } catch (e) {
-                console.error("[Security] Sessão rejeitada. Forçando expurgo local.");
+                console.error("[Security] Cookie rejeitado por anomalia de contexto. Expurgando.");
                 this.clearAuth();
             }
         }

@@ -10,17 +10,14 @@ return new class extends Migration
     {
         Schema::create('motoristas', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
             
-            // Chave estrangeira ligando o motorista ao usuário base (login/senha)
-            $table->foreignId('user_id')->constrained()->onDelete('cascade');
+            // ZT-DEFENSE: Convertidos para text para suportar o Payload AES-256. Trava Unique removida.
+            $table->text('cpf');
+            $table->text('cnh');
+            $table->text('rntrc'); 
             
-            // Dados Documentais Exigidos pelo AuthController
-            $table->string('cpf', 14)->unique();
-            $table->string('cnh', 20)->unique();
             $table->date('validade_cnh');
-            $table->string('rntrc', 15)->unique(); // Registro Nacional de Transportadores (ANTT)
-            
-            // Controle de Status Operacional
             $table->boolean('is_disponivel')->default(false);
             
             $table->timestamps();

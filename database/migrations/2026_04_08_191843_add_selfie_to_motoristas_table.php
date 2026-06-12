@@ -9,8 +9,8 @@ return new class extends Migration
     public function up()
     {
         Schema::table('motoristas', function (Blueprint $table) {
-            // Nova coluna para a Selfie com CNH
-            $table->string('doc_selfie_cnh')->nullable()->after('doc_cnh');
+            // ZT-DEFENSE: Convertido para text para suportar o Payload AES-256
+            $table->text('doc_selfie_cnh')->nullable()->after('doc_cnh');
         });
     }
 

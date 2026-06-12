@@ -9,7 +9,8 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('motoristas', function (Blueprint $table) {
-            $table->string('gr_biometria_url', 512)->nullable()->after('gr_referencia');
+            // ZT-DEFENSE: Convertido de string para text
+            $table->text('gr_biometria_url')->nullable()->after('gr_referencia');
         });
     }
 

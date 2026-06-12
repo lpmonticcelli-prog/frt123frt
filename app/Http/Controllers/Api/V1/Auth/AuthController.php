@@ -3,24 +3,25 @@
 namespace App\Http\Controllers\Api\V1\Auth;
 
 use App\Http\Controllers\Controller;
-
 use App\Models\User;
 use App\Models\Role;
 use App\Models\Embarcador;
 use App\Models\Motorista;
 use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
-use App\Services\ReceitaWSService; // IMPORTAÇÃO DO SERVIÇO DE VALIDAÇÃO DE CNPJ
-use App\Services\CpfValidatorService; // IMPORTAÇÃO DO NOVO SERVIÇO DE VALIDAÇÃO DE CPF
+use App\Services\ReceitaWSService;
+use App\Services\CpfValidatorService;
+use App\Services\Security\BlindIndexService;
 
 class AuthController extends Controller
 {
-    public function login(Request $request)
+    public function login(Request $request): JsonResponse
     {
         $credentials = $request->validate([
             'email' => 'required|email', 
@@ -53,29 +54,40 @@ class AuthController extends Controller
         ]);
     }
 
-    public function registerEmbarcador(Request $request, ReceitaWSService $receitaWSService)
+    public function registerEmbarcador(Request $request, ReceitaWSService $receitaWSService): JsonResponse
     {
+        // ZT-DEFENSE: A trava unique do banco foi substituída pela função Closure para checar o Index Cego
         $request->validate([
             'name'               => 'required|string|max:255',
-            'email'              => 'required|string|email|unique:users',
+            'email'              => 'required|string|email|unique:users,email',
             'password'           => 'required|string|min:8',
-            'phone'              => 'required|string|max:20', 
+            'phone'              => [
+                'required', 'string', 'max:20',
+                function ($attribute, $value, $fail) {
+                    $bidx = BlindIndexService::make($value);
+                    if (User::where('phone_bidx', $bidx)->exists()) {
+                        $fail('Este telefone já encontra-se vinculado a outro cadastro.');
+                    }
+                }
+            ],
             'razao_social'       => 'required|string|max:150',
-            'cnpj'               => 'required|string|max:18|unique:embarcadores', 
+            'cnpj'               => [
+                'required', 'string', 'max:18',
+                function ($attribute, $value, $fail) {
+                    $bidx = BlindIndexService::make($value);
+                    if (Embarcador::where('cnpj_bidx', $bidx)->exists()) {
+                        $fail('Este CNPJ já está registado na nossa base de dados.');
+                    }
+                }
+            ], 
             'inscricao_estadual' => 'nullable|string|max:30',
-        ], [
-            'cnpj.unique' => 'Este CNPJ já está registado na nossa base de dados.'
         ]);
 
-        // =========================================================
-        // BLINDAGEM ZERO TRUST: Validação na Receita Federal no ato do Cadastro
-        // =========================================================
         $analiseCNPJ = $receitaWSService->validarCNPJ($request->cnpj);
             
         if (!$analiseCNPJ['valido']) {
-            // Retorna o erro no formato exato que o Vue.js espera para exibir debaixo do input
             return response()->json([
-                'message' => 'Validação de CNPJ falhou.',
+                'message' => 'Validação fiscal falhou na Receita.',
                 'errors' => ['cnpj' => [$analiseCNPJ['mensagem']]]
             ], 422);
         }
@@ -94,48 +106,70 @@ class AuthController extends Controller
 
             Embarcador::create([
                 'user_id'            => $user->id,
-                // Utilizamos a Razão Social oficial retornada pela Receita Federal para garantir integridade
                 'razao_social'       => $analiseCNPJ['razao_social'] ?? $request->razao_social,
                 'cnpj'               => $request->cnpj,
                 'inscricao_estadual' => $request->inscricao_estadual,
             ]);
 
-            // Autentica o utilizador automaticamente após o registo e injeta os cookies (SPA)
             Auth::login($user);
             request()->session()->regenerate();
 
             return response()->json([
-                'message' => 'Conta criada e autenticada com sucesso. CNPJ validado.',
+                'message' => 'Conta criada e autenticada com sucesso.',
                 'user'    => $user->load('role')
             ], 201);
         });
     }
 
-    // =========================================================
-    // ATUALIZAÇÃO CIRÚRGICA: Injeção do CpfValidatorService
-    // =========================================================
-    public function registerMotorista(Request $request, CpfValidatorService $cpfValidator)
+    public function registerMotorista(Request $request, CpfValidatorService $cpfValidator): JsonResponse
     {
         $request->validate([
             'name'         => 'required|string|max:255',
-            'email'        => 'required|string|email|unique:users',
-            'password'     => 'required|string|min:8|confirmed', // Adicionado 'confirmed' para bater com o Vue
-            'phone'        => 'required|string|max:20',
-            'cpf'          => 'required|string|max:14|unique:motoristas',
-            'cnh'          => 'required|string|max:20|unique:motoristas',
+            'email'        => 'required|string|email|unique:users,email',
+            'password'     => 'required|string|min:8|confirmed',
+            'phone'        => [
+                'required', 'string', 'max:20',
+                function ($attribute, $value, $fail) {
+                    $bidx = BlindIndexService::make($value);
+                    if (User::where('phone_bidx', $bidx)->exists()) {
+                        $fail('Telefone já cadastrado no sistema.');
+                    }
+                }
+            ],
+            'cpf'          => [
+                'required', 'string', 'max:14',
+                function ($attribute, $value, $fail) {
+                    $bidx = BlindIndexService::make($value);
+                    if (Motorista::where('cpf_bidx', $bidx)->exists()) {
+                        $fail('Este CPF já está cadastrado.');
+                    }
+                }
+            ],
+            'cnh'          => [
+                'required', 'string', 'max:20',
+                function ($attribute, $value, $fail) {
+                    $bidx = BlindIndexService::make($value);
+                    if (Motorista::where('cnh_bidx', $bidx)->exists()) {
+                        $fail('Esta CNH já consta noutro registo.');
+                    }
+                }
+            ],
             'validade_cnh' => 'required|date',
-            'rntrc'        => 'required|string|max:15|unique:motoristas',
-        ], [
-            'cpf.unique'   => 'Este CPF já está cadastrado.',
-            'cnh.unique'   => 'Esta CNH já consta noutro registo.',
-            'rntrc.unique' => 'Este RNTRC já está associado a outro motorista.',
+            'rntrc'        => [
+                'required', 'string', 'max:15',
+                function ($attribute, $value, $fail) {
+                    $bidx = BlindIndexService::make($value);
+                    if (Motorista::where('rntrc_bidx', $bidx)->exists()) {
+                        $fail('Este RNTRC já está associado a outro motorista.');
+                    }
+                }
+            ],
         ]);
 
-        // BLINDAGEM ZERO TRUST: Validação Matemática de CPF
         if (!$cpfValidator->isValid($request->cpf)) {
             return response()->json([
-                'message' => 'Documento inválido.',
-                'errors' => ['cpf' => ['O CPF informado é matematicamente inválido.']]
+                'message' => 'Documento rejeitado.',
+                'errors' => ['cpf' => ['O CPF informado é matematicamente inválido pela RFB.']]
             ], 422);
         }
 
@@ -164,17 +198,19 @@ class AuthController extends Controller
             request()->session()->regenerate();
 
             return response()->json([
-                'message' => 'Conta criada e autenticada com sucesso. CPF validado.',
+                'message' => 'Conta submetida com sucesso. Aguardando liberação compliance KYC.',
                 'user'    => $user->load('role')
             ], 201);
         });
     }
 
-    public function me(Request $request) { 
+    public function me(Request $request): JsonResponse 
+    { 
         return response()->json($request->user()->load('role')); 
     }
     
-    public function logout(Request $request) {
+    public function logout(Request $request): JsonResponse 
+    {
         Auth::guard('web')->logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
@@ -182,16 +218,16 @@ class AuthController extends Controller
         return response()->json(['message' => 'Logout executado com sucesso.']);
     }
 
-    public function forgotPassword(Request $request)
+    public function forgotPassword(Request $request): JsonResponse
     {
         $request->validate(['email' => 'required|email']);
-        $status = Password::sendResetLink($request->only('email'));
+        Password::sendResetLink($request->only('email'));
         return response()->json([
             'message' => 'Se o e-mail constar na nossa base, um link de recuperação foi enviado.'
         ]);
     }
 
-    public function resetPassword(Request $request)
+    public function resetPassword(Request $request): JsonResponse
     {
         $request->validate([
             'token' => 'required',

@@ -12,6 +12,7 @@ use App\Models\Motorista;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use App\Services\Security\BlindIndexService;
 use Throwable;
 
 class TransatWebhookController extends Controller
@@ -22,7 +23,7 @@ class TransatWebhookController extends Controller
 
     public function handleCallback(Request $request): JsonResponse
     {
-        // 1. BLINDAGEM ZERO-TRUST (Fix de L7/DoS)
+        // 1. BLINDAGEM ZERO-TRUST L7/DoS
         $tokenEsperado = (string) config('services.transat.webhook_secret');
         $bearer = $request->header('Authorization') ?? $request->header('authorization');
         $tokenRecebido = str_replace(['Bearer ', 'bearer '], '', (string) $bearer);
@@ -32,7 +33,7 @@ class TransatWebhookController extends Controller
             return response()->json(['error' => 'Acesso Negado.'], 401);
         }
 
-        // 2. RECUPERAÇÃO E SANITIZAÇÃO DA REFERÊNCIA
+        // 2. RECUPERAÇÃO DA REFERÊNCIA
         $referencia = $request->input('referencia');
         if (empty($referencia)) {
             return response()->json(['error' => 'Payload inválido. Referência ausente.'], 400);
@@ -44,59 +45,58 @@ class TransatWebhookController extends Controller
         try {
             DB::beginTransaction();
 
-            // Bloqueio pessimista para evitar condição de corrida em callbacks duplicados
-            $motorista = Motorista::where('gr_referencia', $referencia)->lockForUpdate()->first();
+            // ZT-DEFENSE: A busca da referência externa é feita pelo HMAC-SHA256 (O(1)) 
+            // para prevenir a quebra da criptografia do banco (Cast Encrypted).
+            $bidxReferencia = BlindIndexService::make((string) $referencia);
+
+            $motorista = Motorista::where('gr_referencia_bidx', $bidxReferencia)->lockForUpdate()->first();
             
-            // ZT-DEFENSE: Apenas tentamos atualizar a Carga se a coluna existir no Schema,
-            // evitando o crash fatal (SQLSTATE[42703]) que estava a abortar a transação.
             $carga = null;
-            if (Schema::hasColumn('cargas', 'gr_referencia')) {
-                $carga = Carga::where('gr_referencia', $referencia)->lockForUpdate()->first();
+            if (Schema::hasColumn('cargas', 'transat_referencia')) {
+                // A carga usa Plain Text para o protocolo da GR.
+                $carga = Carga::where('transat_referencia', $referencia)->lockForUpdate()->first();
             }
 
             if (!$carga && !$motorista) {
                 DB::rollBack();
                 Log::info('[TransSat] Webhook ignorado. Referência orfã.', ['referencia' => $referencia]);
-                return response()->json(['status' => 'Ignorado'], 200); // Retorna 200 para a GR parar de enviar
+                return response()->json(['status' => 'Ignorado'], 200); 
             }
 
-            // 3A. MÁQUINA DE ESTADO IDEMPOTENTE - MOTORISTA (KYC GR)
+            // 3A. MÁQUINA DE ESTADO IDEMPOTENTE - MOTORISTA
             if ($motorista) {
                 $novoStatus = $this->mapearCodigoGrParaStatusMotorista($codigoFinal);
 
-                // IDEMPOTÊNCIA: Se o motorista já está com esse status, ignoramos o processamento para não onerar o banco.
                 if ($motorista->gr_status !== $novoStatus) {
                     $motorista->update(['gr_status' => $novoStatus]);
                     Log::info("[TransSat] Status do Motorista {$motorista->id} atualizado para: {$novoStatus}");
                 }
             }
 
-            // 3B. MÁQUINA DE ESTADO IDEMPOTENTE - CARGA (Tracking Legado)
+            // 3B. MÁQUINA DE ESTADO IDEMPOTENTE - CARGA
             if ($carga) {
                 $novoStatusCarga = $this->mapearCodigoGrParaStatusCarga($codigoFinal);
                 $dadosAtualizacao = [
-                    'gr_laudo_raw' => json_encode($request->all()) // Guarda o histórico serializado seguro
+                    'transat_laudo_raw' => json_encode($request->all()) 
                 ];
 
                 if ($carga->status !== $novoStatusCarga) {
                     $dadosAtualizacao['status'] = $novoStatusCarga;
 
-                    // Desaloca o motorista se o laudo exigir atenção ou der desacordo
                     if (in_array($novoStatusCarga, ['publicada', 'pendente_correcao_gr'], true)) {
                         $dadosAtualizacao['motorista_id'] = null;
-                        $dadosAtualizacao['gr_referencia'] = null;
+                        $dadosAtualizacao['transat_referencia'] = null;
                     }
 
                     $carga->update($dadosAtualizacao);
                     Log::info("[TransSat] Status da Carga {$carga->id} atualizada para: {$novoStatusCarga}");
                 } else {
-                    $carga->update($dadosAtualizacao); // Apenas salva o raw
+                    $carga->update($dadosAtualizacao); 
                 }
             }
 
             DB::commit();
 
-            // 4. RETORNO RÁPIDO PARA A GR
             return response()->json(['status' => 'Laudo processado e integrado com sucesso.'], 200);
 
         } catch (Throwable $e) {
@@ -106,7 +106,6 @@ class TransatWebhookController extends Controller
                 'error' => $e->getMessage()
             ]);
             
-            // Retorna 500 para forçar a GR a tentar novamente mais tarde
             return response()->json(['error' => 'Falha interna na persistência do laudo.'], 500);
         }
     }
@@ -117,7 +116,7 @@ class TransatWebhookController extends Controller
             1 => self::STATUS_GR_APROVADO,
             7 => self::STATUS_GR_AGUARDANDO_BIOMETRIA,
             2, 3, 5 => self::STATUS_GR_REJEITADO,
-            default => 'pendente' // Fallback defensivo
+            default => 'pendente' 
         };
     }
 

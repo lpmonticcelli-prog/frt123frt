@@ -10,6 +10,9 @@ use App\Http\Controllers\Api\V1\Embarcador\CargaController as EmbarcadorCargaCon
 use App\Http\Controllers\Api\V1\Embarcador\FaturaController;
 use App\Http\Controllers\Api\V1\Embarcador\PerfilController as EmbarcadorPerfilController;
 use App\Http\Controllers\Api\V1\Embarcador\AuditoriaController; 
+use App\Http\Controllers\Api\V1\Embarcador\CertificadoController;
+use App\Http\Controllers\Api\V1\Embarcador\DocumentoFiscalController;
+use App\Http\Controllers\Api\V1\Embarcador\CheckoutController;
 use App\Http\Controllers\Api\V1\Motorista\CargaController as MotoristaCargaController;
 use App\Http\Controllers\Api\V1\Motorista\PerfilController as MotoristaPerfilController;
 use App\Http\Controllers\Api\V1\Motorista\CarteiraController;
@@ -21,46 +24,30 @@ use App\Http\Controllers\Api\V1\Support\TicketController;
 use App\Http\Controllers\Api\V1\Support\FaqController;
 use App\Http\Controllers\Api\V1\Webhooks\PefWebhookController; 
 use App\Http\Controllers\Api\V1\Webhooks\TransatWebhookController;
+use App\Http\Controllers\Api\V1\Webhooks\GatewayWebhookController;
 
 Route::prefix('v1')->group(function () {
 
-    // =========================================================
-    // AUTENTICAÇÃO E IDENTIDADE
-    // =========================================================
-    // As rotas de login/recuperação de senha MANTÊM a trava nativa, 
-    // pois são a primeira linha de defesa contra Força Bruta e não passam pelo middleware global de API.
     Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
     Route::post('/forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:3,1');
     Route::post('/reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:5,1');
-    
-    // ZT-DEFENSE: Proteção L7 alinhada ao rate limit da API da ReceitaWS (3 requisições / 1 minuto por IP)
     Route::post('/register/embarcador', [AuthController::class, 'registerEmbarcador'])->middleware('throttle:3,1');
-    
-    // ZT-DEFENSE: Mitigação contra Botnets de cadastro e esgotamento de banco
     Route::post('/register/motorista', [AuthController::class, 'registerMotorista'])->middleware('throttle:5,1');
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('/logout', [AuthController::class, 'logout']);
         Route::get('/me', [AuthController::class, 'me']);
         
-        // =========================================================
-        // DOMÍNIO: SUPORTE, FAQ & HUB (Transversal)
-        // =========================================================
         Route::get('/suporte/faqs', [FaqController::class, 'index']);
         Route::get('/suporte/tickets', [TicketController::class, 'index']);
-        // Ticket e Hub de Parceiros mantêm as suas travas específicas de negócio
         Route::post('/suporte/tickets', [TicketController::class, 'store'])->middleware('throttle:5,1');
         Route::get('/suporte/tickets/{ticket}', [TicketController::class, 'show']);
         Route::post('/suporte/tickets/{ticket}/mensagens', [TicketController::class, 'reply'])->middleware('throttle:15,1');
         
-        // 🔒 ZERO TRUST: Rotas do Hub de Parceiros (Blindadas contra Botnets)
         Route::get('/hub/parceiros', [ParceiroController::class, 'listarPorPublico'])->middleware('throttle:120,1');
         Route::post('/hub/parceiros/{parceiro}/clique', [ParceiroController::class, 'registrarClique'])->middleware('throttle:10,1');
         Route::post('/hub/parceiros/{parceiro}/conversao', [ParceiroController::class, 'registrarConversao'])->middleware('throttle:10,1');
 
-        // =========================================================
-        // DOMÍNIO: EMBARCADOR
-        // =========================================================
         Route::middleware('ability:embarcador')->prefix('embarcador')->group(function () {
             Route::get('perfil', [EmbarcadorPerfilController::class, 'show']);
             Route::put('perfil', [EmbarcadorPerfilController::class, 'update']);
@@ -70,6 +57,9 @@ Route::prefix('v1')->group(function () {
             Route::post('cargas/{carga}/avaliar', [EmbarcadorCargaController::class, 'avaliarEFinalizarEntrega'])->middleware('throttle:5,1');
             Route::post('cargas/{carga}/disputa', [EmbarcadorCargaController::class, 'abrirDisputa'])->middleware('throttle:5,1');
             
+            // 💰 MÁQUINA DE DINHEIRO: Checkout Escrow B2B com Proteção O(1) de Idempotência
+            Route::post('cargas/{carga}/checkout', [CheckoutController::class, 'gerarPagamento'])->middleware(['throttle:10,1', 'idempotency']);
+
             Route::get('cargas/{carga}/chat', [EmbarcadorCargaController::class, 'getChat']);
             Route::post('cargas/{carga}/chat', [EmbarcadorCargaController::class, 'storeChat'])->middleware('throttle:20,1');
 
@@ -77,21 +67,17 @@ Route::prefix('v1')->group(function () {
             Route::get('faturas/{fatura}', [FaturaController::class, 'show']);
             Route::get('auditoria/ciot/{id}', [AuditoriaController::class, 'consultarCiot']);
             
-            // ZT-DEFENSE: Rota do Proxy Local adicionada para leitura segura de KYC e PODs
             Route::get('perfil/documento', [EmbarcadorPerfilController::class, 'exibirDocumento']);
             Route::get('cargas/documento/pod', [EmbarcadorCargaController::class, 'exibirDocumentoPod']);
+
+            Route::post('certificado/upload', [CertificadoController::class, 'upload'])->middleware('throttle:5,1');
+            Route::post('documentos/xml/parse', [DocumentoFiscalController::class, 'parse'])->middleware('throttle:10,1');
         });
 
-        // =========================================================
-        // DOMÍNIO: MOTORISTA
-        // =========================================================
         Route::middleware('ability:motorista')->prefix('motorista')->group(function () {
             Route::get('perfil', [MotoristaPerfilController::class, 'show']);
             Route::post('perfil', [MotoristaPerfilController::class, 'update']); 
             Route::get('perfil/documento/{tipo}', [MotoristaPerfilController::class, 'exibirDocumento']); 
-            
-            // ZT-DEFENSE: A Rota está LIVRE! 
-            // O Rate Limiting agora é controlado de forma inteligente pelo AppServiceProvider
             Route::post('perfil/gr/solicitar', [GrController::class, 'solicitarAnalise']);
             
             Route::get('carteira/extrato', [CarteiraController::class, 'extrato']);
@@ -105,9 +91,6 @@ Route::prefix('v1')->group(function () {
             Route::post('cargas/{carga}/chat', [MotoristaCargaController::class, 'storeChat'])->middleware('throttle:20,1');
         });
 
-        // =========================================================
-        // DOMÍNIO: ADMIN
-        // =========================================================
         Route::middleware('ability:admin')->prefix('admin')->group(function () {
             Route::get('/dashboard', [AdminController::class, 'dashboardMetrics']);
             Route::get('/dashboard-stats', [AdminController::class, 'getDashboardStats']);
@@ -163,7 +146,6 @@ Route::prefix('v1')->group(function () {
             Route::put('/crm/embarcadores/{embarcador}/contrato', [AdminController::class, 'atualizarContratoEmbarcador']);
             Route::put('/config/crm/embarcadores/{embarcador}/contrato', [AdminController::class, 'atualizarContratoEmbarcador']);
             
-            // 🔒 ZERO TRUST: Parceiros e Integrações (API Gateway / Admin CRM)
             Route::get('/crm/parceiros', [ParceiroController::class, 'index']);
             Route::post('/crm/parceiros', [ParceiroController::class, 'store'])->middleware('throttle:30,1');
             Route::put('/crm/parceiros/{parceiro}', [ParceiroController::class, 'update'])->middleware('throttle:30,1');
@@ -194,7 +176,8 @@ Route::prefix('v1/localidades')->group(function () {
 });
 
 // =========================================================
-// WEBSOCKETS (Fora da blindagem Sanctum, protegidos por Token Interno)
+// WEBSOCKETS E WEBHOOKS B2B (Fora da blindagem Sanctum)
 // =========================================================
 Route::post('/v1/webhooks/pef', [PefWebhookController::class, 'handleCallback'])->name('webhook.pef');
 Route::post('/v1/webhooks/transat', [TransatWebhookController::class, 'handleCallback'])->name('webhook.transat');
+Route::post('/v1/webhooks/gateway-pagamento', [GatewayWebhookController::class, 'handleCallback'])->name('webhook.gateway');

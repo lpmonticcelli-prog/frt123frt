@@ -6,12 +6,6 @@ return [
     |--------------------------------------------------------------------------
     | Third Party Services
     |--------------------------------------------------------------------------
-    |
-    | This file is for storing the credentials for third party services such
-    | as Mailgun, Postmark, AWS and more. This file provides the de facto
-    | location for this type of information, allowing packages to have
-    | a conventional file to locate the various service credentials.
-    |
     */
 
     'postmark' => [
@@ -35,15 +29,16 @@ return [
         ],
     ],
 
-    // INJEÇÃO DA ARQUITETURA DE PAGAMENTO E CIOT (123FRETEI)
+    // ==========================================
+    // LOGÍSTICA: PAMCARD/REPOM (CIOT)
+    // ==========================================
     'pef' => [
         'driver' => env('PEF_DRIVER', 'mock'),
     ],
 
     // ==========================================
-    // INTEGRAÇÃO DE RISCO: TRANSAT (GR)
+    // RISCO: TRANSAT (GR e Biometria)
     // ==========================================
-    // ZT-DEFENSE: Mapeamento de variáveis para permitir desvio seguro para Mock Server local
     'transat' => [
         'base_url' => env('TRANSAT_BASE_URL'),
         'auth_url' => env('TRANSAT_AUTH_URL'),
@@ -52,6 +47,16 @@ return [
         'cliente_id' => env('TRANSAT_CLIENTE_ID'),
         'empresa_id' => env('TRANSAT_EMPRESA_ID'),
         'webhook_secret' => env('TRANSAT_WEBHOOK_SECRET'),
+    ],
+
+    // ==========================================
+    // FINANCEIRO: IUGU / STARKBANK (Split e Escrow)
+    // ==========================================
+    'gateway' => [
+        'base_url' => env('GATEWAY_BASE_URL'),
+        'api_key' => env('GATEWAY_API_KEY'),
+        'webhook_secret' => env('GATEWAY_WEBHOOK_SECRET', 'mock_gateway_secret_zero_trust'),
+        'split_receiver_id' => env('GATEWAY_SPLIT_RECEIVER_ID'), // A conta bancária da 123fretei
     ],
 
 ];
