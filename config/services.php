@@ -46,7 +46,8 @@ return [
         'password' => env('TRANSAT_PASSWORD'),
         'cliente_id' => env('TRANSAT_CLIENTE_ID'),
         'empresa_id' => env('TRANSAT_EMPRESA_ID'),
-        'webhook_secret' => env('TRANSAT_WEBHOOK_SECRET'),
+        // ZT-DEFENSE: Fail-secure obrigatório. Remove o risco de ataque bypass caso falte a variável.
+        'webhook_secret' => env('TRANSAT_WEBHOOK_SECRET') ?: throw new \RuntimeException('Segredo Webhook GR ausente.'),
     ],
 
     // ==========================================
@@ -55,7 +56,8 @@ return [
     'gateway' => [
         'base_url' => env('GATEWAY_BASE_URL'),
         'api_key' => env('GATEWAY_API_KEY'),
-        'webhook_secret' => env('GATEWAY_WEBHOOK_SECRET', 'mock_gateway_secret_zero_trust'),
+        // ZT-DEFENSE: Fail-secure obrigatório.
+        'webhook_secret' => env('GATEWAY_WEBHOOK_SECRET') ?: throw new \RuntimeException('Segredo Webhook Gateway Financeiro ausente.'),
         'split_receiver_id' => env('GATEWAY_SPLIT_RECEIVER_ID'), // A conta bancária da 123fretei
     ],
 

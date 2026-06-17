@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 return [
 
     /*
@@ -30,16 +32,19 @@ return [
 
         'reverb' => [
             'host' => env('REVERB_SERVER_HOST', '0.0.0.0'),
-            'port' => env('REVERB_SERVER_PORT', 8080),
+            'port' => (int) env('REVERB_SERVER_PORT', 8080),
             'path' => env('REVERB_SERVER_PATH', ''),
             'hostname' => env('REVERB_HOST'),
             'options' => [
                 'tls' => [],
             ],
-            'max_request_size' => env('REVERB_MAX_REQUEST_SIZE', 10_000),
+            // Limite de tamanho de payload protegido para mitigar buffer overflows
+            'max_request_size' => (int) env('REVERB_MAX_REQUEST_SIZE', 10_000),
             'scaling' => [
-                'enabled' => env('REVERB_SCALING_ENABLED', false),
-                'channel' => env('REVERB_SCALING_CHANNEL', 'reverb'),
+                // ZT-DEFENSE: Escalabilidade horizontal forçada via Redis. 
+                // Sem isso, arquiteturas Serverless/K8s fragmentam o broadcast.
+                'enabled' => env('REVERB_SCALING_ENABLED', true),
+                'channel' => env('REVERB_SCALING_CHANNEL', 'reverb_cluster_bus'),
                 'server' => [
                     'url' => env('REDIS_URL'),
                     'host' => env('REDIS_HOST', '127.0.0.1'),
@@ -47,11 +52,11 @@ return [
                     'username' => env('REDIS_USERNAME'),
                     'password' => env('REDIS_PASSWORD'),
                     'database' => env('REDIS_DB', '0'),
-                    'timeout' => env('REDIS_TIMEOUT', 60),
+                    'timeout' => (int) env('REDIS_TIMEOUT', 60),
                 ],
             ],
-            'pulse_ingest_interval' => env('REVERB_PULSE_INGEST_INTERVAL', 15),
-            'telescope_ingest_interval' => env('REVERB_TELESCOPE_INGEST_INTERVAL', 15),
+            'pulse_ingest_interval' => (int) env('REVERB_PULSE_INGEST_INTERVAL', 15),
+            'telescope_ingest_interval' => (int) env('REVERB_TELESCOPE_INGEST_INTERVAL', 15),
         ],
 
     ],
@@ -73,26 +78,34 @@ return [
 
         'apps' => [
             [
-                'key' => env('REVERB_APP_KEY'),
-                'secret' => env('REVERB_APP_SECRET'),
-                'app_id' => env('REVERB_APP_ID'),
+                'key' => env('REVERB_APP_KEY') ?: throw new \RuntimeException('Reverb App Key indefinida.'),
+                'secret' => env('REVERB_APP_SECRET') ?: throw new \RuntimeException('Reverb App Secret indefinida.'),
+                'app_id' => env('REVERB_APP_ID') ?: throw new \RuntimeException('Reverb App ID indefinido.'),
                 'options' => [
                     'host' => env('REVERB_HOST'),
-                    'port' => env('REVERB_PORT', 443),
+                    'port' => (int) env('REVERB_PORT', 443),
                     'scheme' => env('REVERB_SCHEME', 'https'),
                     'useTLS' => env('REVERB_SCHEME', 'https') === 'https',
                 ],
-                'allowed_origins' => ['*'],
-                'ping_interval' => env('REVERB_APP_PING_INTERVAL', 60),
-                'activity_timeout' => env('REVERB_APP_ACTIVITY_TIMEOUT', 30),
-                'max_connections' => env('REVERB_APP_MAX_CONNECTIONS'),
-                'max_message_size' => env('REVERB_APP_MAX_MESSAGE_SIZE', 10_000),
+                // ZT-DEFENSE: Proteção CSWSH ativada.
+                // Rejeita qualquer handshake WebSocket oriundo de domínios não listados imperativamente.
+                'allowed_origins' => [
+                    env('APP_URL', 'https://app.123fretei.com.br'),
+                    env('FRONTEND_URL', 'https://123fretei.com.br')
+                ],
+                'ping_interval' => (int) env('REVERB_APP_PING_INTERVAL', 60),
+                'activity_timeout' => (int) env('REVERB_APP_ACTIVITY_TIMEOUT', 30),
+                // Prevenção contra file descriptor exhaustion limitando as conexões máximas por node
+                'max_connections' => (int) env('REVERB_APP_MAX_CONNECTIONS', 5000), 
+                'max_message_size' => (int) env('REVERB_APP_MAX_MESSAGE_SIZE', 10_000),
                 'accept_client_events_from' => env('REVERB_APP_ACCEPT_CLIENT_EVENTS_FROM', 'members'),
                 'rate_limiting' => [
-                    'enabled' => env('REVERB_APP_RATE_LIMITING_ENABLED', false),
-                    'max_attempts' => env('REVERB_APP_RATE_LIMIT_MAX_ATTEMPTS', 60),
-                    'decay_seconds' => env('REVERB_APP_RATE_LIMIT_DECAY_SECONDS', 60),
-                    'terminate_on_limit' => env('REVERB_APP_RATE_LIMIT_TERMINATE', false),
+                    // ZT-DEFENSE: Hardcoded ativo. Protege o Daemon WSS contra botnets e Layer 7 DoS.
+                    'enabled' => env('REVERB_APP_RATE_LIMITING_ENABLED', true),
+                    'max_attempts' => (int) env('REVERB_APP_RATE_LIMIT_MAX_ATTEMPTS', 60),
+                    'decay_seconds' => (int) env('REVERB_APP_RATE_LIMIT_DECAY_SECONDS', 60),
+                    // ZT-DEFENSE: Interrupção estrita (DROP). Não enfileira requisições de IPs abusivos.
+                    'terminate_on_limit' => env('REVERB_APP_RATE_LIMIT_TERMINATE', true),
                 ],
             ],
         ],

@@ -12,9 +12,13 @@ return new class extends Migration
             $table->id();
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
             
-            // ZT-DEFENSE: Convertidos para text para suportar o Payload AES-256. Trava Unique removida.
+            // ZT-DEFENSE: Payload Encriptado em Repouso (AES-256)
             $table->text('cpf');
+            $table->string('cpf_bidx', 64)->unique(); // O(1) Search & Uniqueness 
+            
             $table->text('cnh');
+            $table->string('cnh_bidx', 64)->unique(); // O(1) Search & Uniqueness 
+            
             $table->text('rntrc'); 
             
             $table->date('validade_cnh');

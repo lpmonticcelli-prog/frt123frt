@@ -14,8 +14,12 @@ return new class extends Migration
             
             $table->string('razao_social', 150);
             
-            // ZT-DEFENSE: Convertido para text para suportar o Payload AES-256 e Unique removido
+            // ZT-DEFENSE: Payload Encriptado em Repouso (AES-256)
             $table->text('cnpj');
+            // ZT-DEFENSE: Blind Index para Busca O(1) e Trava contra Sybil Attacks.
+            // Impede Duplicidade de Cadastro B2B preservando a criptografia forte do CNPJ.
+            $table->string('cnpj_bidx', 64)->unique();
+            
             $table->text('inscricao_estadual')->nullable();
             
             $table->timestamps();
