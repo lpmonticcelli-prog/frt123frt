@@ -12,8 +12,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Models\Embarcador;
 use App\Services\ReceitaWSService;
-use App\Services\Security\BlindIndexService;
-use App\Services\Security\PolyglotShieldService;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
 
@@ -39,19 +37,12 @@ class PerfilController extends Controller
             'cnpj' => $embarcador->cnpj,
             'inscricao_estadual' => $embarcador->inscricao_estadual,
             'telefone' => $user->phone,
-            'cep' => $embarcador->cep,
-            'logradouro' => $embarcador->logradouro,
-            'numero' => $embarcador->numero,
-            'complemento' => $embarcador->complemento,
-            'bairro' => $embarcador->bairro,
-            'cidade' => $embarcador->cidade,
-            'uf' => $embarcador->uf,
             'status_conta' => $user->status,
             'documento_kyc_url' => $embarcador->documento_kyc ? url("/api/v1/embarcador/perfil/documento") : null,
         ], 200);
     }
 
-    public function update(Request $request, ReceitaWSService $receitaWSService, PolyglotShieldService $shield): JsonResponse
+    public function update(Request $request, ReceitaWSService $receitaWSService): JsonResponse
     {
         $user = $request->user();
         $user->loadMissing(['role', 'embarcador']);
@@ -67,21 +58,14 @@ class PerfilController extends Controller
             'cnpj' => [
                 'required', 'string', 'max:20',
                 function ($attribute, $value, $fail) use ($embarcador) {
-                    $bidx = BlindIndexService::make($value);
-                    if (Embarcador::where('cnpj_bidx', $bidx)->where('id', '!=', $embarcador->id)->exists()) {
+                    $cnpjLimpo = preg_replace('/[^0-9]/', '', $value);
+                    if (Embarcador::where('cnpj', $cnpjLimpo)->where('id', '!=', $embarcador->id)->exists()) {
                         $fail('Este CNPJ já está cadastrado em outra conta corporativa.');
                     }
                 }
             ],
             'inscricao_estadual' => 'nullable|string|max:50',
             'telefone' => 'required|string|max:20',
-            'cep' => 'nullable|string|max:10',
-            'logradouro' => 'nullable|string|max:255',
-            'numero' => 'nullable|string|max:20',
-            'complemento' => 'nullable|string|max:255',
-            'bairro' => 'nullable|string|max:255',
-            'cidade' => 'nullable|string|max:255',
-            'uf' => 'nullable|string|size:2',
             'documento_kyc' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
         ]);
 
@@ -89,17 +73,18 @@ class PerfilController extends Controller
         $documentoPathAtual = $embarcador->documento_kyc;
         $novoDocumentoUpload = null; 
 
-        $cnpjAlterado = $embarcador->cnpj !== $validated['cnpj'];
+        $cnpjLimpo = preg_replace('/[^0-9]/', '', $validated['cnpj']);
+        $cnpjAlterado = $embarcador->cnpj !== $cnpjLimpo;
         $enviouNovoDocumento = $request->hasFile('documento_kyc');
 
         if ($cnpjAlterado || $statusConta === self::STATUS_PENDENTE) {
             try {
-                $analiseCNPJ = $receitaWSService->validarCNPJ($validated['cnpj']);
+                $analiseCNPJ = $receitaWSService->validarCNPJ($cnpjLimpo);
                 if (!$analiseCNPJ['valido']) {
                     return response()->json(['message' => $analiseCNPJ['mensagem']], 422);
                 }
             } catch (Throwable $e) {
-                return response()->json(['error' => 'Falha ao validar CNPJ.'], 503);
+                return response()->json(['error' => 'Falha ao validar CNPJ com a Receita Federal.'], 503);
             }
         }
 
@@ -107,13 +92,13 @@ class PerfilController extends Controller
             $statusConta = self::STATUS_EM_ANALISE;
         }
 
-        // ZT-DEFENSE: Anti-Polyglot
         try {
             if ($enviouNovoDocumento) {
-                $novoDocumentoUpload = $shield->sanitizeAndStore($request->file('documento_kyc'), 'kyc/embarcadores_' . $embarcador->id);
+                $file = $request->file('documento_kyc');
+                $novoDocumentoUpload = $file->storeAs('kyc/embarcadores_' . $embarcador->id, $file->hashName());
             }
         } catch (Throwable $e) {
-            return response()->json(['error' => $e->getMessage()], 422);
+            return response()->json(['error' => 'Falha ao processar o upload do documento KYC.'], 422);
         }
 
         DB::beginTransaction();
@@ -126,15 +111,8 @@ class PerfilController extends Controller
 
             $embarcador->update([
                 'razao_social' => $validated['razao_social'],
-                'cnpj' => preg_replace('/[^0-9]/', '', $validated['cnpj']),
+                'cnpj' => $cnpjLimpo,
                 'inscricao_estadual' => $validated['inscricao_estadual'] ?? null,
-                'cep' => $validated['cep'] ?? null,
-                'logradouro' => $validated['logradouro'] ?? null,
-                'numero' => $validated['numero'] ?? null,
-                'complemento' => $validated['complemento'] ?? null,
-                'bairro' => $validated['bairro'] ?? null,
-                'cidade' => $validated['cidade'] ?? null,
-                'uf' => strtoupper($validated['uf'] ?? ''),
                 'documento_kyc' => $novoDocumentoUpload ?? $documentoPathAtual,
             ]);
 
@@ -153,6 +131,8 @@ class PerfilController extends Controller
         } catch (Throwable $e) {
             if (DB::transactionLevel() > 0) DB::rollBack();
             if ($novoDocumentoUpload && Storage::exists($novoDocumentoUpload)) Storage::delete($novoDocumentoUpload);
+            
+            Log::error('[KYC Embarcador] Erro ao atualizar perfil', ['user_id' => $user->id, 'error' => $e->getMessage()]);
             return response()->json(['error' => 'Falha interna ao atualizar dados.'], 500);
         }
     }

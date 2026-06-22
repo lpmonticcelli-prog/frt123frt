@@ -21,7 +21,6 @@ class ZeroTrustWaf
         }
 
         // ZT-DEFENSE: Mitigação estrita contra Memory Exhaustion (OOM) e ataques Volumétricos.
-        // Intercepta requisições com payloads massivos antes do parsing do PHP/json_encode.
         $contentLength = (int) $request->header('Content-Length', '0');
         if ($contentLength > 10485760) { // Trava dura em 10MB
             Log::alert("[WAF BLOCK] Volume de Payload Anômalo Rejeitado na Borda.", ['ip' => $ip, 'size' => $contentLength]);
@@ -49,7 +48,6 @@ class ZeroTrustWaf
         }
 
         // ZT-DEFENSE: Deep Inspection Iterativo.
-        // Substitui json_encode($request->all()) para evitar OOM e ReDoS na CPU do Worker.
         $this->inspectPayload($request->all(), $patterns, $ip);
 
         $response = $next($request);
@@ -58,7 +56,16 @@ class ZeroTrustWaf
             $response->headers->set('X-Frame-Options', 'DENY');
             $response->headers->set('X-Content-Type-Options', 'nosniff');
             $response->headers->set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
-            $response->headers->set('Content-Security-Policy', "default-src 'self'; connect-src 'self' ws: wss: https: http:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval';");
+            
+            // ZT-DEFENSE: CSP Condicional (Dev vs Produção)
+            // Abre exceção estrita para o Vite (HMR) apenas no ambiente local.
+            if (app()->environment('local')) {
+                $csp = "default-src 'self'; connect-src 'self' ws: wss: https: http: http://localhost:5173 ws://localhost:5173 http://127.0.0.1:5173 ws://127.0.0.1:5173; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com http://localhost:5173 http://127.0.0.1:5173; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:5173 http://127.0.0.1:5173;";
+            } else {
+                $csp = "default-src 'self'; connect-src 'self' ws: wss: https: http:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval';";
+            }
+
+            $response->headers->set('Content-Security-Policy', $csp);
             $response->headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
             $response->headers->remove('X-Powered-By');
         }
@@ -72,7 +79,6 @@ class ZeroTrustWaf
             if (is_array($value)) {
                 $this->inspectPayload($value, $patterns, $ip);
             } elseif (is_string($value)) {
-                // Trava clínica contra ReDoS (Ignora varredura em campos longos como Base64 ou JWT)
                 if (strlen($value) > 10000) {
                     continue; 
                 }

@@ -19,7 +19,9 @@ return Application::configure(basePath: dirname(__DIR__))
                 Route::middleware('api')->prefix('api')->group(base_path('routes/api.php'));
                 Route::middleware('api')->prefix('api')->group(base_path('routes/mock.php'));
             } else {
-                Route::middleware(['api', 'throttle:api'])->prefix('api')->group(base_path('routes/api.php'));
+                // ZT-DEFENSE: Throttle global restrito a 60 requests por minuto por IP em produção.
+                // Limita a eficácia de DDoS L7 de baixo volume e raspagem de dados (Scraping).
+                Route::middleware(['api', 'throttle:60,1'])->prefix('api')->group(base_path('routes/api.php'));
             }
         },
     )
@@ -41,23 +43,26 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->statefulApi();
 
-        // 1ª Camada: O WAF inspeciona o Payload e a URI
+        // 1ª Camada: O WAF inspeciona o Payload e a URI contra injeções SQL/XSS
         $middleware->append(\App\Http\Middleware\ZeroTrustWaf::class);
 
-        // 2ª Camada: O Escudo Anti-Stealer inspeciona globalmente a integridade física de quem fez a requisição
+        // 2ª Camada: O Escudo Anti-Stealer inspeciona globalmente a integridade física
         $middleware->appendToGroup('web', \App\Http\Middleware\AntiStealerShield::class);
         $middleware->appendToGroup('api', \App\Http\Middleware\AntiStealerShield::class);
 
         $middleware->alias([
-            'role' => \App\Http\Middleware\CheckRole::class,
-            'abilities' => \Laravel\Sanctum\Http\Middleware\CheckAbilities::class,
-            'ability' => \Laravel\Sanctum\Http\Middleware\CheckForAnyAbility::class,
+            'role'        => \App\Http\Middleware\CheckRole::class,
+            'abilities'   => \Laravel\Sanctum\Http\Middleware\CheckAbilities::class,
+            'ability'     => \Laravel\Sanctum\Http\Middleware\CheckForAnyAbility::class,
             'idempotency' => \App\Http\Middleware\IdempotencyKey::class, 
+            
+            // ZT-DEFENSE: Middleware de Autenticação Server-to-Server B2B (HMAC SHA-256)
+            'b2b.hmac'    => \App\Http\Middleware\VerifyB2bHmac::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         $exceptions->shouldRenderJsonWhen(function (Request $request) {
-            return $request->expectsJson() || $request->is('api/*');
+            return $request->expectsJson() || $request->is('api/*') || $request->is('v1/webhooks/*');
         });
         
         $exceptions->dontReport([

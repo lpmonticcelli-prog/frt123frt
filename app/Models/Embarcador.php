@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Services\Security\BlindIndexService;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Embarcador extends Model
 {
@@ -65,5 +66,11 @@ class Embarcador extends Model
     public function cargas()
     {
         return $this->hasMany(Carga::class);
+    }
+
+    // ZT-DEFENSE: Nova Relação para Múltiplos Endereços / Docas
+    public function locaisOperacionais(): HasMany
+    {
+        return $this->hasMany(LocalOperacional::class);
     }
 }

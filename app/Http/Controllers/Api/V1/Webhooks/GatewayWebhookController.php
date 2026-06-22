@@ -15,35 +15,36 @@ use Throwable;
 
 class GatewayWebhookController extends Controller
 {
+    public function __construct()
+    {
+        // ZT-DEFENSE: Delegação de Segurança B2B.
+        // Garante que TODOS os métodos deste controller exijam validação criptográfica (HMAC).
+        // Se a assinatura for inválida, o código nem sequer instanciará o Request no escopo abaixo.
+        $this->middleware('b2b.hmac:gateway');
+    }
+
     public function handleCallback(Request $request): JsonResponse
     {
-        // 1. BLINDAGEM ZERO-TRUST: Verificação de Assinatura do Gateway (HMAC)
-        $signature = (string) ($request->header('X-Gateway-Signature') ?? $request->header('x-gateway-signature'));
-        $secret = (string) config('services.gateway.webhook_secret', 'mock_gateway_secret');
+        // Se a requisição chegou até esta linha, o Middleware já confirmou que a origem
+        // possui a chave secreta e o payload não sofreu adulteração (Man-in-the-Middle).
         
-        $payloadRaw = $request->getContent();
-        $expectedSignature = hash_hmac('sha256', $payloadRaw, $secret);
-
-        if (!hash_equals($expectedSignature, $signature)) {
-            Log::alert('[WEBHOOK HACK] Assinatura do Gateway de Pagamento inválida.', ['ip' => $request->ip()]);
-            return response()->json(['error' => 'Unauthorized'], 401);
-        }
-
         $txId = $request->input('data.tx_id') ?? $request->input('tx_id');
         $statusGateway = $request->input('data.status') ?? $request->input('status');
 
         if (!$txId) {
-            return response()->json(['error' => 'Bad Request'], 400);
+            return response()->json(['error' => 'Bad Request: Missing Transaction ID'], 400);
         }
 
         try {
+            // Isolamento Transacional ACID
             DB::beginTransaction();
 
-            // 2. ROW-LEVEL LOCKING: Impede duplicação em caso de retry do gateway
+            // ROW-LEVEL LOCKING: Impede duplicação de saldo em caso de double-delivery (retry) do gateway
             $pagamento = PagamentoEscrow::where('gateway_tx_id', $txId)->lockForUpdate()->first();
 
             if (!$pagamento) {
                 DB::rollBack();
+                Log::warning("[Escrow Webhook] Pagamento fantasma ou não registrado no banco local. TX: {$txId}");
                 return response()->json(['status' => 'Ignored - TX not found'], 200);
             }
 
@@ -55,27 +56,29 @@ class GatewayWebhookController extends Controller
             if ($statusGateway === 'paid') {
                 $pagamento->update(['status' => 'liquidado']);
                 
+                // Propagação do Lock para a Entidade Dominante
                 $carga = $pagamento->carga()->lockForUpdate()->first();
                 
                 if ($carga && $carga->motorista_id) {
                     $carga->update(['status' => 'processando_aceite']);
                     
-                    // O motorista possui dinheiro locado no Escrow. Aciona a CIOT em background.
+                    // O motorista possui dinheiro locado no Escrow. Aciona a CIOT em background via Filas (RabbitMQ/SQS).
                     ProcessarAceiteCarga::dispatch(
                         $carga->id,
                         $carga->motorista->user_id,
-                        '127.0.0.1',
-                        'Gateway Webhook Autorizado'
+                        $request->ip(), // Passando o IP do Gateway para auditoria
+                        'Gateway Webhook Autorizado (B2B)'
                     )->onQueue('financeiro');
                     
-                    Log::info("[Escrow Webhook] Pagamento {$txId} confirmado. Transição Logística ativada para Motorista ID: {$carga->motorista->id}.");
+                    Log::info("[Escrow Webhook] Pagamento {$txId} liquidado. Máquina de Estados ativada para Motorista ID: {$carga->motorista->id}.");
                 } else if ($carga) {
-                    // Carga foi paga mas ainda está livre no mural
+                    // Carga foi paga pelo embarcador, mas ainda está livre no mural (sem lance vencedor)
                     $carga->update(['status' => 'publicada']);
-                    Log::info("[Escrow Webhook] Pagamento {$txId} confirmado. Carga publicada (sem motorista atrelado).");
+                    Log::info("[Escrow Webhook] Pagamento {$txId} confirmado. Carga ID {$carga->id} ativada no mural público.");
                 }
             } elseif ($statusGateway === 'failed' || $statusGateway === 'refunded') {
                 $pagamento->update(['status' => $statusGateway === 'failed' ? 'falhou' : 'estornado']);
+                Log::notice("[Escrow Webhook] Pagamento {$txId} atualizado para: {$statusGateway}");
             }
 
             DB::commit();
@@ -84,12 +87,13 @@ class GatewayWebhookController extends Controller
 
         } catch (Throwable $e) {
             DB::rollBack();
-            Log::critical('[Escrow Webhook] Falha ao processar callback de pagamento.', [
+            Log::critical('[Escrow Webhook] Colapso atômico ao processar callback transacional.', [
                 'tx_id' => $txId,
                 'error' => $e->getMessage()
             ]);
             
-            return response()->json(['error' => 'Internal Error'], 500);
+            // Retorna 500 para forçar o Gateway a colocar o webhook em fila de Retry.
+            return response()->json(['error' => 'Internal Processing Error'], 500);
         }
     }
 }

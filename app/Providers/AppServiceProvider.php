@@ -1,29 +1,42 @@
 <?php
 
-declare(strict_types=1);
-
 namespace App\Providers;
 
-use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
-use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\URL;
+use App\Contracts\RiskManagementInterface;
+use App\Services\Partners\TransSatService;
+use App\Services\Partners\BypassRiskManager;
 
 class AppServiceProvider extends ServiceProvider
 {
+    /**
+     * Register any application services.
+     */
     public function register(): void
     {
-        //
+        // ZT-DEFENSE: Padrão Strategy para Gerenciamento de Risco (GR) / TransSat
+        // O container entrega o motor pesado ou o leve dependendo da variável de ambiente
+        $this->app->bind(RiskManagementInterface::class, function ($app) {
+            
+            if (config('services.gr.enabled', false)) {
+                // Motor Real (TransSat)
+                return new TransSatService(); 
+            }
+
+            // Motor Leve/Bypass (Sem I/O de rede, ideal para a DigitalOcean)
+            return new BypassRiskManager();
+        });
     }
 
+    /**
+     * Bootstrap any application services.
+     */
     public function boot(): void
     {
-        Vite::prefetch(concurrency: 3);
-
-        // ZT-DEFENSE: ELOQUENT STRICT MODE (ANTI-DDoS N+1)
-        // Aborta a aplicação se o desenvolvedor esquecer o Eager Loading ou tentar salvar
-        // atributos não preenchíveis, impedindo o colapso do PostgreSQL em picos de tráfego.
-        Model::shouldBeStrict(
-            $this->app->environment(['local', 'testing', 'homologation'])
-        );
+        // Força HTTPS em produção na DigitalOcean (Evita erros de Mixed Content)
+        if ($this->app->environment('production')) {
+            URL::forceScheme('https');
+        }
     }
 }

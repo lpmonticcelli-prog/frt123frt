@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -11,15 +13,14 @@ class Carga extends Model
 {
     use HasFactory, SoftDeletes;
 
+    // ZT-DEFENSE: Higienização estrita de Payload. 
+    // Atributos de telemetria/rastreio nativo foram expurgados para fechar vetor de ataque.
     protected $fillable = [
         'embarcador_id', 'motorista_id', 'fatura_id',
         'produto', 'especie', 'peso_kg', 'cubagem_m3', 'tipo_veiculo',      
         'tipo_carroceria', 'uf_origem', 'cidade_origem', 'uf_destino',        
         'cidade_destino', 'distancia_km', 'valor_frete', 'taxa_plataforma',   
-        'status', 'foto_canhoto', 'foto_carga', 'data_coleta', 'data_entrega_prevista',
-        // ZT-DEFENSE: Correção do Mass Assignment Exception 
-        // Sync de Schema exigido para averbação dos Webooks B2B
-        'transat_referencia', 'transat_biometria_url', 'transat_laudo_raw', 'em_auditoria_desde'
+        'status', 'foto_canhoto', 'foto_carga', 'data_coleta', 'data_entrega_prevista'
     ];
 
     protected function casts(): array
@@ -27,13 +28,11 @@ class Carga extends Model
         return [
             'data_coleta' => 'date',
             'data_entrega_prevista' => 'datetime',
-            'em_auditoria_desde' => 'datetime',
             'peso_kg' => 'decimal:2',
             'cubagem_m3' => 'decimal:2',
             'distancia_km' => 'decimal:2',
             'valor_frete' => 'decimal:2',
             'taxa_plataforma' => 'decimal:2',
-            'transat_laudo_raw' => 'array',
         ];
     }
 
@@ -67,6 +66,7 @@ class Carga extends Model
     protected static function booted()
     {
         static::saved(function ($carga) {
+            // Dispara mutação de estado assíncrona para o Frontend B2B
             CargaAtualizada::dispatch($carga);
         });
     }

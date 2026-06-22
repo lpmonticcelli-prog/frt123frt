@@ -72,9 +72,6 @@ class Motorista extends Model
         ];
     }
 
-    /**
-     * Motor de Indexação Criptográfica Acionado Automaticamente.
-     */
     protected static function booted(): void
     {
         static::saving(function (self $model) {
@@ -113,13 +110,28 @@ class Motorista extends Model
         return $this->hasMany(Avaliacao::class);
     }
 
+    /**
+     * ZT-DEFENSE: Inteligência de Bypass.
+     * Se a flag de GR estiver desligada, este método anula o bloqueio e libera a operação.
+     */
     public function isAprovadoGr(): bool
     {
+        if (!config('services.gr.enabled', false)) {
+            return true;
+        }
+
         return $this->gr_status === 'aprovado';
     }
 
+    /**
+     * ZT-DEFENSE: Inteligência de Bypass.
+     */
     public function aguardaBiometriaGr(): bool
     {
+        if (!config('services.gr.enabled', false)) {
+            return false;
+        }
+
         return $this->gr_status === 'aguardando_biometria';
     }
 
@@ -128,6 +140,7 @@ class Motorista extends Model
         $semSuspensao = is_null($this->suspenso_ate) || $this->suspenso_ate->isPast();
         $kycAprovado = $this->status_verificacao === 'aprovado';
         
+        // O isAprovadoGr() agora é dinâmico e respeita o ambiente da DigitalOcean
         return $kycAprovado && $this->isAprovadoGr() && $semSuspensao;
     }
 }

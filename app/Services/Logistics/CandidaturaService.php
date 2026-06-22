@@ -22,9 +22,16 @@ class CandidaturaService
     public function aplicar(Motorista $motorista, Carga $carga): CargaCandidatura
     {
         // ZT-DEFENSE: Validação Absoluta de Integridade e Risco (O Escudo)
-        // Bloqueia se o motorista estiver suspenso, com KYC interno pendente ou reprovado na Gerenciadora de Risco.
+        // Feature Toggle implementado no tratamento de exceção.
+        // NOTA: Se o método 'podeAceitarFrete()' bloquear o motorista apenas por falta de GR,
+        // será necessário injetar a flag 'config('services.gr.enabled')' dentro desse método no Model Motorista.
         if (!$motorista->podeAceitarFrete()) {
-            throw new Exception('O seu perfil não está autorizado a aceitar fretes neste momento. Verifique se o seu cadastro está aprovado pela auditoria interna e pela Gerenciadora de Risco (Trans Sat).');
+            
+            $mensagemErro = config('services.gr.enabled', false)
+                ? 'pela auditoria interna e pela Gerenciadora de Risco (Trans Sat).'
+                : 'pela auditoria interna (KYC base).';
+
+            throw new Exception("O seu perfil não está autorizado a aceitar fretes neste momento. Verifique se o seu cadastro está aprovado {$mensagemErro}");
         }
 
         return DB::transaction(function () use ($motorista, $carga) {
@@ -109,7 +116,8 @@ class CandidaturaService
         });
 
         // ZT-DEFENSE: Resolução do Deadlock Operacional.
-        // O Job agora é corretamente empurrado para a fila após o commit, assumindo o controle da máquina de estado.
+        // O Job agora é corretamente empurrado para a fila após o commit.
+        // É DENTRO DESTE JOB que a lógica pesada de TransSat e GR deve estar oculta.
         if ($motoristaUserId) {
             ProcessarAceiteCarga::dispatch(
                 $cargaId,

@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\V1\Embarcador\AuditoriaController;
 use App\Http\Controllers\Api\V1\Embarcador\CertificadoController;
 use App\Http\Controllers\Api\V1\Embarcador\DocumentoFiscalController;
 use App\Http\Controllers\Api\V1\Embarcador\CheckoutController;
+use App\Http\Controllers\Api\V1\Embarcador\LocalOperacionalController;
 use App\Http\Controllers\Api\V1\Motorista\CargaController as MotoristaCargaController;
 use App\Http\Controllers\Api\V1\Motorista\PerfilController as MotoristaPerfilController;
 use App\Http\Controllers\Api\V1\Motorista\CarteiraController;
@@ -23,8 +24,9 @@ use App\Http\Controllers\Api\V1\Admin\FaturamentoController as AdminFaturamentoC
 use App\Http\Controllers\Api\V1\Support\TicketController;
 use App\Http\Controllers\Api\V1\Support\FaqController;
 use App\Http\Controllers\Api\V1\Webhooks\PefWebhookController; 
-use App\Http\Controllers\Api\V1\Webhooks\TransatWebhookController;
 use App\Http\Controllers\Api\V1\Webhooks\GatewayWebhookController;
+use App\Http\Controllers\Api\V1\LocalidadeController;
+use App\Http\Controllers\Api\V1\Partners\GrIntegrationController;
 
 Route::prefix('v1')->group(function () {
 
@@ -52,12 +54,15 @@ Route::prefix('v1')->group(function () {
             Route::get('perfil', [EmbarcadorPerfilController::class, 'show']);
             Route::put('perfil', [EmbarcadorPerfilController::class, 'update']);
             
+            // ZT-DEFENSE: Módulo de Locais Operacionais (Docas)
+            Route::apiResource('locais', LocalOperacionalController::class)->only(['index', 'store', 'destroy']);
+            
             Route::apiResource('cargas', EmbarcadorCargaController::class);
             Route::post('cargas/{carga}/candidaturas/aprovar', [EmbarcadorCargaController::class, 'aprovarCandidato'])->middleware('throttle:10,1');
             Route::post('cargas/{carga}/avaliar', [EmbarcadorCargaController::class, 'avaliarEFinalizarEntrega'])->middleware('throttle:5,1');
             Route::post('cargas/{carga}/disputa', [EmbarcadorCargaController::class, 'abrirDisputa'])->middleware('throttle:5,1');
             
-            // 💰 MÁQUINA DE DINHEIRO: Checkout Escrow B2B com Proteção O(1) de Idempotência
+            // MÁQUINA DE ESTADO FINANCEIRO: Checkout Escrow B2B com Idempotência
             Route::post('cargas/{carga}/checkout', [CheckoutController::class, 'gerarPagamento'])->middleware(['throttle:10,1', 'idempotency']);
 
             Route::get('cargas/{carga}/chat', [EmbarcadorCargaController::class, 'getChat']);
@@ -78,7 +83,11 @@ Route::prefix('v1')->group(function () {
             Route::get('perfil', [MotoristaPerfilController::class, 'show']);
             Route::post('perfil', [MotoristaPerfilController::class, 'update']); 
             Route::get('perfil/documento/{tipo}', [MotoristaPerfilController::class, 'exibirDocumento']); 
-            Route::post('perfil/gr/solicitar', [GrController::class, 'solicitarAnalise']);
+            
+            // FEATURE TOGGLE: Sedação do endpoint de solicitação de GR do Motorista
+            if (config('services.gr.enabled', false)) {
+                Route::post('perfil/gr/solicitar', [GrController::class, 'solicitarAnalise']);
+            }
             
             Route::get('carteira/extrato', [CarteiraController::class, 'extrato']);
             Route::get('cargas/disponiveis', [MotoristaCargaController::class, 'disponiveis']);
@@ -163,21 +172,25 @@ Route::prefix('v1')->group(function () {
         });
     });
 
-    Route::middleware(['auth:sanctum', 'ability:gr-partner'])->prefix('partners/gr')->group(function () {
-        Route::post('/analise/callback', [\App\Http\Controllers\Api\V1\Partners\GrIntegrationController::class, 'registrarAnalise']);
-    });
+    // FEATURE TOGGLE: Sedação do Webhook de Recebimento de Análise Externa (Parceiros GR)
+    if (config('services.gr.enabled', false)) {
+        Route::middleware(['auth:sanctum', 'ability:gr-partner'])->prefix('partners/gr')->group(function () {
+            Route::post('/analise/callback', [GrIntegrationController::class, 'registrarAnalise']);
+        });
+    }
 
     Route::put('/upload-mock', function() { return response()->json(['ok' => true]); });
 });
 
 Route::prefix('v1/localidades')->group(function () {
-    Route::get('/estados', [\App\Http\Controllers\Api\V1\LocalidadeController::class, 'estados']);
-    Route::get('/estados/{uf}/municipios', [\App\Http\Controllers\Api\V1\LocalidadeController::class, 'municipios']);
+    Route::get('/estados', [LocalidadeController::class, 'estados']);
+    Route::get('/estados/{uf}/municipios', [LocalidadeController::class, 'municipios']);
+    // ZT-DEFENSE: Proxy Reverso Cacheado
+    Route::get('/cep/{cep}', [LocalidadeController::class, 'buscarCep'])->middleware('throttle:30,1');
 });
 
 // =========================================================
 // WEBSOCKETS E WEBHOOKS B2B (Fora da blindagem Sanctum)
 // =========================================================
 Route::post('/v1/webhooks/pef', [PefWebhookController::class, 'handleCallback'])->name('webhook.pef');
-Route::post('/v1/webhooks/transat', [TransatWebhookController::class, 'handleCallback'])->name('webhook.transat');
 Route::post('/v1/webhooks/gateway-pagamento', [GatewayWebhookController::class, 'handleCallback'])->name('webhook.gateway');

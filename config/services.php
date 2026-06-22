@@ -30,35 +30,30 @@ return [
     ],
 
     // ==========================================
-    // LOGÍSTICA: PAMCARD/REPOM (CIOT)
+    // LOGÍSTICA: PEF / CIOT (Integração ANTT)
     // ==========================================
     'pef' => [
         'driver' => env('PEF_DRIVER', 'mock'),
+        // ZT-DEFENSE: Mapeamento estrito da chave HMAC. Fail-secure se ausente.
+        'webhook_secret' => env('PEF_WEBHOOK_SECRET') ?: throw new \RuntimeException('Segredo Webhook PEF ausente no .env.'),
     ],
 
     // ==========================================
-    // RISCO: TRANSAT (GR e Biometria)
+    // RISCO: FEATURE FLAG (Substitui o microsserviço legado)
     // ==========================================
-    'transat' => [
-        'base_url' => env('TRANSAT_BASE_URL'),
-        'auth_url' => env('TRANSAT_AUTH_URL'),
-        'username' => env('TRANSAT_USERNAME'),
-        'password' => env('TRANSAT_PASSWORD'),
-        'cliente_id' => env('TRANSAT_CLIENTE_ID'),
-        'empresa_id' => env('TRANSAT_EMPRESA_ID'),
-        // ZT-DEFENSE: Fail-secure obrigatório. Remove o risco de ataque bypass caso falte a variável.
-        'webhook_secret' => env('TRANSAT_WEBHOOK_SECRET') ?: throw new \RuntimeException('Segredo Webhook GR ausente.'),
+    'gr' => [
+        'enabled' => env('FEATURE_GR_ENABLED', true),
     ],
 
     // ==========================================
-    // FINANCEIRO: IUGU / STARKBANK (Split e Escrow)
+    // FINANCEIRO: GATEWAY (Split e Escrow)
     // ==========================================
     'gateway' => [
         'base_url' => env('GATEWAY_BASE_URL'),
         'api_key' => env('GATEWAY_API_KEY'),
         // ZT-DEFENSE: Fail-secure obrigatório.
-        'webhook_secret' => env('GATEWAY_WEBHOOK_SECRET') ?: throw new \RuntimeException('Segredo Webhook Gateway Financeiro ausente.'),
-        'split_receiver_id' => env('GATEWAY_SPLIT_RECEIVER_ID'), // A conta bancária da 123fretei
+        'webhook_secret' => env('GATEWAY_WEBHOOK_SECRET') ?: throw new \RuntimeException('Segredo Webhook Gateway Financeiro ausente no .env.'),
+        'split_receiver_id' => env('GATEWAY_SPLIT_RECEIVER_ID'),
     ],
 
 ];
