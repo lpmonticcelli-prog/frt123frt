@@ -167,7 +167,7 @@ const getRoleBadgeClass = (slug) => {
 const carregarStaff = async () => {
   loading.value = true;
   try {
-    const res = await axios.get('/api/admin/config/staff');
+    const res = await axios.get('/api/v1/admin/staff');
     staff.value = res.data.data ? res.data.data : res.data; // Compatibilidade com paginação
   } catch (error) {
     console.error('Erro ao carregar staff:', error);
@@ -205,7 +205,7 @@ const salvarStaff = async () => {
         isSaving.value = false;
         return;
       }
-      const res = await axios.put(`/api/admin/config/staff/${form.value.id}`, {
+      const res = await axios.put(`/api/v1/admin/staff/${form.value.id}`, {
         role_slug: form.value.role_slug,
         status: form.value.status
       });
@@ -216,7 +216,7 @@ const salvarStaff = async () => {
         isSaving.value = false;
         return;
       }
-      const res = await axios.post('/api/admin/config/staff', form.value);
+      const res = await axios.post('/api/v1/admin/staff', form.value);
       alert(res.data.message);
     }
     

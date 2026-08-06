@@ -12,7 +12,7 @@ use App\Http\Controllers\Api\V1\Embarcador\CargaController as EmbarcadorCargaCon
 use App\Http\Controllers\Api\V1\Embarcador\FaturaController;
 use App\Http\Controllers\Api\V1\Embarcador\PerfilController as EmbarcadorPerfilController;
 use App\Http\Controllers\Api\V1\Embarcador\DocumentoFiscalController;
-use App\Http\Controllers\Api\V1\Embarcador\CheckoutController;
+// use App\Http\Controllers\Api\V1\Embarcador\CheckoutController;
 use App\Http\Controllers\Api\V1\Embarcador\LocalOperacionalController;
 
 // Motorista
@@ -41,7 +41,7 @@ Route::prefix('v1')->group(function () {
     // =========================================================
     // PUBLIC ENDPOINTS & AUTH (Zero Trust Entrypoints)
     // =========================================================
-    Route::prefix('auth')->controller(AuthController::class)->group(function () {
+    Route::controller(AuthController::class)->group(function () {
         Route::post('/login', 'login')->middleware('throttle:5,1');
         Route::post('/forgot-password', 'forgotPassword')->middleware('throttle:3,1');
         Route::post('/reset-password', 'resetPassword')->middleware('throttle:5,1');
@@ -123,7 +123,7 @@ Route::prefix('v1')->group(function () {
             Route::post('documentos/xml/parse', [DocumentoFiscalController::class, 'parse'])->middleware('throttle:10,1');
 
             // Financial
-            Route::post('cargas/{carga}/checkout', [CheckoutController::class, 'gerarPagamento'])->middleware(['throttle:10,1', 'idempotency']);
+//             Route::post('cargas/{carga}/checkout', [CheckoutController::class, 'gerarPagamento'])->middleware(['throttle:10,1', 'idempotency']);
             Route::get('faturas', [FaturaController::class, 'index']);
             Route::get('faturas/{fatura}', [FaturaController::class, 'show']);
         });
@@ -264,3 +264,4 @@ Route::prefix('v1/webhooks')->middleware(['throttle:100,1'])->group(function () 
         ->middleware('b2b.hmac:gateway')
         ->name('webhook.gateway');
 });
+Route::get('/login', fn() => response()->json(['message' => 'Unauthenticated.'], 401))->name('login');

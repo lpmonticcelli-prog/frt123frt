@@ -18,6 +18,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        $middleware->trustProxies(at: '*');
         $middleware->alias([
             'ability' => \Laravel\Sanctum\Http\Middleware\CheckForAnyAbility::class,
             'b2b.hmac' => \App\Http\Middleware\VerifyB2bHmac::class,

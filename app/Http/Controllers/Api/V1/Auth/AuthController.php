@@ -53,6 +53,7 @@ class AuthController extends Controller
         }
 
         // ZT-DEFENSE: Emissão de Token Epêmero com Escopo Restrito (Abilities)
+        \Illuminate\Support\Facades\Auth::login($user, true);
         $ability = $user->role ? "ability:{$user->role->slug}" : 'ability:none';
         $deviceName = $request->userAgent() ?? 'unknown_device';
 

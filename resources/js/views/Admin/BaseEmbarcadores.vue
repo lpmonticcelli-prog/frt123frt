@@ -258,7 +258,7 @@ const getStatusBadgeClass = (status) => {
 const carregarEmbarcadores = async () => {
   loading.value = true;
   try {
-    const res = await axios.get('/api/admin/crm/embarcadores');
+    const res = await axios.get('/api/v1/admin/embarcadores');
     embarcadores.value = res.data.data ? res.data.data : res.data;
   } catch (error) {
     console.error('Erro ao carregar embarcadores:', error);
