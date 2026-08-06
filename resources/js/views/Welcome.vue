@@ -27,7 +27,7 @@
       <div class="hero-content">
         <span class="tagline">Arquitetura Logística Zero Trust</span>
         <h1 class="title">A Primeira Malha de Fretes 100% <span>Auditável do Brasil.</span></h1>
-        <p class="description">Esqueça a informalidade. Construímos uma infraestrutura modular escalável para conectar embarcadores e transportadores autônomos sob um ecossistema rigoroso de biometria, cruzamento de dados fiscais e segurança jurídica.</p>
+        <p class="description">Esqueça a informalidade. Construímos uma infraestrutura modular escalável para conectar embarcadores e transportadores autônomos sob um ecossistema rigoroso de biometria e segurança jurídica.</p>
         <div class="hero-buttons">
           <router-link :to="{ name: 'RegisterEmbarcador' }" class="btn-large primary">Para Embarcadores</router-link>
           <router-link :to="{ name: 'RegisterMotorista' }" class="btn-large secondary bg-white/50 backdrop-blur-sm">Para Motoristas</router-link>
@@ -43,8 +43,8 @@
       <div class="editorial-grid">
         <div class="editorial-block">
           <div class="block-num">01</div>
-          <h3 class="block-title">Emissão Fiscal Automatizada</h3>
-          <p class="block-text">Abandone sistemas paralelos. O portal atua como emissor nativo de CT-e e Manifesto, além de gerar contratos de prestação de serviço assinados digitalmente a cada match consolidado.</p>
+          <h3 class="block-title">Contratos Digitais Automatizados</h3>
+          <p class="block-text">Abandone sistemas paralelos. O portal gera contratos de prestação de serviço assinados digitalmente a cada match consolidado, garantindo segurança jurídica instantânea entre as partes.</p>
         </div>
         <div class="editorial-block">
           <div class="block-num">02</div>
@@ -54,7 +54,7 @@
         <div class="editorial-block">
           <div class="block-num">03</div>
           <h3 class="block-title">Score de Confiabilidade</h3>
-          <p class="block-text">Operamos um sistema implacável de ranqueamento. O histórico de pontualidade e compliance financeiro gera uma nota pública que define quem acessa os melhores fretes.</p>
+          <p class="block-text">Operamos um sistema implacável de ranqueamento. O histórico de pontualidade e compliance gera uma nota pública que define quem acessa os melhores fretes.</p>
         </div>
       </div>
     </section>
@@ -66,13 +66,13 @@
           <ul class="benefits-list">
             <li><strong>Filtro Biométrico Avançado:</strong> A validação de identidade não se baseia apenas em papel. Exigimos reconhecimento facial ativo do motorista.</li>
             <li><strong>Gerenciamento de Risco:</strong> Integramos via API com plataformas de inteligência, anulando a exposição a golpistas e desvios de carga.</li>
-            <li><strong>Tripla Cobertura de Seguros:</strong> O sistema possibilita o acionamento de apólices integradas no ato da contratação.</li>
+            <li><strong>Governança e Conformidade:</strong> Todo o histórico de operações é registrado e auditável, garantindo total controle para a sua empresa.</li>
           </ul>
         </div>
         <div class="target-audience">
           <h2 class="role-title">Garantia Operacional (Autônomos)</h2>
           <ul class="benefits-list">
-            <li><strong>Fim do Frete Fantasma:</strong> Chega de rodar vazio por falsas promessas. O frete publicado é real e com lastro fiscal.</li>
+            <li><strong>Fim do Frete Fantasma:</strong> Chega de rodar vazio por falsas promessas. O frete publicado é real e formalizado.</li>
             <li><strong>Acesso à Tecnologia:</strong> Não tem rastreador? Oferecemos um hub integrado para equipamentos certificados.</li>
             <li><strong>Contrato Jurídico:</strong> O "boca a boca" acabou. Cada corrida gera um contrato digital imediato, resguardando seus direitos.</li>
           </ul>
@@ -93,8 +93,8 @@
             <p class="faq-a">Sim. Desenvolvemos o sistema de forma modular e escalável, sem latência nas requisições de match.</p>
           </div>
           <div class="faq-box">
-            <h4 class="faq-q">A emissão de documentos tem custo extra?</h4>
-            <p class="faq-a">O CT-e, o MDF-e e a assinatura com certificado digital são nativos da operação e gerados automaticamente.</p>
+            <h4 class="faq-q">A geração de contratos tem custo extra?</h4>
+            <p class="faq-a">Não. A estruturação do acordo e a assinatura com certificado digital são nativas da operação e geradas automaticamente, sem taxas ocultas.</p>
           </div>
         </div>
       </div>
