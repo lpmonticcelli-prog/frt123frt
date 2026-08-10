@@ -92,14 +92,18 @@ const router = createRouter({
 router.beforeEach(async (to, from) => {
     const authStore = useAuthStore();
     
-    // ZT-DEFENSE: Cura definitiva da amnésia do F5!
-    // Se o Pinia não tem o usuário autenticado na memória (F5 resetou),
-    // nós obrigamos ele a bater no backend e ler os Cookies HttpOnly ANTES de julgar o bloqueio.
-    if (!authStore.isAuthenticated) {
+    // ZT-DEFENSE: Recuperação Inteligente de Sessão
+    // Só bate no servidor se o navegador tiver o registro de que alguém logou.
+    // O F5 apaga a memória do Vue, mas o localStorage sobrevive!
+    const hasLocalSession = localStorage.getItem('user');
+
+    if (!authStore.isAuthenticated && hasLocalSession) {
         try {
             await authStore.fetchUser();
         } catch (error) {
-            // Silencia o erro. Se falhar, é porque o usuário não tem cookie de sessão.
+            // Se o backend negar, limpamos o rastro para evitar o loop de tela branca.
+            localStorage.removeItem('user');
+            authStore.clearAuth();
         }
     }
 
@@ -117,7 +121,6 @@ router.beforeEach(async (to, from) => {
 
     const userRole = authStore.user?.role?.slug;
 
-    // Agora sim! O bloqueio só acontece se, mesmo após perguntar pro backend, o usuário não estiver logado.
     if (requiresAuth && !authStore.isAuthenticated) {
         console.warn('[Security] Acesso bloqueado: Rejeitado na Borda.');
         return { name: 'Login' };
