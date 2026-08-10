@@ -60,6 +60,7 @@ Route::prefix('v1')->group(function () {
     Route::controller(LocalidadeController::class)->prefix('localidades')->group(function () {
         Route::get('/estados', 'estados');
         Route::get('/estados/{uf}/municipios', 'municipios');
+        Route::get('/cep/{cep}', 'buscarCep');
     });
 
     Route::prefix('webhooks')->group(function () {
