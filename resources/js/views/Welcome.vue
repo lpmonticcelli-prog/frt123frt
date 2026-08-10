@@ -27,7 +27,7 @@
       <div class="hero-content">
         <span class="tagline">Arquitetura Logística Zero Trust</span>
         <h1 class="title">A Primeira Malha de Fretes 100% <span>Auditável do Brasil.</span></h1>
-        <p class="description">Esqueça a informalidade. Construímos uma infraestrutura modular escalável para conectar embarcadores e transportadores autônomos sob um ecossistema rigoroso de biometria, cruzamento de dados fiscais e segurança jurídica.</p>
+        <p class="description">Esqueça a informalidade. Construímos uma infraestrutura modular escalável para conectar embarcadores e transportadores autônomos sob um ecossistema rigoroso de biometria e segurança jurídica.</p>
         <div class="hero-buttons">
           <router-link :to="{ name: 'RegisterEmbarcador' }" class="btn-large primary">Para Embarcadores</router-link>
           <router-link :to="{ name: 'RegisterMotorista' }" class="btn-large secondary bg-white/50 backdrop-blur-sm">Para Motoristas</router-link>
@@ -43,8 +43,8 @@
       <div class="editorial-grid">
         <div class="editorial-block">
           <div class="block-num">01</div>
-          <h3 class="block-title">Emissão Fiscal Automatizada</h3>
-          <p class="block-text">Abandone sistemas paralelos. O portal atua como emissor nativo de CT-e e Manifesto, além de gerar contratos de prestação de serviço assinados digitalmente a cada match consolidado.</p>
+          <h3 class="block-title">Contratos Digitais Automatizados</h3>
+          <p class="block-text">Abandone sistemas paralelos. O portal gera contratos de prestação de serviço assinados digitalmente a cada match consolidado, garantindo segurança jurídica instantânea entre as partes.</p>
         </div>
         <div class="editorial-block">
           <div class="block-num">02</div>
@@ -54,7 +54,7 @@
         <div class="editorial-block">
           <div class="block-num">03</div>
           <h3 class="block-title">Score de Confiabilidade</h3>
-          <p class="block-text">Operamos um sistema implacável de ranqueamento. O histórico de pontualidade e compliance financeiro gera uma nota pública que define quem acessa os melhores fretes.</p>
+          <p class="block-text">Operamos um sistema implacável de ranqueamento. O histórico de pontualidade e compliance gera uma nota pública que define quem acessa os melhores fretes.</p>
         </div>
       </div>
     </section>
@@ -66,13 +66,13 @@
           <ul class="benefits-list">
             <li><strong>Filtro Biométrico Avançado:</strong> A validação de identidade não se baseia apenas em papel. Exigimos reconhecimento facial ativo do motorista.</li>
             <li><strong>Gerenciamento de Risco:</strong> Integramos via API com plataformas de inteligência, anulando a exposição a golpistas e desvios de carga.</li>
-            <li><strong>Tripla Cobertura de Seguros:</strong> O sistema possibilita o acionamento de apólices integradas no ato da contratação.</li>
+            <li><strong>Governança e Conformidade:</strong> Todo o histórico de operações é registrado e auditável, garantindo total controle para a sua empresa.</li>
           </ul>
         </div>
         <div class="target-audience">
           <h2 class="role-title">Garantia Operacional (Autônomos)</h2>
           <ul class="benefits-list">
-            <li><strong>Fim do Frete Fantasma:</strong> Chega de rodar vazio por falsas promessas. O frete publicado é real e com lastro fiscal.</li>
+            <li><strong>Fim do Frete Fantasma:</strong> Chega de rodar vazio por falsas promessas. O frete publicado é real e formalizado.</li>
             <li><strong>Acesso à Tecnologia:</strong> Não tem rastreador? Oferecemos um hub integrado para equipamentos certificados.</li>
             <li><strong>Contrato Jurídico:</strong> O "boca a boca" acabou. Cada corrida gera um contrato digital imediato, resguardando seus direitos.</li>
           </ul>
@@ -93,8 +93,8 @@
             <p class="faq-a">Sim. Desenvolvemos o sistema de forma modular e escalável, sem latência nas requisições de match.</p>
           </div>
           <div class="faq-box">
-            <h4 class="faq-q">A emissão de documentos tem custo extra?</h4>
-            <p class="faq-a">O CT-e, o MDF-e e a assinatura com certificado digital são nativos da operação e gerados automaticamente.</p>
+            <h4 class="faq-q">A geração de contratos tem custo extra?</h4>
+            <p class="faq-a">Não. A estruturação do acordo e a assinatura com certificado digital são nativas da operação e geradas automaticamente, sem taxas ocultas.</p>
           </div>
         </div>
       </div>
@@ -229,7 +229,7 @@ onBeforeUnmount(() => {
 .title span { color: var(--c-brand); }
 .description { font-size: 1.2rem; font-weight: 400; color: var(--c-text-muted); max-width: 650px; margin-bottom: 3rem; line-height: 1.7; }
 .hero-buttons { display: flex; gap: 1rem; }
-.btn-large { text-decoration: none; padding: 1rem 2rem; border-radius: 6px; font-size: 0.95rem; font-weight: 700; transition: all 0.2s; text-align: center; cursor: pointer; }
+.btn-large { text-decoration: none; padding: 1rem 2rem; border-radius: 6px; font-size: 0.95rem; font-weight: 700; transition: all 0.2s; box-sizing: border-box; text-align: center; cursor: pointer; }
 .btn-large.primary { background-color: var(--c-text-main); color: var(--c-bg-pure); }
 .btn-large.primary:hover { background-color: #000000; }
 .btn-large.secondary { background-color: transparent; color: var(--c-text-main); border: 1px solid var(--c-border); }
@@ -277,12 +277,54 @@ onBeforeUnmount(() => {
 .modal-btn { background: var(--c-text-main); color: var(--c-bg-pure); border: none; padding: 0.8rem 2rem; border-radius: 6px; font-weight: 700; cursor: pointer; transition: background 0.2s; width: 100%; font-size: 1rem; }
 .modal-btn:hover { background: #000; }
 
+/* REGRAS DE RESPONSIVIDADE ADICIONADAS AQUI */
 @media (max-width: 1024px) {
   .hero-image-wrapper { display: none; }
-  .hero-content { max-width: 100%; padding-top: 8rem; }
+  .hero-content { max-width: 100%; padding-top: 7rem; }
   .nav-links { display: none; }
-  .hero-buttons { flex-direction: column; }
+  
+  /* Botões de Ação na tela inicial */
+  .hero-buttons { flex-direction: column; width: 100%; }
+  .btn-large { width: 100%; display: flex; justify-content: center; }
+  
   .dual-grid, .editorial-grid { grid-template-columns: 1fr; gap: 2rem; }
-  .architecture, .dual-proposition, .faq-section { padding: 5rem 6%; }
+  .architecture, .dual-proposition, .faq-section { padding: 4rem 6%; }
+}
+
+@media (max-width: 768px) {
+  /* Adaptação inteligente da Navbar e Botões superiores para telas muito pequenas */
+  .navbar { padding: 1rem 4%; gap: 10px; }
+  .nav-brand { gap: 4px !important; }
+  .nav-brand span { font-size: 1.2rem !important; }
+  .nav-brand img { height: 24px !important; }
+  
+  /* Mantém "Acessar Hub" e "Homologar Conta" numa só linha sem quebrar o layout */
+  .nav-actions { gap: 0.5rem; }
+  .btn-text { font-size: 0.75rem; }
+  .btn-primary { padding: 0.5rem 0.8rem; font-size: 0.75rem; white-space: nowrap; }
+  
+  /* Textos Principais */
+  .title { font-size: 2.2rem; letter-spacing: -1px; }
+  .description { font-size: 1rem; margin-bottom: 2rem; }
+  .tagline { font-size: 0.65rem; }
+  
+  /* Sessões e Colunas */
+  .section-heading { font-size: 1.8rem; line-height: 1.2; }
+  .section-sub { font-size: 1rem; margin-bottom: 3rem; }
+  
+  /* Caixas de Benefícios */
+  .target-audience { padding: 2rem 1.5rem; }
+  .role-title { font-size: 1.3rem; margin-bottom: 1.5rem; }
+  .benefits-list li { font-size: 0.9rem; margin-bottom: 1rem; }
+  
+  /* FAQ e Modal */
+  .faq-box { padding: 1.5rem; }
+  .faq-q { font-size: 1.05rem; }
+  .cta-title { font-size: 2rem; }
+  .modal-box { padding: 2rem 1.5rem; }
+  
+  /* Rodapé empilhado */
+  .footer { flex-direction: column; gap: 1.5rem; text-align: center; }
+  .footer .nav-brand { justify-content: center; }
 }
 </style>

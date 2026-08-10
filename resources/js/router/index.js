@@ -62,28 +62,19 @@ const routes = [
         meta: { requiresAuth: true, role: ['admin', 'manager', 'compliance', 'suporte_n1'] },
         children: [
             { path: '', redirect: '/admin/dashboard' },
-            // CADEADOS INDIVIDUAIS DE ROTA APLICADOS (ZERO TRUST)
             { path: 'dashboard', name: 'AdminDashboard', component: () => import('../views/Admin/Dashboard.vue'), meta: { title: 'Centro de Comando', role: ['admin', 'manager'] } },
             { path: 'suporte', name: 'AdminSuporte', component: () => import('../views/Admin/MesaOperacoes.vue'), meta: { title: 'Mesa de Operações (SAC)', role: ['admin', 'manager', 'compliance', 'suporte_n1'] } },
-            
             { path: 'fretes', name: 'AdminFretes', component: () => import('../views/Admin/MuralFretes.vue'), meta: { title: 'Mural de Fretes', role: ['admin', 'manager'] } },
-            // NOVA ROTA: AUDITORIA 360º DE FRETES CONCLUÍDOS
             { path: 'historico-fretes', name: 'AdminHistoricoFretes', component: () => import('../views/Admin/HistoricoFretes.vue'), meta: { title: 'Arquivo Morto (Auditoria)', role: ['admin', 'manager', 'compliance'] } },
-            
             { path: 'disputas', name: 'AdminDisputas', component: () => import('../views/Admin/Disputas.vue'), meta: { title: 'Resolução de Disputas', role: ['admin', 'manager', 'compliance'] } },
             { path: 'auditoria', name: 'AdminAuditoria', component: () => import('../views/Admin/Kyc.vue'), meta: { title: 'Auditoria KYC', role: ['admin', 'compliance'] } },
             { path: 'motoristas', name: 'AdminMotoristas', component: () => import('../views/Admin/BaseMotoristas.vue'), meta: { title: 'Base de Motoristas', role: ['admin'] } },
             { path: 'embarcadores', name: 'AdminEmbarcadores', component: () => import('../views/Admin/BaseEmbarcadores.vue'), meta: { title: 'Base de Embarcadores', role: ['admin'] } },
-            
-            // CMS DE PARCEIROS E ADS
             { path: 'parceiros', name: 'AdminParceiros', component: () => import('../views/Admin/Parceiros.vue'), meta: { title: 'Rede de Parceiros (CMS)', role: ['admin'] } },
-            
             { path: 'extrato', name: 'AdminExtrato', component: () => import('../views/Admin/ExtratoTaxas.vue'), meta: { title: 'Extrato & Taxas', role: ['admin'] } },
             { path: 'faturamento', name: 'AdminFaturamento', component: () => import('../views/Admin/Faturamento.vue'), meta: { title: 'Faturamento', role: ['admin'] } },
             { path: 'staff', name: 'AdminStaff', component: () => import('../views/Admin/Staff.vue'), meta: { title: 'Staff & Permissões', role: ['admin'] } },
             { path: 'config', name: 'AdminConfig', component: () => import('../views/Admin/VariaveisGlobais.vue'), meta: { title: 'Variáveis Globais', role: ['admin'] } },
-            
-            // NOVA ROTA: API GATEWAY (B2B)
             { path: 'parceiros-api', name: 'AdminParceirosApi', component: () => import('../views/Admin/ParceirosApi.vue'), meta: { title: 'Integrações & APIs', role: ['admin'] } }
         ]
     }
@@ -101,9 +92,15 @@ const router = createRouter({
 router.beforeEach(async (to, from) => {
     const authStore = useAuthStore();
     
-    const hasLocalSession = localStorage.getItem('user');
-    if (!authStore.user && hasLocalSession) {
-        await authStore.fetchUser();
+    // ZT-DEFENSE: Cura definitiva da amnésia do F5!
+    // Se o Pinia não tem o usuário autenticado na memória (F5 resetou),
+    // nós obrigamos ele a bater no backend e ler os Cookies HttpOnly ANTES de julgar o bloqueio.
+    if (!authStore.isAuthenticated) {
+        try {
+            await authStore.fetchUser();
+        } catch (error) {
+            // Silencia o erro. Se falhar, é porque o usuário não tem cookie de sessão.
+        }
     }
 
     const requiresAuth = to.matched.some(record => record.meta.requiresAuth);
@@ -120,6 +117,7 @@ router.beforeEach(async (to, from) => {
 
     const userRole = authStore.user?.role?.slug;
 
+    // Agora sim! O bloqueio só acontece se, mesmo após perguntar pro backend, o usuário não estiver logado.
     if (requiresAuth && !authStore.isAuthenticated) {
         console.warn('[Security] Acesso bloqueado: Rejeitado na Borda.');
         return { name: 'Login' };
@@ -140,7 +138,7 @@ router.beforeEach(async (to, from) => {
         return { path: `/${userRole}/painel` }; 
     }
 
-    return true; // Padrão Vue Router 4: retornar true libera a navegação.
+    return true; 
 });
 
 export default router;
