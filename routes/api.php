@@ -4,28 +4,48 @@ declare(strict_types=1);
 
 use Illuminate\Support\Facades\Route;
 
+<<<<<<< HEAD
 // Auth
 use App\Http\Controllers\Api\V1\Auth\AuthController;
+=======
+// Auth & Public
+use App\Http\Controllers\Api\V1\Auth\AuthController;
+use App\Http\Controllers\Api\V1\LocalidadeController;
+use App\Http\Controllers\Api\V1\AnttController;
+
+// Suporte & Hub
+use App\Http\Controllers\Api\V1\Support\TicketController;
+use App\Http\Controllers\Api\V1\Support\FaqController;
+use App\Http\Controllers\Api\V1\Admin\ParceiroController;
+>>>>>>> f237a07 (feat: adiciona motor de calculo do piso minimo ANTT e refatora rotas da API)
 
 // Embarcador
 use App\Http\Controllers\Api\V1\Embarcador\CargaController as EmbarcadorCargaController;
 use App\Http\Controllers\Api\V1\Embarcador\FaturaController;
 use App\Http\Controllers\Api\V1\Embarcador\PerfilController as EmbarcadorPerfilController;
 use App\Http\Controllers\Api\V1\Embarcador\DocumentoFiscalController;
+<<<<<<< HEAD
 // use App\Http\Controllers\Api\V1\Embarcador\CheckoutController;
 use App\Http\Controllers\Api\V1\Embarcador\LocalOperacionalController;
+=======
+use App\Http\Controllers\Api\V1\Embarcador\CheckoutController;
+>>>>>>> f237a07 (feat: adiciona motor de calculo do piso minimo ANTT e refatora rotas da API)
 
 // Motorista
 use App\Http\Controllers\Api\V1\Motorista\CargaController as MotoristaCargaController;
 use App\Http\Controllers\Api\V1\Motorista\PerfilController as MotoristaPerfilController;
 use App\Http\Controllers\Api\V1\Motorista\CarteiraController;
 use App\Http\Controllers\Api\V1\Motorista\GrController;
+<<<<<<< HEAD
+=======
+use App\Http\Controllers\Api\V1\Partners\GrIntegrationController;
+>>>>>>> f237a07 (feat: adiciona motor de calculo do piso minimo ANTT e refatora rotas da API)
 
 // Admin
 use App\Http\Controllers\Api\V1\Admin\AdminController;
-use App\Http\Controllers\Api\V1\Admin\ParceiroController;
 use App\Http\Controllers\Api\V1\Admin\FaturamentoController as AdminFaturamentoController;
 
+<<<<<<< HEAD
 // Support & Hub
 use App\Http\Controllers\Api\V1\Support\TicketController;
 use App\Http\Controllers\Api\V1\Support\FaqController;
@@ -34,17 +54,36 @@ use App\Http\Controllers\Api\V1\LocalidadeController;
 // Partners & Webhooks
 use App\Http\Controllers\Api\V1\Partners\GrIntegrationController;
 use App\Http\Controllers\Api\V1\Webhooks\PefWebhookController;
+=======
+// Webhooks
+use App\Http\Controllers\Api\V1\Webhooks\PefWebhookController; 
+use App\Http\Controllers\Api\V1\Webhooks\TransatWebhookController;
+>>>>>>> f237a07 (feat: adiciona motor de calculo do piso minimo ANTT e refatora rotas da API)
 use App\Http\Controllers\Api\V1\Webhooks\GatewayWebhookController;
+
+/*
+|--------------------------------------------------------------------------
+| API Routes V1
+|--------------------------------------------------------------------------
+*/
 
 Route::prefix('v1')->group(function () {
 
     // =========================================================
+<<<<<<< HEAD
     // PUBLIC ENDPOINTS & AUTH (Zero Trust Entrypoints)
     // =========================================================
+=======
+    // ROTAS PÚBLICAS (Sem Autenticação)
+    // =========================================================
+    
+    // Autenticação
+>>>>>>> f237a07 (feat: adiciona motor de calculo do piso minimo ANTT e refatora rotas da API)
     Route::controller(AuthController::class)->group(function () {
         Route::post('/login', 'login')->middleware('throttle:5,1');
         Route::post('/forgot-password', 'forgotPassword')->middleware('throttle:3,1');
         Route::post('/reset-password', 'resetPassword')->middleware('throttle:5,1');
+<<<<<<< HEAD
         Route::post('/register/embarcador', 'registerEmbarcador')->middleware(['throttle:3,1', 'idempotency']);
         Route::post('/register/motorista', 'registerMotorista')->middleware(['throttle:3,1', 'idempotency']);
     });
@@ -69,11 +108,57 @@ Route::prefix('v1')->group(function () {
         
         // HUB / BENEFITS MARKETPLACE
         Route::prefix('hub/parceiros')->controller(ParceiroController::class)->group(function () {
+=======
+        Route::post('/register/embarcador', 'registerEmbarcador')->middleware('throttle:3,1');
+        Route::post('/register/motorista', 'registerMotorista')->middleware('throttle:5,1');
+    });
+
+    // Localidades
+    Route::controller(LocalidadeController::class)->prefix('localidades')->group(function () {
+        Route::get('/estados', 'estados');
+        Route::get('/estados/{uf}/municipios', 'municipios');
+    });
+
+    // Webhooks B2B
+    Route::prefix('webhooks')->group(function () {
+        Route::post('/pef', [PefWebhookController::class, 'handleCallback'])->name('webhook.pef');
+        Route::post('/transat', [TransatWebhookController::class, 'handleCallback'])->name('webhook.transat');
+        Route::post('/gateway-pagamento', [GatewayWebhookController::class, 'handleCallback'])->name('webhook.gateway');
+    });
+
+    // =========================================================
+    // ROTAS PRIVADAS (Requer Autenticação via Sanctum)
+    // =========================================================
+    Route::middleware('auth:sanctum')->group(function () {
+        
+        // Auth Logado
+        Route::controller(AuthController::class)->group(function () {
+            Route::post('/logout', 'logout');
+            Route::get('/me', 'me');
+        });
+
+        // Utilitários Gerais
+        Route::post('/antt/calcular', [AnttController::class, 'calcular']); // Motor Matemático ANTT
+        Route::put('/upload-mock', function() { return response()->json(['ok' => true]); });
+
+        // Suporte ao Usuário
+        Route::get('/suporte/faqs', [FaqController::class, 'index']);
+        Route::controller(TicketController::class)->prefix('suporte/tickets')->group(function () {
+            Route::get('/', 'index');
+            Route::post('/', 'store')->middleware('throttle:5,1');
+            Route::get('/{ticket}', 'show');
+            Route::post('/{ticket}/mensagens', 'reply')->middleware('throttle:15,1');
+        });
+        
+        // Hub de Parceiros (Público)
+        Route::controller(ParceiroController::class)->prefix('hub/parceiros')->group(function () {
+>>>>>>> f237a07 (feat: adiciona motor de calculo do piso minimo ANTT e refatora rotas da API)
             Route::get('/', 'listarPorPublico')->middleware('throttle:120,1');
             Route::post('/{parceiro}/clique', 'registrarClique')->middleware('throttle:10,1');
             Route::post('/{parceiro}/conversao', 'registrarConversao')->middleware('throttle:10,1');
         });
 
+<<<<<<< HEAD
         // SUPPORT
         Route::prefix('suporte')->group(function () {
             Route::get('/faqs', [FaqController::class, 'index']);
@@ -92,11 +177,19 @@ Route::prefix('v1')->group(function () {
         Route::middleware('ability:embarcador')->prefix('embarcador')->group(function () {
             
             // Identity
+=======
+        // ---------------------------------------------------------
+        // PORTAL DO EMBARCADOR
+        // ---------------------------------------------------------
+        Route::middleware('ability:embarcador')->prefix('embarcador')->group(function () {
+            
+>>>>>>> f237a07 (feat: adiciona motor de calculo do piso minimo ANTT e refatora rotas da API)
             Route::controller(EmbarcadorPerfilController::class)->prefix('perfil')->group(function () {
                 Route::get('/', 'show');
                 Route::put('/', 'update');
                 Route::get('/documento', 'exibirDocumento');
             });
+<<<<<<< HEAD
             
             // Operations
             Route::apiResource('locais', LocalOperacionalController::class)->only(['index', 'store', 'destroy']);
@@ -131,12 +224,47 @@ Route::prefix('v1')->group(function () {
         Route::middleware('ability:motorista')->prefix('motorista')->group(function () {
             
             // Identity
+=======
+            
+            // Cargas
+            Route::apiResource('cargas', EmbarcadorCargaController::class);
+            Route::controller(EmbarcadorCargaController::class)->prefix('cargas')->group(function () {
+                Route::post('/{carga}/candidaturas/aprovar', 'aprovarCandidato')->middleware('throttle:10,1');
+                Route::post('/{carga}/avaliar', 'avaliarEFinalizarEntrega')->middleware('throttle:5,1');
+                Route::post('/{carga}/disputa', 'abrirDisputa')->middleware('throttle:5,1');
+                Route::get('/{carga}/chat', 'getChat');
+                Route::post('/{carga}/chat', 'storeChat')->middleware('throttle:20,1');
+                Route::get('/documento/pod', 'exibirDocumentoPod');
+            });
+            
+            // Checkout Escrow B2B
+            Route::post('cargas/{carga}/checkout', [CheckoutController::class, 'gerarPagamento'])
+                ->middleware(['throttle:10,1', 'idempotency']);
+
+            // Faturas
+            Route::controller(FaturaController::class)->prefix('faturas')->group(function () {
+                Route::get('/', 'index');
+                Route::get('/{fatura}', 'show');
+            });
+            
+            Route::get('auditoria/ciot/{id}', [AuditoriaController::class, 'consultarCiot']);
+            Route::post('certificado/upload', [CertificadoController::class, 'upload'])->middleware('throttle:5,1');
+            Route::post('documentos/xml/parse', [DocumentoFiscalController::class, 'parse'])->middleware('throttle:10,1');
+        });
+
+        // ---------------------------------------------------------
+        // PORTAL DO MOTORISTA
+        // ---------------------------------------------------------
+        Route::middleware('ability:motorista')->prefix('motorista')->group(function () {
+            
+>>>>>>> f237a07 (feat: adiciona motor de calculo do piso minimo ANTT e refatora rotas da API)
             Route::controller(MotoristaPerfilController::class)->prefix('perfil')->group(function () {
                 Route::get('/', 'show');
                 Route::post('/', 'update'); 
                 Route::get('/documento/{tipo}', 'exibirDocumento'); 
             });
             
+<<<<<<< HEAD
             // Feature Toggle GR
             if (config('services.gr.enabled', false)) {
                 Route::post('perfil/gr/solicitar', [GrController::class, 'solicitarAnalise'])->middleware(['throttle:3,1', 'idempotency']);
@@ -155,11 +283,25 @@ Route::prefix('v1')->group(function () {
                 Route::post('/{carga}/iniciar-viagem', 'iniciarViagem');
                 Route::post('/{carga}/finalizar', 'finalizarEntrega')->middleware(['throttle:5,1', 'idempotency']);
                 
+=======
+            Route::post('perfil/gr/solicitar', [GrController::class, 'solicitarAnalise']);
+            Route::get('carteira/extrato', [CarteiraController::class, 'extrato']);
+            
+            // Cargas Operacionais
+            Route::controller(MotoristaCargaController::class)->prefix('cargas')->group(function () {
+                Route::get('/disponiveis', 'disponiveis');
+                Route::get('/minhas', 'minhasCargas');
+                Route::post('/{id}/aceitar', 'aceitar')->middleware('throttle:10,1');
+                Route::delete('/{id}/aceitar', 'cancelarAceite');
+                Route::post('/{id}/iniciar-viagem', 'iniciarViagem');
+                Route::post('/{id}/finalizar', 'finalizarEntrega');
+>>>>>>> f237a07 (feat: adiciona motor de calculo do piso minimo ANTT e refatora rotas da API)
                 Route::get('/{carga}/chat', 'getChat');
                 Route::post('/{carga}/chat', 'storeChat')->middleware('throttle:20,1');
             });
         });
 
+<<<<<<< HEAD
         // =========================================================
         // BOUNDED CONTEXT: ADMIN
         // =========================================================
@@ -191,10 +333,57 @@ Route::prefix('v1')->group(function () {
                 Route::put('/staff/{usuario}', 'atualizarStaff');
                 
                 // Identity Management
+=======
+        // ---------------------------------------------------------
+        // PORTAL ADMINISTRATIVO
+        // ---------------------------------------------------------
+        Route::middleware('ability:admin')->prefix('admin')->group(function () {
+            
+            // Core Administrativo
+            Route::controller(AdminController::class)->group(function () {
+                // Dashboards
+                Route::get('/dashboard', 'dashboardMetrics');
+                Route::get('/dashboard-stats', 'getDashboardStats');
+
+                // Fretes e Operações
+                Route::get('/fretes', 'listarFretes');
+                Route::get('/fretes/concluidos', 'fretesConcluidos');
+                Route::get('/operacoes/fretes', 'listarMuralFretes');
+                Route::get('/fretes/{id}', 'detalhesFrete');
+                Route::get('/fretes/{id}/auditoria', 'auditoriaCarga');
+                
+                // Documentos e Auditoria
+                Route::get('/auditoria/documento', 'exibirDocumentoAuditoria');
+                Route::get('/kyc/documento', 'exibirDocumentoKyc');
+                
+                // Disputas
+                Route::get('/disputas', 'listarDisputas');
+                Route::get('/operacoes/disputas', 'listarDisputas');
+                Route::post('/disputas/{id}/resolver', 'resolverDisputa');
+                Route::post('/operacoes/disputas/{carga}/resolver', 'resolverDisputa');
+                
+                // Financeiro Base
+                Route::get('/financeiro/extrato', 'extratoTaxas');
+                
+                // Configurações e Staff
+                Route::get('/config/variaveis', 'listarVariaveis');
+                Route::put('/config/variaveis', 'atualizarVariaveis');
+                Route::put('/variaveis', 'atualizarVariaveis'); // Alias
+                
+                Route::get('/config/staff', 'listarStaff');
+                Route::get('/staff', 'listarStaff'); // Alias
+                Route::post('/config/staff', 'criarStaff');
+                Route::post('/staff', 'criarStaff'); // Alias
+                Route::put('/config/staff/{usuario}', 'atualizarStaff');
+                Route::put('/staff/{usuario}', 'atualizarStaff'); // Alias
+                
+                // Gestão de Usuários (Geral, Embarcadores, Motoristas)
+>>>>>>> f237a07 (feat: adiciona motor de calculo do piso minimo ANTT e refatora rotas da API)
                 Route::get('/usuarios', 'listarTodosUsuarios');
                 Route::get('/usuarios-pendentes', 'usuariosPendentes');
                 Route::post('/usuarios/{usuario}/analise', 'analisarUsuario');
                 Route::post('/usuarios/{usuario}/status', 'alterarStatus');
+<<<<<<< HEAD
                 Route::get('/kyc/documento', 'exibirDocumentoKyc');
                 
                 // CRM 
@@ -207,11 +396,27 @@ Route::prefix('v1')->group(function () {
                 Route::post('/motoristas/{motorista}/kyc', 'avaliarKycMotorista');
                 
                 // API B2B
+=======
+                
+                Route::get('/embarcadores', 'listarEmbarcadores');
+                Route::get('/crm/embarcadores', 'listarEmbarcadores'); // Alias
+                Route::get('/embarcadores/{id}', 'detalhesEmbarcador');
+                Route::put('/crm/embarcadores/{embarcador}/contrato', 'atualizarContratoEmbarcador');
+                Route::put('/config/crm/embarcadores/{embarcador}/contrato', 'atualizarContratoEmbarcador'); // Alias
+                
+                Route::get('/motoristas', 'listarMotoristas');
+                Route::get('/crm/motoristas', 'listarMotoristas'); // Alias
+                Route::get('/motoristas/{id}', 'detalhesMotorista');
+                Route::post('/motoristas/{id}/kyc', 'avaliarKycMotorista');
+                
+                // Parceiros API
+>>>>>>> f237a07 (feat: adiciona motor de calculo do piso minimo ANTT e refatora rotas da API)
                 Route::get('/parceiros-api', 'listarParceirosApi');
                 Route::post('/parceiros-api', 'gerarTokenParceiro');
                 Route::post('/parceiros-api/{tokenId}/revogar', 'revogarTokenParceiro');
             });
             
+<<<<<<< HEAD
             // Parceiros de Negócios (Hub)
             Route::apiResource('crm/parceiros', ParceiroController::class)->only(['index', 'store', 'update', 'destroy']);
             
@@ -226,6 +431,27 @@ Route::prefix('v1')->group(function () {
             });
             
             // Support Admin
+=======
+            // Faturamento Admin
+            Route::controller(AdminFaturamentoController::class)->prefix('faturamento')->group(function () {
+                Route::get('/radar', 'radar');
+                Route::get('/ciclos', 'listarCiclos');
+                Route::post('/gerar', 'gerarFaturasManuais');
+                Route::get('/extrato-taxas', 'extratoTaxasPlataforma');
+                Route::get('/taxas-agregadas', 'taxasAgregadas');
+                Route::post('/congelar/{embarcadorId}', 'congelar');
+            });
+            
+            // Parceiros Admin (CRM)
+            Route::controller(ParceiroController::class)->prefix('crm/parceiros')->group(function () {
+                Route::get('/', 'index');
+                Route::post('/', 'store')->middleware('throttle:30,1');
+                Route::put('/{parceiro}', 'update')->middleware('throttle:30,1');
+                Route::delete('/{parceiro}', 'destroy')->middleware('throttle:30,1');
+            });
+            
+            // Tickets Admin
+>>>>>>> f237a07 (feat: adiciona motor de calculo do piso minimo ANTT e refatora rotas da API)
             Route::controller(TicketController::class)->prefix('suporte/tickets')->group(function () {
                 Route::get('/', 'index');
                 Route::get('/{ticket}', 'show');
@@ -233,6 +459,7 @@ Route::prefix('v1')->group(function () {
                 Route::post('/{ticket}/responder', 'reply');
                 Route::post('/{ticket}/fechar', 'fecharTicket');
             });
+<<<<<<< HEAD
         });
     });
 
@@ -257,4 +484,15 @@ Route::prefix('v1/webhooks')->middleware(['throttle:100,1'])->group(function () 
     Route::post('/gateway', [GatewayWebhookController::class, 'handleCallback'])
         ->middleware('b2b.hmac:gateway')
         ->name('webhook.gateway');
+=======
+        });
+
+        // ---------------------------------------------------------
+        // INTEGRAÇÕES DE PARCEIROS E SERVIÇOS 
+        // ---------------------------------------------------------
+        Route::middleware('ability:gr-partner')->prefix('partners/gr')->group(function () {
+            Route::post('/analise/callback', [GrIntegrationController::class, 'registrarAnalise']);
+        });
+    });
+>>>>>>> f237a07 (feat: adiciona motor de calculo do piso minimo ANTT e refatora rotas da API)
 });
