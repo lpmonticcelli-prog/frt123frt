@@ -2,199 +2,266 @@
 
 declare(strict_types=1);
 
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
+// Auth
 use App\Http\Controllers\Api\V1\Auth\AuthController;
+
+// Embarcador
 use App\Http\Controllers\Api\V1\Embarcador\CargaController as EmbarcadorCargaController;
 use App\Http\Controllers\Api\V1\Embarcador\FaturaController;
 use App\Http\Controllers\Api\V1\Embarcador\PerfilController as EmbarcadorPerfilController;
-use App\Http\Controllers\Api\V1\Embarcador\AuditoriaController; 
+use App\Http\Controllers\Api\V1\Embarcador\DocumentoFiscalController;
+// use App\Http\Controllers\Api\V1\Embarcador\CheckoutController;
+use App\Http\Controllers\Api\V1\Embarcador\LocalOperacionalController;
+
+// Motorista
 use App\Http\Controllers\Api\V1\Motorista\CargaController as MotoristaCargaController;
 use App\Http\Controllers\Api\V1\Motorista\PerfilController as MotoristaPerfilController;
 use App\Http\Controllers\Api\V1\Motorista\CarteiraController;
 use App\Http\Controllers\Api\V1\Motorista\GrController;
+
+// Admin
 use App\Http\Controllers\Api\V1\Admin\AdminController;
 use App\Http\Controllers\Api\V1\Admin\ParceiroController;
 use App\Http\Controllers\Api\V1\Admin\FaturamentoController as AdminFaturamentoController;
+
+// Support & Hub
 use App\Http\Controllers\Api\V1\Support\TicketController;
 use App\Http\Controllers\Api\V1\Support\FaqController;
-use App\Http\Controllers\Api\V1\Webhooks\PefWebhookController; 
-use App\Http\Controllers\Api\V1\Webhooks\TransatWebhookController;
+use App\Http\Controllers\Api\V1\LocalidadeController;
+
+// Partners & Webhooks
+use App\Http\Controllers\Api\V1\Partners\GrIntegrationController;
+use App\Http\Controllers\Api\V1\Webhooks\PefWebhookController;
+use App\Http\Controllers\Api\V1\Webhooks\GatewayWebhookController;
 
 Route::prefix('v1')->group(function () {
 
     // =========================================================
-    // AUTENTICAÇÃO E IDENTIDADE
+    // PUBLIC ENDPOINTS & AUTH (Zero Trust Entrypoints)
     // =========================================================
-    // As rotas de login/recuperação de senha MANTÊM a trava nativa, 
-    // pois são a primeira linha de defesa contra Força Bruta e não passam pelo middleware global de API.
-    Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
-    Route::post('/forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:3,1');
-    Route::post('/reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:5,1');
-    
-    // ZT-DEFENSE: Proteção L7 alinhada ao rate limit da API da ReceitaWS (3 requisições / 1 minuto por IP)
-    Route::post('/register/embarcador', [AuthController::class, 'registerEmbarcador'])->middleware('throttle:3,1');
-    
-    // ZT-DEFENSE: Mitigação contra Botnets de cadastro e esgotamento de banco
-    Route::post('/register/motorista', [AuthController::class, 'registerMotorista'])->middleware('throttle:5,1');
+    Route::controller(AuthController::class)->group(function () {
+        Route::post('/login', 'login')->middleware('throttle:5,1');
+        Route::post('/forgot-password', 'forgotPassword')->middleware('throttle:3,1');
+        Route::post('/reset-password', 'resetPassword')->middleware('throttle:5,1');
+        // Idempotência adicionada para prevenir double-clicks gerando falsos positivos no registro
+        Route::post('/register/embarcador', 'registerEmbarcador')->middleware(['throttle:3,1', 'idempotency']);
+        Route::post('/register/motorista', 'registerMotorista')->middleware(['throttle:3,1', 'idempotency']);
+    });
 
+    // =========================================================
+    // LOCATIONS (Public / Read-only / Proxy)
+    // =========================================================
+    Route::prefix('localidades')->controller(LocalidadeController::class)->group(function () {
+        Route::get('/estados', 'estados')->middleware('cache.headers:public;max_age=86400');
+        Route::get('/estados/{uf}/municipios', 'municipios')->middleware('cache.headers:public;max_age=86400');
+        Route::get('/cep/{cep}', 'buscarCep')->middleware('throttle:30,1');
+    });
+
+    // =========================================================
+    // AUTHENTICATED ENDPOINTS (Stateless PAT Tokens)
+    // =========================================================
     Route::middleware('auth:sanctum')->group(function () {
-        Route::post('/logout', [AuthController::class, 'logout']);
-        Route::get('/me', [AuthController::class, 'me']);
         
-        // =========================================================
-        // DOMÍNIO: SUPORTE, FAQ & HUB (Transversal)
-        // =========================================================
-        Route::get('/suporte/faqs', [FaqController::class, 'index']);
-        Route::get('/suporte/tickets', [TicketController::class, 'index']);
-        // Ticket e Hub de Parceiros mantêm as suas travas específicas de negócio
-        Route::post('/suporte/tickets', [TicketController::class, 'store'])->middleware('throttle:5,1');
-        Route::get('/suporte/tickets/{ticket}', [TicketController::class, 'show']);
-        Route::post('/suporte/tickets/{ticket}/mensagens', [TicketController::class, 'reply'])->middleware('throttle:15,1');
+        // GLOBAL AUTH
+        Route::post('/auth/logout', [AuthController::class, 'logout']);
+        Route::get('/auth/me', [AuthController::class, 'me']);
         
-        // 🔒 ZERO TRUST: Rotas do Hub de Parceiros (Blindadas contra Botnets)
-        Route::get('/hub/parceiros', [ParceiroController::class, 'listarPorPublico'])->middleware('throttle:120,1');
-        Route::post('/hub/parceiros/{parceiro}/clique', [ParceiroController::class, 'registrarClique'])->middleware('throttle:10,1');
-        Route::post('/hub/parceiros/{parceiro}/conversao', [ParceiroController::class, 'registrarConversao'])->middleware('throttle:10,1');
+        // HUB / BENEFITS MARKETPLACE
+        Route::prefix('hub/parceiros')->controller(ParceiroController::class)->group(function () {
+            Route::get('/', 'listarPorPublico')->middleware('throttle:120,1');
+            Route::post('/{parceiro}/clique', 'registrarClique')->middleware('throttle:10,1');
+            Route::post('/{parceiro}/conversao', 'registrarConversao')->middleware('throttle:10,1');
+        });
+
+        // SUPPORT
+        Route::prefix('suporte')->group(function () {
+            Route::get('/faqs', [FaqController::class, 'index']);
+            
+            Route::controller(TicketController::class)->prefix('tickets')->group(function () {
+                Route::get('/', 'index');
+                Route::post('/', 'store')->middleware('throttle:5,1');
+                Route::get('/{ticket}', 'show');
+                Route::post('/{ticket}/mensagens', 'reply')->middleware('throttle:15,1');
+            });
+        });
 
         // =========================================================
-        // DOMÍNIO: EMBARCADOR
+        // BOUNDED CONTEXT: EMBARCADOR
         // =========================================================
         Route::middleware('ability:embarcador')->prefix('embarcador')->group(function () {
-            Route::get('perfil', [EmbarcadorPerfilController::class, 'show']);
-            Route::put('perfil', [EmbarcadorPerfilController::class, 'update']);
             
-            Route::apiResource('cargas', EmbarcadorCargaController::class);
-            Route::post('cargas/{carga}/candidaturas/aprovar', [EmbarcadorCargaController::class, 'aprovarCandidato'])->middleware('throttle:10,1');
-            Route::post('cargas/{carga}/avaliar', [EmbarcadorCargaController::class, 'avaliarEFinalizarEntrega'])->middleware('throttle:5,1');
-            Route::post('cargas/{carga}/disputa', [EmbarcadorCargaController::class, 'abrirDisputa'])->middleware('throttle:5,1');
+            // Identity
+            Route::controller(EmbarcadorPerfilController::class)->prefix('perfil')->group(function () {
+                Route::get('/', 'show');
+                Route::put('/', 'update');
+                Route::get('/documento', 'exibirDocumento');
+            });
             
-            Route::get('cargas/{carga}/chat', [EmbarcadorCargaController::class, 'getChat']);
-            Route::post('cargas/{carga}/chat', [EmbarcadorCargaController::class, 'storeChat'])->middleware('throttle:20,1');
+            // Operations
+            Route::apiResource('locais', LocalOperacionalController::class)->only(['index', 'store', 'destroy']);
+            
+            Route::controller(EmbarcadorCargaController::class)->prefix('cargas')->group(function () {
+                Route::get('/', 'index');
+                Route::post('/', 'store');
+                Route::get('/{carga}', 'show');
+                Route::put('/{carga}', 'update');
+                Route::delete('/{carga}', 'destroy');
+                
+                // Workflows logísticos
+                Route::post('/{carga}/candidaturas/aprovar', 'aprovarCandidato')->middleware(['throttle:10,1', 'idempotency']);
+                Route::post('/{carga}/avaliar', 'avaliarEFinalizarEntrega')->middleware('throttle:5,1');
+                Route::post('/{carga}/disputa', 'abrirDisputa')->middleware(['throttle:5,1', 'idempotency']);
+                
+                Route::get('/documento/pod', 'exibirDocumentoPod'); // Padrão S3
+                Route::get('/{carga}/chat', 'getChat');
+                Route::post('/{carga}/chat', 'storeChat')->middleware('throttle:20,1');
+            });
 
+            // Documentos e POD
+            Route::post('documentos/xml/parse', [DocumentoFiscalController::class, 'parse'])->middleware('throttle:10,1');
+
+            // Financial
+//             Route::post('cargas/{carga}/checkout', [CheckoutController::class, 'gerarPagamento'])->middleware(['throttle:10,1', 'idempotency']);
             Route::get('faturas', [FaturaController::class, 'index']);
             Route::get('faturas/{fatura}', [FaturaController::class, 'show']);
-            Route::get('auditoria/ciot/{id}', [AuditoriaController::class, 'consultarCiot']);
-            
-            // ZT-DEFENSE: Rota do Proxy Local adicionada para leitura segura de KYC e PODs
-            Route::get('perfil/documento', [EmbarcadorPerfilController::class, 'exibirDocumento']);
-            Route::get('cargas/documento/pod', [EmbarcadorCargaController::class, 'exibirDocumentoPod']);
         });
 
         // =========================================================
-        // DOMÍNIO: MOTORISTA
+        // BOUNDED CONTEXT: MOTORISTA
         // =========================================================
         Route::middleware('ability:motorista')->prefix('motorista')->group(function () {
-            Route::get('perfil', [MotoristaPerfilController::class, 'show']);
-            Route::post('perfil', [MotoristaPerfilController::class, 'update']); 
-            Route::get('perfil/documento/{tipo}', [MotoristaPerfilController::class, 'exibirDocumento']); 
             
-            // ZT-DEFENSE: A Rota está LIVRE! 
-            // O Rate Limiting agora é controlado de forma inteligente pelo AppServiceProvider
-            Route::post('perfil/gr/solicitar', [GrController::class, 'solicitarAnalise']);
+            // Identity
+            Route::controller(MotoristaPerfilController::class)->prefix('perfil')->group(function () {
+                Route::get('/', 'show');
+                Route::post('/', 'update'); 
+                Route::get('/documento/{tipo}', 'exibirDocumento'); 
+            });
             
+            // Feature Toggle GR
+            if (config('services.gr.enabled', false)) {
+                Route::post('perfil/gr/solicitar', [GrController::class, 'solicitarAnalise'])->middleware(['throttle:3,1', 'idempotency']);
+            }
+            
+            // Financial
             Route::get('carteira/extrato', [CarteiraController::class, 'extrato']);
-            Route::get('cargas/disponiveis', [MotoristaCargaController::class, 'disponiveis']);
-            Route::get('cargas/minhas', [MotoristaCargaController::class, 'minhasCargas']);
-            Route::post('cargas/{id}/aceitar', [MotoristaCargaController::class, 'aceitar'])->middleware('throttle:10,1');
-            Route::delete('cargas/{id}/aceitar', [MotoristaCargaController::class, 'cancelarAceite']);
-            Route::post('cargas/{id}/iniciar-viagem', [MotoristaCargaController::class, 'iniciarViagem']);
-            Route::post('cargas/{id}/finalizar', [MotoristaCargaController::class, 'finalizarEntrega']);
-            Route::get('cargas/{carga}/chat', [MotoristaCargaController::class, 'getChat']);
-            Route::post('cargas/{carga}/chat', [MotoristaCargaController::class, 'storeChat'])->middleware('throttle:20,1');
+            
+            // Operations (Semantic bindings enforced: {carga} instead of {id})
+            Route::controller(MotoristaCargaController::class)->prefix('cargas')->group(function () {
+                Route::get('/disponiveis', 'disponiveis');
+                Route::get('/minhas', 'minhasCargas');
+                
+                // Fluxo de Viagem
+                Route::post('/{carga}/aceitar', 'aceitar')->middleware(['throttle:10,1', 'idempotency']);
+                Route::delete('/{carga}/aceitar', 'cancelarAceite');
+                Route::post('/{carga}/iniciar-viagem', 'iniciarViagem');
+                Route::post('/{carga}/finalizar', 'finalizarEntrega')->middleware(['throttle:5,1', 'idempotency']);
+                
+                // Comms
+                Route::get('/{carga}/chat', 'getChat');
+                Route::post('/{carga}/chat', 'storeChat')->middleware('throttle:20,1');
+            });
         });
 
         // =========================================================
-        // DOMÍNIO: ADMIN
+        // BOUNDED CONTEXT: ADMIN
         // =========================================================
         Route::middleware('ability:admin')->prefix('admin')->group(function () {
-            Route::get('/dashboard', [AdminController::class, 'dashboardMetrics']);
-            Route::get('/dashboard-stats', [AdminController::class, 'getDashboardStats']);
+            
+            // Core Admin (Requires Splitting in future iterations)
+            Route::controller(AdminController::class)->group(function () {
+                Route::get('/dashboard', 'dashboardMetrics');
+                Route::get('/dashboard-stats', 'getDashboardStats');
 
-            Route::get('/fretes', [AdminController::class, 'listarFretes']);
-            Route::get('/fretes/concluidos', [AdminController::class, 'fretesConcluidos']);
-            Route::get('/operacoes/fretes', [AdminController::class, 'listarMuralFretes']);
+                // Logistics
+                Route::get('/fretes', 'listarFretes');
+                Route::get('/fretes/concluidos', 'fretesConcluidos');
+                Route::get('/fretes/{carga}', 'detalhesFrete');
+                Route::get('/fretes/{carga}/auditoria', 'auditoriaCarga');
+                Route::get('/auditoria/documento', 'exibirDocumentoAuditoria');
+                
+                // Disputes
+                Route::get('/disputas', 'listarDisputas');
+                Route::post('/disputas/{disputa}/resolver', 'resolverDisputa');
+                
+                // Extrato Financeiro Global
+                Route::get('/financeiro/extrato', 'extratoTaxas');
+                
+                // Config & Staff (Cleaned up duplicates)
+                Route::get('/config/variaveis', 'listarVariaveis');
+                Route::put('/config/variaveis', 'atualizarVariaveis');
+                Route::get('/staff', 'listarStaff');
+                Route::post('/staff', 'criarStaff'); 
+                Route::put('/staff/{usuario}', 'atualizarStaff');
+                
+                // Identity Management
+                Route::get('/usuarios', 'listarTodosUsuarios');
+                Route::get('/usuarios-pendentes', 'usuariosPendentes');
+                Route::post('/usuarios/{usuario}/analise', 'analisarUsuario');
+                Route::post('/usuarios/{usuario}/status', 'alterarStatus');
+                Route::get('/kyc/documento', 'exibirDocumentoKyc');
+                
+                // CRM (Cleaned up duplicates)
+                Route::get('/embarcadores', 'listarEmbarcadores');
+                Route::get('/embarcadores/{embarcador}', 'detalhesEmbarcador');
+                Route::put('/embarcadores/{embarcador}/contrato', 'atualizarContratoEmbarcador');
+                
+                Route::get('/motoristas', 'listarMotoristas');
+                Route::get('/motoristas/{motorista}', 'detalhesMotorista');
+                Route::post('/motoristas/{motorista}/kyc', 'avaliarKycMotorista');
+                
+                // API B2B
+                Route::get('/parceiros-api', 'listarParceirosApi');
+                Route::post('/parceiros-api', 'gerarTokenParceiro');
+                Route::post('/parceiros-api/{tokenId}/revogar', 'revogarTokenParceiro');
+            });
             
-            Route::get('/fretes/{id}', [AdminController::class, 'detalhesFrete']);
-            Route::get('/fretes/{id}/auditoria', [AdminController::class, 'auditoriaCarga']);
+            // Parceiros de Negócios (Hub)
+            Route::apiResource('crm/parceiros', ParceiroController::class)->only(['index', 'store', 'update', 'destroy']);
             
-            Route::get('/auditoria/documento', [AdminController::class, 'exibirDocumentoAuditoria']);
-            Route::get('/kyc/documento', [AdminController::class, 'exibirDocumentoKyc']);
-
-            Route::get('/disputas', [AdminController::class, 'listarDisputas']);
-            Route::get('/operacoes/disputas', [AdminController::class, 'listarDisputas']);
-            Route::post('/disputas/{id}/resolver', [AdminController::class, 'resolverDisputa']);
-            Route::post('/operacoes/disputas/{carga}/resolver', [AdminController::class, 'resolverDisputa']);
+            // Faturamento SaaS
+            Route::controller(AdminFaturamentoController::class)->prefix('faturamento')->group(function () {
+                Route::get('/radar', 'radar');
+                Route::get('/ciclos', 'listarCiclos');
+                Route::post('/gerar', 'gerarFaturasManuais')->middleware('idempotency');
+                Route::get('/extrato-taxas', 'extratoTaxasPlataforma');
+                Route::get('/taxas-agregadas', 'taxasAgregadas');
+                Route::post('/congelar/{embarcador}', 'congelar');
+            });
             
-            Route::get('/faturamento/radar', [AdminFaturamentoController::class, 'radar']);
-            Route::get('/faturamento/ciclos', [AdminFaturamentoController::class, 'listarCiclos']);
-            Route::post('/faturamento/gerar', [AdminFaturamentoController::class, 'gerarFaturasManuais']);
-            Route::get('/faturamento/extrato-taxas', [AdminFaturamentoController::class, 'extratoTaxasPlataforma']);
-            Route::get('/faturamento/taxas-agregadas', [AdminFaturamentoController::class, 'taxasAgregadas']);
-            Route::post('/faturamento/congelar/{embarcadorId}', [AdminFaturamentoController::class, 'congelar']);
-            Route::get('/financeiro/extrato', [AdminController::class, 'extratoTaxas']);
-            
-            Route::get('/config/variaveis', [AdminController::class, 'listarVariaveis']);
-            Route::put('/config/variaveis', [AdminController::class, 'atualizarVariaveis']);
-            Route::put('/variaveis', [AdminController::class, 'atualizarVariaveis']);
-            
-            Route::get('/config/staff', [AdminController::class, 'listarStaff']);
-            Route::get('/staff', [AdminController::class, 'listarStaff']);
-            Route::post('/config/staff', [AdminController::class, 'criarStaff']);
-            Route::post('/staff', [AdminController::class, 'criarStaff']); 
-            Route::put('/config/staff/{usuario}', [AdminController::class, 'atualizarStaff']);
-            Route::put('/staff/{usuario}', [AdminController::class, 'atualizarStaff']); 
-            
-            Route::get('/usuarios', [AdminController::class, 'listarTodosUsuarios']);
-            Route::get('/usuarios-pendentes', [AdminController::class, 'usuariosPendentes']);
-            Route::post('/usuarios/{usuario}/analise', [AdminController::class, 'analisarUsuario']);
-            Route::post('/usuarios/{usuario}/status', [AdminController::class, 'alterarStatus']);
-            
-            Route::get('/embarcadores', [AdminController::class, 'listarEmbarcadores']);
-            Route::get('/crm/embarcadores', [AdminController::class, 'listarEmbarcadores']);
-            Route::get('/embarcadores/{id}', [AdminController::class, 'detalhesEmbarcador']);
-            
-            Route::get('/motoristas', [AdminController::class, 'listarMotoristas']);
-            Route::get('/crm/motoristas', [AdminController::class, 'listarMotoristas']);
-            Route::get('/motoristas/{id}', [AdminController::class, 'detalhesMotorista']);
-            Route::post('/motoristas/{id}/kyc', [AdminController::class, 'avaliarKycMotorista']);
-            
-            Route::put('/crm/embarcadores/{embarcador}/contrato', [AdminController::class, 'atualizarContratoEmbarcador']);
-            Route::put('/config/crm/embarcadores/{embarcador}/contrato', [AdminController::class, 'atualizarContratoEmbarcador']);
-            
-            // 🔒 ZERO TRUST: Parceiros e Integrações (API Gateway / Admin CRM)
-            Route::get('/crm/parceiros', [ParceiroController::class, 'index']);
-            Route::post('/crm/parceiros', [ParceiroController::class, 'store'])->middleware('throttle:30,1');
-            Route::put('/crm/parceiros/{parceiro}', [ParceiroController::class, 'update'])->middleware('throttle:30,1');
-            Route::delete('/crm/parceiros/{parceiro}', [ParceiroController::class, 'destroy'])->middleware('throttle:30,1');
-            
-            Route::get('/parceiros-api', [AdminController::class, 'listarParceirosApi']);
-            Route::post('/parceiros-api', [AdminController::class, 'gerarTokenParceiro']);
-            Route::post('/parceiros-api/{tokenId}/revogar', [AdminController::class, 'revogarTokenParceiro']);
-            
-            Route::get('/suporte/tickets', [TicketController::class, 'index']);
-            Route::get('/suporte/tickets/{ticket}', [TicketController::class, 'show']);
-            Route::post('/suporte/tickets/{ticket}/assumir', [TicketController::class, 'assumirTicket']);
-            Route::post('/suporte/tickets/{ticket}/responder', [TicketController::class, 'reply']);
-            Route::post('/suporte/tickets/{ticket}/fechar', [TicketController::class, 'fecharTicket']);
+            // Support Admin
+            Route::controller(TicketController::class)->prefix('suporte/tickets')->group(function () {
+                Route::get('/', 'index');
+                Route::get('/{ticket}', 'show');
+                Route::post('/{ticket}/assumir', 'assumirTicket');
+                Route::post('/{ticket}/responder', 'reply');
+                Route::post('/{ticket}/fechar', 'fecharTicket');
+            });
         });
     });
 
-    Route::middleware(['auth:sanctum', 'ability:gr-partner'])->prefix('partners/gr')->group(function () {
-        Route::post('/analise/callback', [\App\Http\Controllers\Api\V1\Partners\GrIntegrationController::class, 'registrarAnalise']);
-    });
-
-    Route::put('/upload-mock', function() { return response()->json(['ok' => true]); });
+    // =========================================================
+    // PARCEIROS B2B (GR API) - Isolated Context
+    // =========================================================
+    if (config('services.gr.enabled', false)) {
+        Route::middleware(['auth:sanctum', 'ability:gr-partner'])->prefix('partners/gr')->group(function () {
+            Route::post('/analise/callback', [GrIntegrationController::class, 'registrarAnalise'])->middleware('throttle:60,1');
+        });
+    }
 });
 
-Route::prefix('v1/localidades')->group(function () {
-    Route::get('/estados', [\App\Http\Controllers\Api\V1\LocalidadeController::class, 'estados']);
-    Route::get('/estados/{uf}/municipios', [\App\Http\Controllers\Api\V1\LocalidadeController::class, 'municipios']);
+/// =========================================================
+// EXTERNAL WEBHOOKS (Offloading Zero Trust Pipeline)
+// =========================================================
+Route::prefix('v1/webhooks')->middleware(['throttle:100,1'])->group(function () {
+    Route::post('/pef', [PefWebhookController::class, 'handleCallback'])
+        ->middleware('b2b.hmac:pef')
+        ->name('webhook.pef');
+        
+    Route::post('/gateway', [GatewayWebhookController::class, 'handleCallback'])
+        ->middleware('b2b.hmac:gateway')
+        ->name('webhook.gateway');
 });
-
-// =========================================================
-// WEBSOCKETS (Fora da blindagem Sanctum, protegidos por Token Interno)
-// =========================================================
-Route::post('/v1/webhooks/pef', [PefWebhookController::class, 'handleCallback'])->name('webhook.pef');
-Route::post('/v1/webhooks/transat', [TransatWebhookController::class, 'handleCallback'])->name('webhook.transat');
+Route::get('/login', fn() => response()->json(['message' => 'Unauthenticated.'], 401))->name('login');

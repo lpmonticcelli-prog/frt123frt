@@ -85,7 +85,7 @@ const getStatusClass = (status) => {
 const carregarCargas = async () => {
   loading.value = true;
   try {
-    const res = await axios.get('/api/admin/operacoes/fretes');
+    const res = await axios.get('/api/v1/admin/fretes');
     cargas.value = res.data;
   } catch (error) {
     console.error('Erro ao carregar radar de fretes:', error);

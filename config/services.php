@@ -6,12 +6,6 @@ return [
     |--------------------------------------------------------------------------
     | Third Party Services
     |--------------------------------------------------------------------------
-    |
-    | This file is for storing the credentials for third party services such
-    | as Mailgun, Postmark, AWS and more. This file provides the de facto
-    | location for this type of information, allowing packages to have
-    | a conventional file to locate the various service credentials.
-    |
     */
 
     'postmark' => [
@@ -35,23 +29,31 @@ return [
         ],
     ],
 
-    // INJEÇÃO DA ARQUITETURA DE PAGAMENTO E CIOT (123FRETEI)
+    // ==========================================
+    // LOGÍSTICA: PEF / CIOT (Integração ANTT)
+    // ==========================================
     'pef' => [
         'driver' => env('PEF_DRIVER', 'mock'),
+        // ZT-DEFENSE: Mapeamento estrito da chave HMAC. Fail-secure se ausente.
+        'webhook_secret' => env('PEF_WEBHOOK_SECRET') ?: throw new \RuntimeException('Segredo Webhook PEF ausente no .env.'),
     ],
 
     // ==========================================
-    // INTEGRAÇÃO DE RISCO: TRANSAT (GR)
+    // RISCO: FEATURE FLAG (Substitui o microsserviço legado)
     // ==========================================
-    // ZT-DEFENSE: Mapeamento de variáveis para permitir desvio seguro para Mock Server local
-    'transat' => [
-        'base_url' => env('TRANSAT_BASE_URL'),
-        'auth_url' => env('TRANSAT_AUTH_URL'),
-        'username' => env('TRANSAT_USERNAME'),
-        'password' => env('TRANSAT_PASSWORD'),
-        'cliente_id' => env('TRANSAT_CLIENTE_ID'),
-        'empresa_id' => env('TRANSAT_EMPRESA_ID'),
-        'webhook_secret' => env('TRANSAT_WEBHOOK_SECRET'),
+    'gr' => [
+        'enabled' => env('FEATURE_GR_ENABLED', true),
+    ],
+
+    // ==========================================
+    // FINANCEIRO: GATEWAY (Split e Escrow)
+    // ==========================================
+    'gateway' => [
+        'base_url' => env('GATEWAY_BASE_URL'),
+        'api_key' => env('GATEWAY_API_KEY'),
+        // ZT-DEFENSE: Fail-secure obrigatório.
+        'webhook_secret' => env('GATEWAY_WEBHOOK_SECRET') ?: throw new \RuntimeException('Segredo Webhook Gateway Financeiro ausente no .env.'),
+        'split_receiver_id' => env('GATEWAY_SPLIT_RECEIVER_ID'),
     ],
 
 ];

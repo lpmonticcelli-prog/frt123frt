@@ -62,6 +62,10 @@
           <router-link :to="{ name: 'EmbarcadorPerfil' }" class="block px-4 py-2.5 rounded-lg text-sm font-medium transition-colors hover:bg-surface-100 focus:outline-none focus:ring-2 focus:ring-brand-500" active-class="bg-brand-50 text-brand-700 shadow-clinical-sm font-semibold">
             Minha Conta
           </router-link>
+
+          <router-link :to="{ name: 'EmbarcadorLocais' }" class="block px-4 py-2.5 rounded-lg text-sm font-medium transition-colors hover:bg-surface-100 focus:outline-none focus:ring-2 focus:ring-brand-500" active-class="bg-brand-50 text-brand-700 shadow-clinical-sm font-semibold">
+            Locais de Coleta
+          </router-link>
         </div>
       </nav>
 
@@ -131,15 +135,18 @@ import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
 import AdCarousel from '../Components/AdCarousel.vue';
 
+interface AuthUser {
+  name?: string;
+  [key: string]: any;
+}
+
 const route = useRoute();
 const router = useRouter();
 const authStore = useAuthStore();
 
-// Gerenciamento de Estado Mobile
 const isMobileMenuOpen = ref<boolean>(false);
 const isLoggingOut = ref<boolean>(false);
 
-// Fechar menu mobile automaticamente ao navegar
 watch(() => route.path, () => {
   isMobileMenuOpen.value = false;
 });
@@ -151,10 +158,10 @@ onErrorCaptured((err: unknown, instance: any, info: string) => {
 
 const tituloPagina = computed<string>(() => (route.meta?.title as string) || 'Painel de Controle');
 
-const userName = computed<string>(() => authStore.user?.name || 'Carregando...');
+const userName = computed<string>(() => (authStore.user as AuthUser | null)?.name || 'Carregando...');
 
 const userInitial = computed<string>(() => {
-  const name = authStore.user?.name;
+  const name = (authStore.user as AuthUser | null)?.name;
   if (!name || typeof name !== 'string') return 'E';
   const trimmed = name.trim();
   return trimmed.length > 0 ? trimmed.charAt(0).toUpperCase() : 'E';
@@ -179,7 +186,6 @@ const handleLogout = async (): Promise<void> => {
 </script>
 
 <style scoped>
-/* Transições globais já declaradas em app.css, mantidas aqui apenas para fallback seguro */
 .fade-enter-active,
 .fade-leave-active {
   transition: opacity 0.2s ease;

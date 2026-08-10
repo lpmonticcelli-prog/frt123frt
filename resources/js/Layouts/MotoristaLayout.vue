@@ -25,7 +25,6 @@
     >
       <div class="h-16 flex-shrink-0 flex items-center justify-between px-6 border-b border-surface-200 pt-safe-top lg:pt-0">
         <div class="flex items-center gap-2">
-          <!-- Injeção do Asset Oficial (logo1.png) e Ajuste HEX do "123" -->
           <img src="/logo1.png" alt="Logotipo 123fretei" class="h-7 w-auto object-contain shrink-0" />
           <span class="text-xl font-extrabold tracking-tight flex items-baseline">
             <span class="text-[#035D29]">123</span><span class="text-brand-600">fretei</span>
@@ -141,7 +140,6 @@ import { ref, computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth'; 
 
-// ATENÇÃO: NOME DA PASTA COM LETRA MAIÚSCULA PARA O VITE (LINUX/WSL)
 import AdCarousel from '../Components/AdCarousel.vue';
 
 const route = useRoute();

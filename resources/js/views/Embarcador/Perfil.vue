@@ -33,7 +33,7 @@
         <form @submit.prevent="updatePerfil" class="p-8 space-y-8">
           
           <div>
-            <h3 class="text-xs font-black text-slate-400 uppercase tracking-wider mb-5 border-b border-slate-100 pb-3">Dados Empresariais</h3>
+            <h3 class="text-xs font-black text-slate-400 uppercase tracking-wider mb-5 border-b border-slate-100 pb-3">Dados Empresariais e Fiscais</h3>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div class="md:col-span-2">
                 <label class="block text-sm font-bold text-slate-700 mb-2">Razão Social <span class="text-red-500">*</span></label>
@@ -50,45 +50,6 @@
               <div>
                 <label class="block text-sm font-bold text-slate-700 mb-2">Telefone / WhatsApp Comercial <span class="text-red-500">*</span></label>
                 <input v-model="form.telefone" type="text" required class="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm bg-slate-50 focus:bg-white transition-colors">
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <h3 class="text-xs font-black text-slate-400 uppercase tracking-wider mb-5 border-b border-slate-100 pb-3">Endereço de Faturamento</h3>
-            <div class="grid grid-cols-1 md:grid-cols-6 gap-5">
-              <div class="md:col-span-2">
-                <label class="block text-xs font-bold text-slate-700 uppercase mb-2">CEP</label>
-                <div class="flex">
-                  <input v-model="form.cep" type="text" maxlength="9" @blur="buscarCep" class="w-full px-4 py-2.5 border border-slate-300 rounded-l-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm bg-slate-50 focus:bg-white transition-colors font-mono" placeholder="00000-000">
-                  <button type="button" @click="buscarCep" class="bg-slate-100 border-y border-r border-slate-300 px-4 rounded-r-lg text-xs font-bold text-slate-700 hover:bg-slate-200 transition-colors">
-                    Buscar
-                  </button>
-                </div>
-              </div>
-              <div class="md:col-span-4">
-                <label class="block text-xs font-bold text-slate-700 uppercase mb-2">Logradouro (Rua, Av)</label>
-                <input v-model="form.logradouro" type="text" class="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm bg-slate-50 focus:bg-white transition-colors">
-              </div>
-              <div class="md:col-span-2">
-                <label class="block text-xs font-bold text-slate-700 uppercase mb-2">Número</label>
-                <input v-model="form.numero" type="text" class="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm bg-slate-50 focus:bg-white transition-colors">
-              </div>
-              <div class="md:col-span-4">
-                <label class="block text-xs font-bold text-slate-700 uppercase mb-2">Complemento</label>
-                <input v-model="form.complemento" type="text" class="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm bg-slate-50 focus:bg-white transition-colors">
-              </div>
-              <div class="md:col-span-2">
-                <label class="block text-xs font-bold text-slate-700 uppercase mb-2">Bairro</label>
-                <input v-model="form.bairro" type="text" class="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm bg-slate-50 focus:bg-white transition-colors">
-              </div>
-              <div class="md:col-span-3">
-                <label class="block text-xs font-bold text-slate-700 uppercase mb-2">Cidade</label>
-                <input v-model="form.cidade" type="text" class="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm bg-slate-50 focus:bg-white transition-colors">
-              </div>
-              <div class="md:col-span-1">
-                <label class="block text-xs font-bold text-slate-700 uppercase mb-2">UF</label>
-                <input v-model="form.uf" type="text" maxlength="2" class="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm uppercase bg-slate-50 focus:bg-white transition-colors">
               </div>
             </div>
           </div>
@@ -143,7 +104,7 @@
 import { ref, onMounted, computed } from 'vue';
 import axios from 'axios';
 
-// Estado
+// Estado higienizado: focando apenas na conformidade (KYC) e dados da empresa
 const pageLoading = ref(true);
 const submitLoading = ref(false);
 const arquivoDocumento = ref(null);
@@ -153,14 +114,7 @@ const form = ref({
   cnpj: '',
   inscricao_estadual: '',
   telefone: '',
-  cep: '',
-  logradouro: '',
-  numero: '',
-  complemento: '',
-  bairro: '',
-  cidade: '',
-  uf: '',
-  status_conta: 'pending', // pending, active, rejected
+  status_conta: 'pending',
   documento_kyc_url: null
 });
 
@@ -205,26 +159,9 @@ const handleDocumentUpload = (event) => {
   }
 };
 
-const buscarCep = async () => {
-  const cepLimpo = form.value.cep?.replace(/\D/g, '');
-  if (cepLimpo?.length !== 8) return;
-
-  try {
-    const response = await axios.get(`https://viacep.com.br/ws/${cepLimpo}/json/`);
-    if (!response.data.erro) {
-      form.value.logradouro = response.data.logradouro;
-      form.value.bairro = response.data.bairro;
-      form.value.cidade = response.data.localidade;
-      form.value.uf = response.data.uf;
-    }
-  } catch (error) {
-    console.error('Erro ao buscar CEP:', error);
-  }
-};
-
 const fetchPerfil = async () => {
   try {
-    const response = await axios.get('/api/embarcador/perfil');
+    const response = await axios.get('/api/v1/embarcador/perfil');
     form.value = { ...form.value, ...response.data };
   } catch (error) {
     console.error('Erro ao buscar perfil:', error);
@@ -251,7 +188,7 @@ const updatePerfil = async () => {
   }
 
   try {
-    const response = await axios.post('/api/embarcador/perfil', formData, {
+    const response = await axios.post('/api/v1/embarcador/perfil', formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
       }

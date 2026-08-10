@@ -4,62 +4,102 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Services\Security\BlindIndexService;
 
 class Motorista extends Model
 {
     use HasFactory;
 
-    // Força o nome da tabela em português
     protected $table = 'motoristas';
 
     protected $fillable = [
         'user_id',
         'cpf',
+        'cpf_bidx',
         'cnh',
+        'cnh_bidx',
         'validade_cnh',
         'rntrc',
+        'rntrc_bidx',
         'is_disponivel',
-        'doc_cnh',                  // KYC: Caminho da imagem da CNH
-        'doc_selfie_cnh',           // KYC: Nova Prova de Vida (Selfie + CNH)
-        'doc_rntrc',                // KYC: Caminho do documento RNTRC
-        'doc_comprovante_endereco', // KYC: Caminho do comprovante de endereço
-        'status_verificacao',       // KYC: Status da análise interna
+        'doc_cnh',                  
+        'doc_selfie_cnh',           
+        'doc_rntrc',                
+        'doc_comprovante_endereco', 
+        'status_verificacao',       
         'score_geral',
         'total_viagens',
         'tier_reputacao',
         'suspenso_ate',
-        // ZT-DEFENSE: Colunas da Gerenciadora de Risco (Trans Sat)
         'gr_status',
         'gr_referencia',
-        'gr_biometria_url'          // <-- ADICIONADO: URL dinâmica para o QR Code da Biometria Facial
+        'gr_referencia_bidx',
+        'gr_biometria_url'          
     ];
 
-    protected $casts = [
-        'validade_cnh' => 'date',
-        'is_disponivel' => 'boolean',
-        'score_geral' => 'decimal:2',
-        'suspenso_ate' => 'datetime',
+    protected $hidden = [
+        'cpf',
+        'cpf_bidx',
+        'cnh',
+        'cnh_bidx',
+        'rntrc',
+        'rntrc_bidx',
+        'doc_cnh',
+        'doc_selfie_cnh',
+        'doc_rntrc',
+        'doc_comprovante_endereco',
+        'gr_referencia',
+        'gr_referencia_bidx',
+        'gr_biometria_url'
     ];
 
-    /**
-     * Relacionamento com a tabela de usuários
-     */
+    protected function casts(): array
+    {
+        return [
+            'validade_cnh' => 'date',
+            'is_disponivel' => 'boolean',
+            'score_geral' => 'decimal:2',
+            'suspenso_ate' => 'datetime',
+            'cpf' => 'encrypted',
+            'cnh' => 'encrypted',
+            'rntrc' => 'encrypted',
+            'doc_cnh' => 'encrypted',
+            'doc_selfie_cnh' => 'encrypted',
+            'doc_rntrc' => 'encrypted',
+            'doc_comprovante_endereco' => 'encrypted',
+            'gr_referencia' => 'encrypted',
+            'gr_biometria_url' => 'encrypted',
+        ];
+    }
+
+    protected static function booted(): void
+    {
+        static::saving(function (self $model) {
+            if ($model->isDirty('cpf') && !empty($model->cpf)) {
+                $model->cpf_bidx = BlindIndexService::make($model->cpf);
+            }
+            if ($model->isDirty('cnh') && !empty($model->cnh)) {
+                $model->cnh_bidx = BlindIndexService::make($model->cnh);
+            }
+            if ($model->isDirty('rntrc') && !empty($model->rntrc)) {
+                $model->rntrc_bidx = BlindIndexService::make($model->rntrc);
+            }
+            if ($model->isDirty('gr_referencia') && !empty($model->gr_referencia)) {
+                $model->gr_referencia_bidx = BlindIndexService::make($model->gr_referencia);
+            }
+        });
+    }
+
     public function user()
     {
         return $this->belongsTo(User::class);
     }
 
-    /**
-     * Relacionamento com as Cargas
-     */
     public function cargas()
     {
         return $this->hasMany(Carga::class);
     }
 
-    /**
-     * Relacionamentos de Marketplace e Reputação
-     */
     public function candidaturas()
     {
         return $this->hasMany(CargaCandidatura::class);
@@ -70,38 +110,37 @@ class Motorista extends Model
         return $this->hasMany(Avaliacao::class);
     }
 
-    // =========================================================
-    // REGRAS DE NEGÓCIO: GERENCIADORA DE RISCO (ZERO TRUST)
-    // =========================================================
-    
     /**
-     * Verifica se o motorista está com status liberado pela GR.
+     * ZT-DEFENSE: Inteligência de Bypass.
+     * Se a flag de GR estiver desligada, este método anula o bloqueio e libera a operação.
      */
     public function isAprovadoGr(): bool
     {
+        if (!config('services.gr.enabled', false)) {
+            return true;
+        }
+
         return $this->gr_status === 'aprovado';
     }
 
     /**
-     * Verifica se o motorista está pendente de biometria facial na GR.
+     * ZT-DEFENSE: Inteligência de Bypass.
      */
     public function aguardaBiometriaGr(): bool
     {
+        if (!config('services.gr.enabled', false)) {
+            return false;
+        }
+
         return $this->gr_status === 'aguardando_biometria';
     }
 
-    /**
-     * Regra de bloqueio absoluto para candidaturas.
-     * O motorista só pode se candidatar se:
-     * 1. O KYC interno estiver aprovado.
-     * 2. A Gerenciadora de Risco (Trans Sat) estiver como 'aprovado'.
-     * 3. Não estiver cumprindo suspensão disciplinar.
-     */
     public function podeAceitarFrete(): bool
     {
         $semSuspensao = is_null($this->suspenso_ate) || $this->suspenso_ate->isPast();
         $kycAprovado = $this->status_verificacao === 'aprovado';
         
+        // O isAprovadoGr() agora é dinâmico e respeita o ambiente da DigitalOcean
         return $kycAprovado && $this->isAprovadoGr() && $semSuspensao;
     }
 }

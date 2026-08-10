@@ -9,12 +9,11 @@ return new class extends Migration
     public function up()
     {
         Schema::table('motoristas', function (Blueprint $table) {
-            // Colunas para armazenar o caminho dos documentos no servidor
-            $table->string('doc_cnh')->nullable()->after('is_disponivel');
-            $table->string('doc_rntrc')->nullable()->after('doc_cnh');
-            $table->string('doc_comprovante_endereco')->nullable()->after('doc_rntrc');
+            // ZT-DEFENSE: Extensão de capacidade para encriptação de caminhos lógicos no disco
+            $table->text('doc_cnh')->nullable()->after('is_disponivel');
+            $table->text('doc_rntrc')->nullable()->after('doc_cnh');
+            $table->text('doc_comprovante_endereco')->nullable()->after('doc_rntrc');
             
-            // Status da verificação (para você aprovar no painel admin futuramente)
             $table->enum('status_verificacao', ['pendente', 'em_analise', 'aprovado', 'rejeitado'])->default('pendente')->after('doc_comprovante_endereco');
         });
     }

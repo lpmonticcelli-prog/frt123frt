@@ -199,7 +199,7 @@ const isCnhVencida = (dataValidade) => {
 const carregarMotoristas = async () => {
   loading.value = true;
   try {
-    const res = await axios.get('/api/admin/crm/motoristas');
+    const res = await axios.get('/api/v1/admin/motoristas');
     motoristas.value = res.data.data ? res.data.data : res.data;
   } catch (error) {
     console.error('Erro ao carregar motoristas:', error);

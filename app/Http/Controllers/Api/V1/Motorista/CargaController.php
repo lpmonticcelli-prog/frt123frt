@@ -6,16 +6,16 @@ namespace App\Http\Controllers\Api\V1\Motorista;
 
 use App\Http\Controllers\Controller;
 use App\Models\Carga;
-use App\Models\Ciot;
 use App\Models\CargaCandidatura;
-use App\Contracts\PefGatewayInterface;
 use App\Services\Logistics\CandidaturaService;
 use App\Events\NovaMensagemChat;
+use DomainException;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 use Throwable;
 
 class CargaController extends Controller
@@ -28,7 +28,6 @@ class CargaController extends Controller
     private const STATUS_EM_TRANSITO = 'em_transito';
     private const STATUS_EM_AUDITORIA = 'em_auditoria';
     private const STATUS_CANCELADA_MOTORISTA = 'cancelada_motorista';
-    private const STATUS_CANCELADO = 'cancelado';
 
     public function __construct(
         private readonly CandidaturaService $candidaturaService
@@ -49,71 +48,114 @@ class CargaController extends Controller
 
     public function disponiveis(Request $request): JsonResponse
     {
+        $cargas = Carga::with(['embarcador.user:id,name,email'])
+            ->where('status', self::STATUS_PUBLICADA)
+            ->orderBy('created_at', 'desc')
+            ->paginate(20);
+
         return response()->json([
             'status' => 'success',
-            'data' => Carga::with(['embarcador.user:id,name,email'])
-                ->where('status', self::STATUS_PUBLICADA)
-                ->orderBy('created_at', 'desc')
-                ->paginate(20)
+            'data'   => $cargas
         ], 200);
     }
 
     public function minhasCargas(Request $request): JsonResponse
     {
         $motoristaId = $request->user()->motorista->id ?? null;
+
         if (!$motoristaId) {
             return response()->json(['error' => 'Perfil de motorista não localizado.'], 403);
         }
 
-        // Recupera cargas alocadas OU lances pendentes em uma única query
-        $cargas = Carga::with(['embarcador', 'candidaturas'])
+        $cargas = Carga::with(['embarcador', 'candidaturas' => function ($query) use ($motoristaId) {
+                $query->where('motorista_id', $motoristaId);
+            }])
             ->where(function ($query) use ($motoristaId) {
                 $query->where('motorista_id', $motoristaId)
                       ->orWhereHas('candidaturas', function ($sub) use ($motoristaId) {
-                          $sub->where('motorista_id', $motoristaId)->where('status', self::STATUS_PENDENTE);
+                          $sub->where('motorista_id', $motoristaId)
+                              ->where('status', self::STATUS_PENDENTE);
                       });
             })
             ->orderBy('created_at', 'desc')
             ->paginate(15);
 
-        return response()->json(['status' => 'success', 'data' => $cargas], 200);
+        return response()->json([
+            'status' => 'success', 
+            'data'   => $cargas
+        ], 200);
     }
 
+    /**
+     * GARGALO CRÍTICO: Matchmaking Engine.
+     * Pessimistic Locking estrito e delegação correta de exceções ao Kernel.
+     */
     public function aceitar(Request $request, int $id): JsonResponse
     {
         $motorista = $request->user()->motorista;
+
         if (!$motorista) {
             return response()->json(['error' => 'Acesso negado. Perfil incompleto.'], 403);
         }
 
         try {
-            $carga = Carga::findOrFail($id);
-            
-            // Delegação estrita para a Camada de Domínio Logístico
-            $candidatura = $this->candidaturaService->aplicar($motorista, $carga);
+            return DB::transaction(function () use ($id, $motorista) {
+                // LOCK CONTENTION DEFENSE
+                $carga = Carga::lockForUpdate()->findOrFail($id);
 
-            return response()->json([
-                'message' => 'Lance registrado. Aguarde a aprovação da transportadora.',
-                'data' => [
-                    'candidatura_id' => $candidatura->id,
-                    'status' => $candidatura->status,
-                    'expira_em' => $candidatura->expires_at->toIso8601String()
-                ]
-            ], 200);
+                if ($carga->status !== self::STATUS_PUBLICADA) {
+                    throw new DomainException('Este frete não está mais aceitando lances.');
+                }
 
-        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
-             return response()->json(['error' => $e->getMessage()], $e->getStatusCode());
-        } catch (\Exception $e) {
-            Log::warning("[Bidding] Falha de candidatura interceptada", [
+                // ATOMIC CHECK
+                $totalCandidaturas = DB::table('carga_candidaturas')
+                    ->where('carga_id', $carga->id)
+                    ->where('status', self::STATUS_PENDENTE)
+                    ->count();
+
+                if ($totalCandidaturas >= 10) {
+                    throw new DomainException('O limite de 10 motoristas simultâneos para este frete foi atingido.');
+                }
+
+                $jaCandidatado = DB::table('carga_candidaturas')
+                    ->where('carga_id', $carga->id)
+                    ->where('motorista_id', $motorista->id)
+                    ->exists();
+
+                if ($jaCandidatado) {
+                    throw new DomainException('Você já registrou um lance neste frete.');
+                }
+
+                $candidatura = $this->candidaturaService->aplicar($motorista, $carga);
+
+                return response()->json([
+                    'message' => 'Lance registrado. Aguarde a aprovação da transportadora.',
+                    'data' => [
+                        'candidatura_id' => $candidatura->id,
+                        'status'         => $candidatura->status,
+                        'expira_em'      => $candidatura->expires_at->toIso8601String()
+                    ]
+                ], 200);
+            });
+
+        } catch (ModelNotFoundException $e) {
+            return response()->json(['error' => 'Frete não encontrado.'], 404);
+        } catch (DomainException $e) {
+            return response()->json(['error' => $e->getMessage()], 400);
+        } catch (QueryException $e) {
+            // Delega falhas de lock atômico (40P01, 55P03) para o Global Exception Handler
+            throw $e;
+        } catch (Throwable $e) {
+            Log::critical('[Matchmaking] Falha sistêmica ao registrar lance', [
                 'motorista_id' => $motorista->id,
-                'carga_id' => $id,
-                'motivo' => $e->getMessage()
+                'carga_id'     => $id,
+                'motivo'       => $e->getMessage()
             ]);
-            return response()->json(['error' => $e->getMessage()], 409);
+            return response()->json(['error' => 'Erro interno ao processar a candidatura.'], 500);
         }
     }
 
-    public function cancelarAceite(Request $request, int $id, PefGatewayInterface $pefGateway): JsonResponse
+    public function cancelarAceite(Request $request, int $id): JsonResponse
     {
         $motorista = $request->user()->motorista;
         
@@ -122,48 +164,38 @@ class CargaController extends Controller
         }
 
         try {
-            $carga = Carga::findOrFail($id);
+            return DB::transaction(function () use ($id, $motorista) {
+                $carga = Carga::lockForUpdate()->findOrFail($id);
 
-            // Cenário 1: Quebra de Contrato (Motorista cancela após ser escolhido e faturado no CIOT)
-            if ($carga->motorista_id === $motorista->id) {
+                if ($carga->motorista_id === $motorista->id) {
+                    $this->candidaturaService->cancelarPosAprovacao($motorista, $carga);
+                    
+                    return response()->json([
+                        'message' => 'Carga devolvida ao mercado. ALERTA: Devido à quebra de contrato, sua métrica de SLA foi penalizada.'
+                    ], 200);
+                } 
                 
-                DB::beginTransaction();
-                
-                $this->candidaturaService->cancelarPosAprovacao($motorista, $carga);
+                $candidatura = CargaCandidatura::where('carga_id', $carga->id)
+                    ->where('motorista_id', $motorista->id)
+                    ->where('status', self::STATUS_PENDENTE)
+                    ->first();
 
-                // Expurgo de recursos fiduciários
-                $ciot = Ciot::where('carga_id', $carga->id)->lockForUpdate()->first();
-                if ($ciot) {
-                    $pefGateway->cancelarCiot($ciot->codigo_ciot);
-                    $ciot->update(['status' => self::STATUS_CANCELADO]);
-                    $ciot->delete(); // Soft delete por conformidade legal
+                if ($candidatura) {
+                    $candidatura->update(['status' => self::STATUS_CANCELADA_MOTORISTA]);
+                    return response()->json(['message' => 'Lance removido com sucesso.'], 200);
                 }
-                
-                DB::commit();
 
-                return response()->json([
-                    'message' => 'Carga devolvida ao mercado. ALERTA: Devido à quebra de contrato, sua conta foi penalizada/suspensa.'
-                ], 200);
-            } 
-            
-            // Cenário 2: Retirada pacífica de Lance (Candidatura Pendente)
-            $candidatura = CargaCandidatura::where('carga_id', $carga->id)
-                ->where('motorista_id', $motorista->id)
-                ->where('status', self::STATUS_PENDENTE)
-                ->first();
+                throw new DomainException('Nenhuma candidatura ativa encontrada para este frete.');
+            });
 
-            if ($candidatura) {
-                $candidatura->update(['status' => self::STATUS_CANCELADA_MOTORISTA]);
-                return response()->json(['message' => 'Lance removido com sucesso.'], 200);
-            }
-
-            return response()->json(['error' => 'Nenhuma candidatura ativa encontrada para este frete.'], 404);
-
+        } catch (ModelNotFoundException $e) {
+            return response()->json(['error' => 'Frete não encontrado.'], 404);
+        } catch (DomainException $e) {
+            return response()->json(['error' => $e->getMessage()], 400);
+        } catch (QueryException $e) {
+            throw $e;
         } catch (Throwable $e) {
-            if (DB::transactionLevel() > 0) {
-                DB::rollBack();
-            }
-            Log::critical('Falha ao cancelar aceite', ['carga_id' => $id, 'error' => $e->getMessage()]);
+            Log::critical('Falha ao cancelar lance/aceite', ['carga_id' => $id, 'error' => $e->getMessage()]);
             return response()->json(['error' => 'Erro interno ao processar o cancelamento.'], 500);
         }
     }
@@ -172,15 +204,14 @@ class CargaController extends Controller
     {
         try {
             DB::transaction(function () use ($request, $id) {
-                $carga = Carga::where('id', $id)->lockForUpdate()->firstOrFail();
+                $carga = Carga::lockForUpdate()->findOrFail($id);
                 
                 if ($carga->motorista_id !== $request->user()->motorista->id) {
-                    abort(403, 'Acesso negado. Frete alocado a terceiros.');
+                    throw new DomainException('Acesso negado. Frete alocado a terceiros.');
                 }
                 
-                // Validação de Compliance Fiduciária e Risco (GR)
                 if (!in_array($carga->status, [self::STATUS_AGUARDANDO_COLETA, self::STATUS_ALOCADA], true)) {
-                    abort(400, 'A viagem não pode ser iniciada. Aguarde liberação jurídica (Trans Sat) ou fiduciária (CIOT).');
+                    throw new DomainException('A viagem não pode ser iniciada. Aguarde liberação da transportadora e Gerenciadora de Risco.');
                 }
 
                 $carga->update(['status' => self::STATUS_EM_TRANSITO]);
@@ -190,80 +221,64 @@ class CargaController extends Controller
 
             return response()->json(['message' => 'Boa viagem! Acompanhamento por GPS ativado.'], 200);
             
-        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
-            return response()->json(['error' => $e->getMessage()], $e->getStatusCode());
+        } catch (ModelNotFoundException $e) {
+            return response()->json(['error' => 'Frete não encontrado.'], 404);
+        } catch (DomainException $e) {
+            return response()->json(['error' => $e->getMessage()], 400);
+        } catch (QueryException $e) {
+            throw $e;
         } catch (Throwable $e) {
             Log::error('Erro ao iniciar viagem', ['carga_id' => $id, 'error' => $e->getMessage()]);
             return response()->json(['error' => 'Falha interna ao inicializar telemetria do frete.'], 500);
         }
     }
 
-    /**
-     * O Cofre: Finalização Crítica de Entrega (Comprovantes).
-     */
     public function finalizarEntrega(Request $request, int $id): JsonResponse
     {
-        $request->validate([
-            'foto_canhoto' => 'required|image|max:10240',
-            'foto_carga'   => 'required|image|max:10240',
+        $validated = $request->validate([
+            'foto_canhoto_path' => ['required', 'string', 'max:255'],
+            'foto_carga_path'   => ['required', 'string', 'max:255'],
         ], [
-            'image' => 'Evidências devem ser obrigatoriamente imagens fotográficas (JPG/PNG).',
-            'max' => 'Para evitar exaustão do servidor, envie fotos com até 10MB.'
+            'required' => 'O caminho do comprovante no repositório cloud é obrigatório.'
         ]);
 
         $motoristaId = $request->user()->motorista->id;
-        $pathCanhoto = null;
-        $pathCarga = null;
 
         try {
-            DB::beginTransaction();
-            
-            $carga = Carga::where('id', $id)->lockForUpdate()->firstOrFail();
-            
-            if ($carga->motorista_id !== $motoristaId) {
-                abort(403, 'Operação negada.');
-            }
-            
-            if ($carga->status !== self::STATUS_EM_TRANSITO) {
-                abort(400, 'Status logístico inválido para finalização (' . $carga->status . ').');
-            }
+            DB::transaction(function () use ($id, $motoristaId, $validated) {
+                $carga = Carga::lockForUpdate()->findOrFail($id);
+                
+                if ($carga->motorista_id !== $motoristaId) {
+                    throw new DomainException('Operação negada. Carga pertence a terceiros.', 403);
+                }
+                
+                if ($carga->status !== self::STATUS_EM_TRANSITO) {
+                    throw new DomainException('Status logístico inválido para finalização (' . $carga->status . ').', 400);
+                }
 
-            // Operação LFI Secure & Cloud Agnostic
-            $prefix = "pod/carga_{$carga->id}";
-            $pathCanhoto = $request->file('foto_canhoto')->store($prefix);
-            $pathCarga = $request->file('foto_carga')->store($prefix);
+                $carga->update([
+                    'status' => self::STATUS_EM_AUDITORIA,
+                    'foto_canhoto' => $validated['foto_canhoto_path'],
+                    'foto_carga' => $validated['foto_carga_path']
+                ]);
 
-            if (!$pathCanhoto || !$pathCarga) {
-                throw new \RuntimeException('Falha no subsistema de armazenamento. As evidências não foram persistidas.');
-            }
-
-            $carga->update([
-                'status' => self::STATUS_EM_AUDITORIA,
-                'foto_canhoto' => $pathCanhoto,
-                'foto_carga' => $pathCarga
-            ]);
-            
-            DB::commit();
-
-            Log::info("[POD] Finalização de Frete concluída", [
-                'motorista_id' => $motoristaId, 
-                'carga_id' => $carga->id
-            ]);
+                Log::info("[POD] Finalização de Frete concluída", [
+                    'motorista_id' => $motoristaId, 
+                    'carga_id' => $carga->id
+                ]);
+            });
 
             return response()->json(['message' => 'Viagem finalizada. O canhoto foi enviado para a auditoria do contratante.'], 200);
 
-        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
-            DB::rollBack();
-            return response()->json(['error' => $e->getMessage()], $e->getStatusCode());
+        } catch (ModelNotFoundException $e) {
+            return response()->json(['error' => 'Frete não encontrado.'], 404);
+        } catch (DomainException $e) {
+            return response()->json(['error' => $e->getMessage()], $e->getCode() ?: 400);
+        } catch (QueryException $e) {
+            throw $e;
         } catch (Throwable $e) {
-            DB::rollBack();
-            
-            // Reversão de I/O (Evita lixo no disco/S3)
-            if ($pathCanhoto && Storage::exists($pathCanhoto)) Storage::delete($pathCanhoto);
-            if ($pathCarga && Storage::exists($pathCarga)) Storage::delete($pathCarga);
-
-            Log::critical('Falha catastrófica ao finalizar frete', ['carga_id' => $id, 'error' => $e->getMessage()]);
-            return response()->json(['error' => 'Falha severa de rede ou armazenamento. Tente enviar novamente em instantes.'], 500);
+            Log::critical('Falha sistêmica ao finalizar frete', ['carga_id' => $id, 'error' => $e->getMessage()]);
+            return response()->json(['error' => 'Falha severa de banco de dados. Tente novamente em instantes.'], 500);
         }
     }
 
@@ -298,23 +313,22 @@ class CargaController extends Controller
 
         try {
             $msgId = DB::table('carga_mensagens')->insertGetId([
-                'carga_id' => $carga->id,
-                'remetente_id' => $user->motorista->id,
+                'carga_id'       => $carga->id,
+                'remetente_id'   => $user->motorista->id,
                 'remetente_tipo' => self::ROLE_MOTORISTA,
-                'mensagem' => $mensagemLimpa,
-                'created_at' => now(), 
-                'updated_at' => now()
+                'mensagem'       => $mensagemLimpa,
+                'created_at'     => now(), 
+                'updated_at'     => now()
             ]);
 
             $mensagemSalva = DB::table('carga_mensagens')->find($msgId);
 
-            // Transmissão Assíncrona para o Frontend Logístico (Pusher/Reverb)
             broadcast(new NovaMensagemChat($mensagemSalva, $carga->id))->toOthers();
 
             return response()->json($mensagemSalva, 201);
             
         } catch (Throwable $e) {
-            Log::error('Erro ao transmitir mensagem no chat (Motorista)', ['error' => $e->getMessage()]);
+            Log::error('Erro I/O ao transmitir mensagem no chat', ['error' => $e->getMessage()]);
             return response()->json(['error' => 'Erro interno ao tentar enviar a mensagem. Verifique sua conexão.'], 500);
         }
     }

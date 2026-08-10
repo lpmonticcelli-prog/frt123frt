@@ -3,8 +3,10 @@
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
+use App\Models\Role;
+use App\Models\User;
+use App\Models\Motorista;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
@@ -14,21 +16,20 @@ Artisan::command('inspire', function () {
 Schedule::command('fretei:liquidar-sla')->hourly();
 
 // ==========================================
-// DEVSECOPS: ROOT INJECTION (LOW-LEVEL BYPASS)
+// DEVSECOPS: ROOT INJECTION (ELOQUENT SAFE)
 // ==========================================
 Artisan::command('forge:root', function () {
-    $roleId = DB::table('roles')->where('slug', 'admin')->value('id');
+    $role = Role::firstOrCreate(['slug' => 'admin'], ['name' => 'Administrador']);
     
-    // BYPASS: Usamos DB::table() para interagir com o PostgreSQL no baixo nível.
-    DB::table('users')->updateOrInsert(
+    // ZT-DEFENSE: UpdateOrCreate usa a malha Eloquent, ativando BlindIndexService e o Cast de Hash
+    $user = User::updateOrCreate(
         ['email' => 'dev@123fretei.com.br'],
         [
             'name' => 'DevOps Root',
-            'password' => Hash::make('password'),
-            'role_id' => $roleId ?: 1,
+            'password' => 'password', 
+            'role_id' => $role->id,
             'phone' => '11900000000',
-            'created_at' => now(),
-            'updated_at' => now()
+            'status' => 'active'
         ]
     );
 
@@ -39,22 +40,33 @@ Artisan::command('forge:root', function () {
 // DEVSECOPS: INJEÇÃO DE PILOTO DE TESTE Padrão (MOTORISTA)
 // ==========================================
 Artisan::command('forge:motorista', function () {
-    $roleId = DB::table('roles')->where('slug', 'motorista')->value('id');
+    $role = Role::where('slug', 'motorista')->first();
     
-    if (!$roleId) {
+    if (!$role) {
         $this->error('❌ ARQUITETURA INCOMPLETA: A role "motorista" não existe na tabela de cargos.');
         return;
     }
 
-    DB::table('users')->updateOrInsert(
+    $user = User::updateOrCreate(
         ['email' => 'piloto@123fretei.com.br'],
         [
             'name' => 'João Estadeiro (Teste)',
-            'password' => Hash::make('password'),
-            'role_id' => $roleId,
+            'password' => 'password',
+            'role_id' => $role->id,
             'phone' => '11999999999',
-            'created_at' => now(),
-            'updated_at' => now()
+            'status' => 'active'
+        ]
+    );
+
+    Motorista::updateOrCreate(
+        ['user_id' => $user->id],
+        [
+            'cpf' => '00000000000',
+            'cnh' => '00000000000',
+            'validade_cnh' => now()->addYears(5)->toDateString(),
+            'rntrc' => '00000000',
+            'status_verificacao' => 'aprovado',
+            'gr_status' => 'aprovado'
         ]
     );
 
@@ -65,21 +77,21 @@ Artisan::command('forge:motorista', function () {
 // DEVSECOPS: ALINHAMENTO DE RBAC (CORREÇÃO DO MOTORISTA 1)
 // ==========================================
 Artisan::command('fix:motorista', function () {
-    $roleMotorista = DB::table('roles')->where('slug', 'motorista')->first();
+    $roleMotorista = Role::where('slug', 'motorista')->first();
     
     if (!$roleMotorista) {
         $this->error('❌ FATAL: A role "motorista" não existe. Suas migrations estão incompletas.');
         return;
     }
 
-    $user = DB::table('users')->where('email', 'motorista1@estrada.com')->first();
+    $user = User::where('email', 'motorista1@estrada.com')->first();
     
     if (!$user) {
         $this->error('❌ FATAL: O usuário motorista1@estrada.com não existe no banco.');
         return;
     }
 
-    DB::table('users')->where('email', 'motorista1@estrada.com')->update([
+    $user->update([
         'role_id' => $roleMotorista->id
     ]);
 
@@ -120,29 +132,28 @@ Artisan::command('audit:cargas', function () {
 });
 
 // ==========================================
-// DEVSECOPS: POPULAR COMPLIANCE DO MOTORISTA DE TESTE (SCHEMA ALINHADO)
+// DEVSECOPS: POPULAR COMPLIANCE DO MOTORISTA DE TESTE
 // ==========================================
 Artisan::command('forge:compliance-motorista', function () {
     $email = 'motorista1@estrada.com';
-    $user = DB::table('users')->where('email', $email)->first();
+    $user = User::where('email', $email)->first();
     
     if (!$user) {
         $this->error("❌ FATAL: O usuário {$email} não existe na tabela users.");
         return;
     }
 
-    // Injeção cirúrgica: Passa apenas os campos que a sua Migration definiu como NOT NULL
-    DB::table('motoristas')->updateOrInsert(
+    Motorista::updateOrCreate(
         ['user_id' => $user->id],
         [
-            'cpf' => '123.456.789-00',
-            'cnh' => '01234567890', // O banco exigiu esta coluna via restrição NOT NULL
-            'created_at' => now(),
-            'updated_at' => now()
+            'cpf' => '12345678900',
+            'cnh' => '01234567890',
+            'validade_cnh' => now()->addYears(5)->format('Y-m-d'),
+            'rntrc' => '12345678',
+            'status_verificacao' => 'aprovado',
+            'gr_status' => 'aprovado'
         ]
     );
 
-    $this->info('✅ COMPLIANCE ATENDIDO (SCHEMA VALIDADO)!');
-    $this->info("Perfil físico vinculado ao usuário: {$email}.");
-    $this->info("A trava Fail-Fast do Controller agora permitirá a passagem.");
+    $this->info('✅ COMPLIANCE ATENDIDO E CRIPTOGRAFADO! A trava Fail-Fast do Controller agora permitirá a passagem.');
 });

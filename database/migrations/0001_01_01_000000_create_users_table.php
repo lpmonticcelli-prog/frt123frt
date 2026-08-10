@@ -21,11 +21,14 @@ return new class extends Migration
             
             $table->string('name');
             $table->string('email')->unique();
-            $table->string('phone', 20)->unique();
+            
+            // ZT-DEFENSE: Convertido para text para suportar o Payload AES-256
+            // Removida constraint de Unique nativa. Isso agora é tratado pelo Índice Cego 'phone_bidx'.
+            $table->text('phone'); 
+            
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
             
-            // CIRURGIA APLICADA: Todos os status possíveis da plataforma foram mapeados
             $table->enum('status', ['pending', 'em_analise', 'active', 'rejected', 'suspended', 'banned'])->default('pending');
             
             $table->rememberToken();

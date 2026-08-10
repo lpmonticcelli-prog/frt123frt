@@ -1,8 +1,11 @@
+version: '3.8'
+
 services:
   app:
     build:
       context: .
       dockerfile: Dockerfile
+    container_name: fretei_app
     user: "${WWWUSER:-1000}:${WWWGROUP:-1000}"
     ports:
       - "8000:8000"
@@ -17,12 +20,14 @@ services:
       - DB_USERNAME=postgres
       - DB_PASSWORD=postgres
       - CACHE_STORE=redis
-      - SESSION_DRIVER=redis
+      - SESSION_DRIVER=array
       - QUEUE_CONNECTION=redis
       - REDIS_CLIENT=phpredis
       - REDIS_HOST=redis
       - REDIS_PASSWORD=null
       - REDIS_PORT=6379
+      - AWS_ENDPOINT=http://minio:9000
+      - AWS_URL=http://localhost:9000/fretei-bucket
     volumes:
       - .:/app
     depends_on:
@@ -30,16 +35,19 @@ services:
         condition: service_healthy
       pgsql:
         condition: service_healthy
+      minio:
+        condition: service_started
     networks:
       - fretei_net
 
-  # [INFRA] Worker responsável por consumir as filas assíncronas (CIOT e Publicação)
+  # [INFRA] Worker (Horizon)
   worker:
     build:
       context: .
       dockerfile: Dockerfile
+    container_name: fretei_worker
     user: "${WWWUSER:-1000}:${WWWGROUP:-1000}"
-    command: php artisan queue:work redis --sleep=3 --tries=3 --max-time=3600
+    command: php artisan horizon
     environment:
       - APP_ENV=local
       - DB_CONNECTION=pgsql
@@ -49,8 +57,10 @@ services:
       - DB_USERNAME=postgres
       - DB_PASSWORD=postgres
       - CACHE_STORE=redis
+      - SESSION_DRIVER=array
       - QUEUE_CONNECTION=redis
       - REDIS_HOST=redis
+      - AWS_ENDPOINT=http://minio:9000
     volumes:
       - .:/app
     depends_on:
@@ -63,11 +73,12 @@ services:
     healthcheck:
       disable: true
 
-  # [INFRA] Scheduler responsável por disparar as auto-liquidações e regras temporais
+  # [INFRA] Scheduler
   scheduler:
     build:
       context: .
       dockerfile: Dockerfile
+    container_name: fretei_scheduler
     user: "${WWWUSER:-1000}:${WWWGROUP:-1000}"
     command: php artisan schedule:work
     environment:
@@ -78,6 +89,8 @@ services:
       - DB_DATABASE=fretei
       - DB_USERNAME=postgres
       - DB_PASSWORD=postgres
+      - CACHE_STORE=redis
+      - SESSION_DRIVER=array
       - REDIS_HOST=redis
     volumes:
       - .:/app
@@ -91,11 +104,12 @@ services:
     healthcheck:
       disable: true
 
-  # [INFRA] Malha de Eventos WebSockets (Laravel Reverb)
+  # [INFRA] Reverb WebSockets
   reverb:
     build:
       context: .
       dockerfile: Dockerfile
+    container_name: fretei_reverb
     user: "${WWWUSER:-1000}:${WWWGROUP:-1000}"
     command: php artisan reverb:start --host="0.0.0.0" --port=8082
     ports:
@@ -109,6 +123,7 @@ services:
       - DB_USERNAME=postgres
       - DB_PASSWORD=postgres
       - REDIS_HOST=redis
+      - SESSION_DRIVER=array
     depends_on:
       redis:
         condition: service_healthy
@@ -119,8 +134,10 @@ services:
     healthcheck:
       disable: true
 
+  # [INFRA] Data & Cache
   redis:
     image: 'redis:alpine'
+    container_name: fretei_redis
     ports:
       - '6379:6379'
     volumes:
@@ -135,6 +152,7 @@ services:
 
   pgsql:
     image: 'postgres:16-alpine'
+    container_name: fretei_pgsql
     ports:
       - '5432:5432'
     environment:
@@ -150,11 +168,54 @@ services:
     networks:
       - fretei_net
 
+  # [INFRA] S3 Emulator (MinIO)
+  minio:
+    image: minio/minio:latest
+    container_name: fretei_minio
+    ports:
+      - "9000:9000"
+      - "8900:8900"
+    environment:
+      MINIO_ROOT_USER: root
+      MINIO_ROOT_PASSWORD: password123
+    command: server /data --console-address ":8900"
+    volumes:
+      - fretei_s3_data:/data
+    networks:
+      - fretei_net
+
+  minio-setup:
+    image: minio/mc
+    container_name: fretei_minio_setup
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      sleep 5;
+      mc alias set local http://minio:9000 root password123;
+      mc mb local/fretei-bucket || true;
+      mc anonymous set public local/fretei-bucket || true;
+      exit 0;
+      "
+    networks:
+      - fretei_net
+
+  # [INFRA] SMTP Catcher (Mailpit)
+  mailpit:
+    image: axllent/mailpit
+    container_name: fretei_mailpit
+    ports:
+      - "1025:1025" # Porta SMTP
+      - "8025:8025" # Interface Web
+    networks:
+      - fretei_net
+
   # MICROSERVIÇO DE RASTREAMENTO EM TEMPO REAL (GO)
   tracking:
     build:
       context: ./tracking-service
       dockerfile: Dockerfile
+    container_name: fretei_tracking
     ports:
       - "8081:8080" 
     depends_on:
@@ -167,6 +228,8 @@ volumes:
   fretei_redis:
     driver: local
   fretei_pgsql:
+    driver: local
+  fretei_s3_data:
     driver: local
 
 networks:

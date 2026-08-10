@@ -136,7 +136,7 @@ const cargaAtiva = ref(null);
 const carregarDisputas = async () => {
   loading.value = true;
   try {
-    const res = await axios.get('/api/admin/operacoes/disputas');
+    const res = await axios.get('/api/v1/admin/disputas');
     disputas.value = res.data;
   } catch (error) {
     console.error('Erro ao carregar disputas:', error);
@@ -159,7 +159,7 @@ const processarDecisao = async (acao) => {
   
   processando.value = true;
   try {
-    const res = await axios.post(`/api/admin/operacoes/disputas/${cargaAtiva.value.id}/resolver`, { acao });
+    const res = await axios.post(`/api/v1/admin/disputas/${cargaAtiva.value.id}/resolver`, { acao });
     alert(res.data.message);
     fecharModal();
     await carregarDisputas();

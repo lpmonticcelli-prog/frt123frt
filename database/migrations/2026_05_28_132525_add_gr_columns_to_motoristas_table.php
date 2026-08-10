@@ -6,13 +6,9 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::table('motoristas', function (Blueprint $table) {
-            // ZT-DEFENSE: Colunas de Auditoria da Gerenciadora de Risco
             $table->enum('gr_status', [
                 'nao_solicitado',
                 'pendente',
@@ -21,13 +17,11 @@ return new class extends Migration
                 'aguardando_biometria'
             ])->default('nao_solicitado')->after('score_geral');
             
-            $table->uuid('gr_referencia')->nullable()->after('gr_status');
+            // ZT-DEFENSE: A referência do dossiê GR é criptografada. UUID e String causarão Exception.
+            $table->text('gr_referencia')->nullable()->after('gr_status');
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::table('motoristas', function (Blueprint $table) {

@@ -72,10 +72,7 @@
                 </template>
 
                 <template v-else-if="carga.status === 'em_transito'">
-                  <router-link :to="{ name: 'RastreadorFrete', params: { id: carga.id } }" class="w-full flex justify-center items-center px-4 py-3 bg-surface-900 text-white font-bold rounded-md hover:bg-surface-800 transition-colors shadow-clinical-sm focus:outline-none focus:ring-2 focus:ring-surface-900">
-                    📍 GPS & Rota
-                  </router-link>
-                  <button @click="abrirModalFinalizacao(carga)" class="w-full flex justify-center items-center px-4 py-3 bg-brand-600 text-white font-bold rounded-md hover:bg-brand-700 transition-colors shadow-clinical-sm mt-1 focus:outline-none focus:ring-2 focus:ring-brand-500">
+                  <button @click="abrirModalFinalizacao(carga)" class="w-full flex justify-center items-center px-4 py-3 bg-brand-600 text-white font-bold rounded-md hover:bg-brand-700 transition-colors shadow-clinical-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
                     ✔ Comprovar Entrega
                   </button>
                 </template>
@@ -145,9 +142,6 @@
                     </template>
 
                     <template v-else-if="carga.status === 'em_transito'">
-                      <router-link :to="{ name: 'RastreadorFrete', params: { id: carga.id } }" class="inline-flex items-center px-4 py-2 bg-surface-900 text-white font-bold rounded-md hover:bg-surface-800 transition-colors mr-2 shadow-clinical-sm text-sm focus:outline-none focus:ring-2 focus:ring-surface-900">
-                        📍 GPS
-                      </router-link>
                       <button @click="abrirModalFinalizacao(carga)" class="inline-flex items-center px-4 py-2 bg-brand-600 text-white font-bold rounded-md hover:bg-brand-700 transition-colors shadow-clinical-sm text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
                         ✔ Comprovar Entrega
                       </button>
@@ -171,11 +165,11 @@
 
     <transition enter-active-class="ease-out duration-300" enter-from-class="opacity-0" enter-to-class="opacity-100" leave-active-class="ease-in duration-200" leave-from-class="opacity-100" leave-to-class="opacity-0">
       <div v-if="showModalFinalizacao" class="fixed inset-0 z-modal overflow-y-auto" role="dialog" aria-modal="true">
-        <div class="flex items-end justify-center min-h-[100dvh] pt-4 px-0 sm:px-4 pb-0 text-center sm:p-0">
+        <div class="flex items-end justify-center min-h-[100dvh] pt-4 px-0 sm:px-4 pb-0 text-center sm:items-center sm:p-0">
           <div class="fixed inset-0 bg-surface-950/70 backdrop-blur-sm transition-opacity" @click="fecharModalFinalizacao"></div>
           <span class="hidden sm:inline-block sm:align-middle sm:h-[100dvh]" aria-hidden="true">&#8203;</span>
           
-          <div class="relative inline-block align-bottom sm:align-middle bg-white rounded-t-2xl sm:rounded-xl text-left overflow-hidden shadow-clinical-lg transform transition-all sm:my-8 w-full sm:max-w-lg max-h-[90dvh] flex flex-col pb-safe-bottom sm:pb-0">
+          <div class="relative flex align-bottom sm:align-middle bg-white rounded-t-2xl sm:rounded-xl text-left overflow-hidden shadow-clinical-lg transform transition-all sm:my-8 w-full sm:max-w-lg max-h-[90dvh] flex-col pb-safe-bottom sm:pb-0">
             <div class="bg-white px-4 pt-5 pb-4 sm:p-6 flex-1 overflow-y-auto scrollbar-clinical">
                <h3 class="text-lg font-black text-surface-900 mb-4">Comprovação de Entrega</h3>
                <div class="space-y-5">
@@ -207,12 +201,12 @@
 
     <transition enter-active-class="ease-out duration-300" enter-from-class="opacity-0" enter-to-class="opacity-100" leave-active-class="ease-in duration-200" leave-from-class="opacity-100" leave-to-class="opacity-0">
       <div v-if="showModalChat" class="fixed inset-0 z-modal overflow-y-auto" role="dialog" aria-modal="true">
-        <div class="flex items-end justify-center min-h-[100dvh] pt-4 px-0 sm:px-4 pb-0 text-center sm:p-0">
+        <div class="flex items-end justify-center min-h-[100dvh] pt-4 px-0 sm:px-4 pb-0 text-center sm:items-center sm:p-0">
           
           <div class="fixed inset-0 bg-surface-950/70 backdrop-blur-sm transition-opacity" @click="fecharChat"></div>
           <span class="hidden sm:inline-block sm:align-middle sm:h-[100dvh]">&#8203;</span>
           
-          <div class="relative inline-block align-bottom bg-white rounded-t-2xl sm:rounded-xl text-left overflow-hidden shadow-clinical-lg transform transition-all sm:my-8 sm:align-middle w-full sm:max-w-2xl flex flex-col max-h-[85dvh] sm:h-[600px] pb-safe-bottom sm:pb-0">
+          <div class="relative flex align-bottom bg-white rounded-t-2xl sm:rounded-xl text-left overflow-hidden shadow-clinical-lg transform transition-all sm:my-8 sm:align-middle w-full sm:max-w-2xl flex-col max-h-[85dvh] sm:h-[600px] pb-safe-bottom sm:pb-0">
             
             <div class="bg-surface-900 px-4 sm:px-6 py-4 flex justify-between items-center shrink-0">
               <div>
@@ -249,12 +243,10 @@
 
 <script setup>
 import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue';
-import { useRouter } from 'vue-router';
 import axios from 'axios';
 import imageCompression from 'browser-image-compression';
 import { useAuthStore } from '../../stores/auth';
 
-const router = useRouter();
 const authStore = useAuthStore();
 const cargas = ref([]);
 const loading = ref(true);
@@ -312,11 +304,12 @@ const cancelarAceite = async (id) => {
 };
 
 const iniciarViagem = async (id) => {
-  if (!confirm('Confirma que iniciou o deslocamento? O GPS será ativado.')) return;
+  if (!confirm('Confirma que iniciou o deslocamento em direção ao destino?')) return;
   actionLoading.value = id;
   try {
     await axios.post(`/api/v1/motorista/cargas/${id}/iniciar-viagem`);
-    router.push({ name: 'RastreadorFrete', params: { id: id } });
+    alert('Viagem iniciada com sucesso. Dirija com segurança!');
+    fetchMinhasCargas(); 
   } catch (error) { 
       alert(error.response?.data?.message || error.response?.data?.error || 'Aguarde o status ser aprovado para iniciar viagem.'); 
   } finally { 
