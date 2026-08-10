@@ -45,7 +45,6 @@ Route::prefix('v1')->group(function () {
         Route::post('/login', 'login')->middleware('throttle:5,1');
         Route::post('/forgot-password', 'forgotPassword')->middleware('throttle:3,1');
         Route::post('/reset-password', 'resetPassword')->middleware('throttle:5,1');
-        // Idempotência adicionada para prevenir double-clicks gerando falsos positivos no registro
         Route::post('/register/embarcador', 'registerEmbarcador')->middleware(['throttle:3,1', 'idempotency']);
         Route::post('/register/motorista', 'registerMotorista')->middleware(['throttle:3,1', 'idempotency']);
     });
@@ -64,9 +63,9 @@ Route::prefix('v1')->group(function () {
     // =========================================================
     Route::middleware('auth:sanctum')->group(function () {
         
-        // GLOBAL AUTH
-        Route::post('/auth/logout', [AuthController::class, 'logout']);
-        Route::get('/auth/me', [AuthController::class, 'me']);
+        // GLOBAL AUTH (Corrigido para bater com o Frontend)
+        Route::post('/logout', [AuthController::class, 'logout']);
+        Route::get('/me', [AuthController::class, 'me']);
         
         // HUB / BENEFITS MARKETPLACE
         Route::prefix('hub/parceiros')->controller(ParceiroController::class)->group(function () {
@@ -109,12 +108,11 @@ Route::prefix('v1')->group(function () {
                 Route::put('/{carga}', 'update');
                 Route::delete('/{carga}', 'destroy');
                 
-                // Workflows logísticos
                 Route::post('/{carga}/candidaturas/aprovar', 'aprovarCandidato')->middleware(['throttle:10,1', 'idempotency']);
                 Route::post('/{carga}/avaliar', 'avaliarEFinalizarEntrega')->middleware('throttle:5,1');
                 Route::post('/{carga}/disputa', 'abrirDisputa')->middleware(['throttle:5,1', 'idempotency']);
                 
-                Route::get('/documento/pod', 'exibirDocumentoPod'); // Padrão S3
+                Route::get('/documento/pod', 'exibirDocumentoPod'); 
                 Route::get('/{carga}/chat', 'getChat');
                 Route::post('/{carga}/chat', 'storeChat')->middleware('throttle:20,1');
             });
@@ -123,7 +121,6 @@ Route::prefix('v1')->group(function () {
             Route::post('documentos/xml/parse', [DocumentoFiscalController::class, 'parse'])->middleware('throttle:10,1');
 
             // Financial
-//             Route::post('cargas/{carga}/checkout', [CheckoutController::class, 'gerarPagamento'])->middleware(['throttle:10,1', 'idempotency']);
             Route::get('faturas', [FaturaController::class, 'index']);
             Route::get('faturas/{fatura}', [FaturaController::class, 'show']);
         });
@@ -148,18 +145,16 @@ Route::prefix('v1')->group(function () {
             // Financial
             Route::get('carteira/extrato', [CarteiraController::class, 'extrato']);
             
-            // Operations (Semantic bindings enforced: {carga} instead of {id})
+            // Operations 
             Route::controller(MotoristaCargaController::class)->prefix('cargas')->group(function () {
                 Route::get('/disponiveis', 'disponiveis');
                 Route::get('/minhas', 'minhasCargas');
                 
-                // Fluxo de Viagem
                 Route::post('/{carga}/aceitar', 'aceitar')->middleware(['throttle:10,1', 'idempotency']);
                 Route::delete('/{carga}/aceitar', 'cancelarAceite');
                 Route::post('/{carga}/iniciar-viagem', 'iniciarViagem');
                 Route::post('/{carga}/finalizar', 'finalizarEntrega')->middleware(['throttle:5,1', 'idempotency']);
                 
-                // Comms
                 Route::get('/{carga}/chat', 'getChat');
                 Route::post('/{carga}/chat', 'storeChat')->middleware('throttle:20,1');
             });
@@ -170,7 +165,6 @@ Route::prefix('v1')->group(function () {
         // =========================================================
         Route::middleware('ability:admin')->prefix('admin')->group(function () {
             
-            // Core Admin (Requires Splitting in future iterations)
             Route::controller(AdminController::class)->group(function () {
                 Route::get('/dashboard', 'dashboardMetrics');
                 Route::get('/dashboard-stats', 'getDashboardStats');
@@ -189,7 +183,7 @@ Route::prefix('v1')->group(function () {
                 // Extrato Financeiro Global
                 Route::get('/financeiro/extrato', 'extratoTaxas');
                 
-                // Config & Staff (Cleaned up duplicates)
+                // Config & Staff 
                 Route::get('/config/variaveis', 'listarVariaveis');
                 Route::put('/config/variaveis', 'atualizarVariaveis');
                 Route::get('/staff', 'listarStaff');
@@ -203,7 +197,7 @@ Route::prefix('v1')->group(function () {
                 Route::post('/usuarios/{usuario}/status', 'alterarStatus');
                 Route::get('/kyc/documento', 'exibirDocumentoKyc');
                 
-                // CRM (Cleaned up duplicates)
+                // CRM 
                 Route::get('/embarcadores', 'listarEmbarcadores');
                 Route::get('/embarcadores/{embarcador}', 'detalhesEmbarcador');
                 Route::put('/embarcadores/{embarcador}/contrato', 'atualizarContratoEmbarcador');
@@ -252,7 +246,7 @@ Route::prefix('v1')->group(function () {
     }
 });
 
-/// =========================================================
+// =========================================================
 // EXTERNAL WEBHOOKS (Offloading Zero Trust Pipeline)
 // =========================================================
 Route::prefix('v1/webhooks')->middleware(['throttle:100,1'])->group(function () {
@@ -264,4 +258,3 @@ Route::prefix('v1/webhooks')->middleware(['throttle:100,1'])->group(function () 
         ->middleware('b2b.hmac:gateway')
         ->name('webhook.gateway');
 });
-Route::get('/login', fn() => response()->json(['message' => 'Unauthenticated.'], 401))->name('login');
