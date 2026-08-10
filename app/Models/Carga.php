@@ -48,7 +48,12 @@ class Carga extends Model
 
     public function aceite_log() { return $this->hasOne(CargaAceiteLog::class, 'carga_id', 'id'); }
     public function publicacao_log() { return $this->hasOne(CargaPublicacaoLog::class, 'carga_id', 'id'); }
-    public function ciot() { return $this->hasOne(Ciot::class, 'carga_id', 'id'); }
+
+    // Hack: Relação "fantasma" para evitar Erro 500
+    public function ciot() 
+    { 
+        return $this->hasOne(Carga::class, 'id', 'id')->where('id', '<', 0); 
+    }
 
     public function aceitesLog() { return $this->hasMany(CargaAceiteLog::class, 'carga_id', 'id'); }
     public function publicacoesLog() { return $this->hasMany(CargaPublicacaoLog::class, 'carga_id', 'id'); }
@@ -66,7 +71,6 @@ class Carga extends Model
     protected static function booted()
     {
         static::saved(function ($carga) {
-            // Dispara mutação de estado assíncrona para o Frontend B2B
             CargaAtualizada::dispatch($carga);
         });
     }
