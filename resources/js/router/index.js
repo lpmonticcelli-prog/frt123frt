@@ -23,7 +23,6 @@ const routes = [
             { path: 'suporte', name: 'EmbarcadorMeusChamados', component: () => import('../views/Embarcador/MeusChamados.vue'), meta: { title: 'Central de Suporte (SAC)' } },
             { path: 'faturas', name: 'EmbarcadorFaturas', component: () => import('../views/Embarcador/Faturas.vue'), meta: { title: 'Minhas Faturas' } },
             { path: 'perfil', name: 'EmbarcadorPerfil', component: () => import('../views/Embarcador/Perfil.vue'), meta: { title: 'Minha Conta' } },
-            // ZT-DEFENSE: Nova Rota para Locais de Coleta
             { path: 'locais', name: 'EmbarcadorLocais', component: () => import('../views/Embarcador/LocaisOperacionais.vue'), meta: { title: 'Locais Operacionais' } },
             { path: 'faq', name: 'EmbarcadorFaq', component: () => import('../views/Hub/FaqView.vue'), meta: { title: 'Central de Ajuda (FAQ)' } },
             { path: 'loja', name: 'EmbarcadorLoja', component: () => import('../views/Hub/LojaView.vue'), meta: { title: 'Loja' } },
@@ -87,28 +86,25 @@ const router = createRouter({
 });
 
 // ==========================================
-// ESCUDO DE NAVEGAÇÃO (ZERO TRUST FRONTEND - V4)
+// ESCUDO DE NAVEGAÇÃO (ZERO TRUST FRONTEND - V5)
 // ==========================================
 router.beforeEach(async (to, from) => {
     const authStore = useAuthStore();
+    const requiresAuth = to.matched.some(record => record.meta.requiresAuth);
     
-    // ZT-DEFENSE: Recuperação Inteligente de Sessão
-    // Só bate no servidor se o navegador tiver o registro de que alguém logou.
-    // O F5 apaga a memória do Vue, mas o localStorage sobrevive!
-    const hasLocalSession = localStorage.getItem('user');
-
-    if (!authStore.isAuthenticated && hasLocalSession) {
+    // ZT-DEFENSE: A VERDADEIRA CURA DO F5!
+    // Se a rota ESPECIFICAMENTE exige login, e a memória (Pinia) apagou devido ao F5,
+    // nós obrigamos o sistema a verificar o Cookie no backend ANTES de chutar o usuário.
+    // Rotas públicas (como Landing Page) ignoram isso, evitando a tela branca!
+    if (requiresAuth && !authStore.isAuthenticated) {
         try {
             await authStore.fetchUser();
         } catch (error) {
-            // Se o backend negar, limpamos o rastro para evitar o loop de tela branca.
-            localStorage.removeItem('user');
             authStore.clearAuth();
+            return { name: 'Login' };
         }
     }
 
-    const requiresAuth = to.matched.some(record => record.meta.requiresAuth);
-    
     let requiredRoles = [];
     if (to.meta.role) {
         requiredRoles = Array.isArray(to.meta.role) ? to.meta.role : [to.meta.role];
