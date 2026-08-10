@@ -21,6 +21,7 @@ use App\Http\Controllers\Api\V1\Embarcador\CertificadoController;
 use App\Http\Controllers\Api\V1\Embarcador\CheckoutController;
 use App\Http\Controllers\Api\V1\Embarcador\DocumentoFiscalController;
 use App\Http\Controllers\Api\V1\Embarcador\FaturaController;
+use App\Http\Controllers\Api\V1\Embarcador\LocalController; 
 use App\Http\Controllers\Api\V1\Embarcador\PerfilController as EmbarcadorPerfilController;
 
 // 4. Motorista
@@ -112,6 +113,8 @@ Route::prefix('v1')->group(function () {
                 Route::get('/documento', 'exibirDocumento');
             });
             
+            Route::apiResource('locais', LocalController::class);
+
             Route::apiResource('cargas', EmbarcadorCargaController::class);
             Route::controller(EmbarcadorCargaController::class)->prefix('cargas')->group(function () {
                 Route::get('/documento/pod', 'exibirDocumentoPod');
