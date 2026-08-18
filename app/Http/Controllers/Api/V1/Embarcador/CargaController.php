@@ -77,7 +77,11 @@ class CargaController extends Controller
                     'taxa_plataforma' => $taxaPlataforma, 
                     'data_coleta' => $validated['data_coleta'],
                     'data_entrega_prevista' => $validated['data_entrega_prevista'] ?? null,
-                    'status' => self::STATUS_PUBLICADA
+                    'status' => self::STATUS_PUBLICADA,
+                    
+                    // CIRURGIA APLICADA: Gravação explícita dos novos campos
+                    'pedagio' => $request->input('pedagio', 0),
+                    'piso_antt' => $request->input('piso_antt', null),
                 ]);
 
                 $termo = sprintf(
@@ -203,7 +207,11 @@ class CargaController extends Controller
                 'cidade_destino' => $this->sanitizeText($validated['cidade_destino']),
                 'taxa_plataforma' => $taxaPlataforma,
                 'uf_origem' => strtoupper($validated['uf_origem']),
-                'uf_destino' => strtoupper($validated['uf_destino'])
+                'uf_destino' => strtoupper($validated['uf_destino']),
+                
+                // CIRURGIA APLICADA: Permite edição do pedágio e piso_antt
+                'pedagio' => $request->input('pedagio', $cargaLock->pedagio),
+                'piso_antt' => $request->input('piso_antt', $cargaLock->piso_antt),
             ]));
             
             DB::commit();
@@ -354,7 +362,7 @@ class CargaController extends Controller
                 Ciot::where('carga_id', $cargaLock->id)->lockForUpdate()->update(['status' => self::CIOT_BLOQUEADO_DISPUTA]);
             });
 
-            return response()->json(['message' => 'Fundos congelados. Disputa aberta com sucesso e notificada aos administradores.'], 200);
+            return response()->json(['message' => 'Fundos congelados. Disputa aberta com sucesso e notify aos administradores.'], 200);
             
         } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
             return response()->json(['error' => $e->getMessage()], $e->getStatusCode());

@@ -31,6 +31,14 @@ return new class extends Migration
                 // CIRURGIA APLICADA: Sincronização do status da atualização
                 $table->string('status')->default('publicada');
             }
+            // ADICIONADO: Garantia de que a coluna pedágio será criada caso falte
+            if (!Schema::hasColumn('cargas', 'pedagio')) {
+                $table->decimal('pedagio', 10, 2)->nullable()->default(0);
+            }
+            // ADICIONADO: Congela o valor oficial da ANTT no momento da criação da carga
+            if (!Schema::hasColumn('cargas', 'piso_antt')) {
+                $table->decimal('piso_antt', 10, 2)->nullable();
+            }
         });
     }
 
@@ -39,7 +47,7 @@ return new class extends Migration
         Schema::table('cargas', function (Blueprint $table) {
             $table->dropColumn([
                 'tipo_veiculo', 'tipo_carroceria', 'uf_origem', 
-                'cidade_origem', 'uf_destino', 'cidade_destino', 'status'
+                'cidade_origem', 'uf_destino', 'cidade_destino', 'status', 'pedagio', 'piso_antt'
             ]);
         });
     }

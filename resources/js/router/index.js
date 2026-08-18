@@ -7,7 +7,7 @@ const routes = [
     { path: '/reset-password', name: 'ResetPassword', component: () => import('../views/ResetPassword.vue'), meta: { title: 'Redefinir Senha' } },
     { path: '/register/embarcador', name: 'RegisterEmbarcador', component: () => import('../views/RegisterEmbarcador.vue') },
     { path: '/register/motorista', name: 'RegisterMotorista', component: () => import('../views/RegisterMotorista.vue') },
-    
+
     // ==========================================
     // ROTAS DO EMBARCADOR
     // ==========================================
@@ -27,7 +27,10 @@ const routes = [
             { path: 'faq', name: 'EmbarcadorFaq', component: () => import('../views/Hub/FaqView.vue'), meta: { title: 'Central de Ajuda (FAQ)' } },
             { path: 'loja', name: 'EmbarcadorLoja', component: () => import('../views/Hub/LojaView.vue'), meta: { title: 'Loja' } },
             { path: 'voucher', name: 'EmbarcadorVoucher', component: () => import('../views/Hub/VoucherView.vue'), meta: { title: 'Gestão de Vouchers' } },
-            { path: 'parceiros', name: 'EmbarcadorParceiros', component: () => import('../views/Hub/ParceirosView.vue'), meta: { title: 'Parceiros Estratégicos' } }
+            { path: 'parceiros', name: 'EmbarcadorParceiros', component: () => import('../views/Hub/ParceirosView.vue'), meta: { title: 'Parceiros Estratégicos' } },
+            
+            // 🔥 A CURA DA TELA BRANCA FOI INJETADA AQUI:
+            { path: 'rastreamento/:id', name: 'EmbarcadorRastreamento', component: () => import('../views/Embarcador/Rastreamento.vue'), meta: { title: 'Rastreamento' } }
         ]
     },
 
@@ -91,11 +94,7 @@ const router = createRouter({
 router.beforeEach(async (to, from) => {
     const authStore = useAuthStore();
     const requiresAuth = to.matched.some(record => record.meta.requiresAuth);
-    
-    // ZT-DEFENSE: A VERDADEIRA CURA DO F5!
-    // Se a rota ESPECIFICAMENTE exige login, e a memória (Pinia) apagou devido ao F5,
-    // nós obrigamos o sistema a verificar o Cookie no backend ANTES de chutar o usuário.
-    // Rotas públicas (como Landing Page) ignoram isso, evitando a tela branca!
+
     if (requiresAuth && !authStore.isAuthenticated) {
         try {
             await authStore.fetchUser();

@@ -4,8 +4,8 @@
     <!-- NAVBAR (Estilo clean Localiza) -->
     <nav class="navbar shadow-sm">
       <div class="nav-brand" style="display: flex; align-items: center; gap: 8px;">
-        <img src="/logo1.png" alt="Logotipo 123fretei" style="height: 32px; width: auto; object-fit: contain;" />
-        <span style="font-size: 1.8rem; font-weight: 900; letter-spacing: -1px; display: flex; align-items: baseline;">
+        <img src="/logo1.png" alt="Logotipo 123fretei" style="height: 32px; width: auto; object-fit: contain;" class="brand-logo" />
+        <span class="brand-text" style="font-size: 1.8rem; font-weight: 900; letter-spacing: -1px; display: flex; align-items: baseline;">
           <span style="color: #035D29;">123</span><span style="color: var(--c-brand);">fretei</span>
         </span>
       </div>
@@ -18,7 +18,7 @@
       
       <div class="nav-actions">
         <router-link :to="{ name: 'Login' }" class="btn-text">Entrar</router-link>
-        <router-link :to="{ name: 'RegisterEmbarcador' }" class="btn-primary">Criar Conta</router-link>
+        <router-link :to="{ name: 'RegisterEmbarcador' }" class="btn-primary text-center">Criar Conta</router-link>
       </div>
     </nav>
 
@@ -30,40 +30,40 @@
         :style="{ transform: `translateX(-${currentSlide * 100}%)` }"
       >
         <!-- Slide 1: Caminhão no Pôr do Sol (Sua Imagem) -->
-        <div class="slide min-w-full h-full relative flex items-center justify-center sm:justify-start px-6 sm:px-12 lg:px-24">
+        <div class="slide min-w-full h-full relative flex items-center justify-center sm:justify-start px-4 sm:px-12 lg:px-24">
           <div class="absolute inset-0 bg-cover bg-center" style="background-image: url('/pordosol.jpg');"></div>
-          <div class="absolute inset-0 bg-gradient-to-r from-[#035D29] via-[#035D29]/90 to-transparent"></div>
-          <div class="relative z-10 hero-content text-left">
+          <div class="absolute inset-0 bg-gradient-to-t sm:bg-gradient-to-r from-[#035D29] via-[#035D29]/90 to-transparent"></div>
+          <div class="relative z-10 hero-content text-center sm:text-left">
             <span class="tagline animate-fade-in-up">Arquitetura Logística de Alta Segurança</span>
             <h1 class="title animate-fade-in-up animation-delay-200">A Primeira Malha de Fretes<br>100% <span>Auditável do Brasil.</span></h1>
-            <p class="description animate-fade-in-up animation-delay-400">
+            <p class="description animate-fade-in-up animation-delay-400 mx-auto sm:mx-0">
               Conectamos embarcadores e transportadores autônomos sob o ecossistema mais rigoroso de segurança jurídica e biometria do mercado.
             </p>
           </div>
         </div>
 
         <!-- Slide 2: Pagamento Garantido / Docas (Sua Imagem) -->
-        <div class="slide min-w-full h-full relative flex items-center justify-center sm:justify-start px-6 sm:px-12 lg:px-24">
+        <div class="slide min-w-full h-full relative flex items-center justify-center sm:justify-start px-4 sm:px-12 lg:px-24">
           <!-- Puxando a imagem local pagamento.jpg que você acabou de adicionar -->
           <div class="absolute inset-0 bg-cover bg-center" style="background-image: url('/pagamento.jpg');"></div>
-          <div class="absolute inset-0 bg-gradient-to-r from-slate-900 via-slate-900/90 to-transparent"></div>
-          <div class="relative z-10 hero-content text-left">
+          <div class="absolute inset-0 bg-gradient-to-t sm:bg-gradient-to-r from-slate-900 via-slate-900/90 to-transparent"></div>
+          <div class="relative z-10 hero-content text-center sm:text-left">
             <span class="tagline bg-brand-500/20 text-brand-500 border-brand-500/30">Zero Inadimplência</span>
             <h1 class="title text-white">Pagamento Garantido<br>e <span>Contratos Digitais.</span></h1>
-            <p class="description text-slate-300">
+            <p class="description text-slate-300 mx-auto sm:mx-0">
               A cada match na plataforma, geramos contratos com validade jurídica instantânea e garantimos o Piso da ANTT na veia.
             </p>
           </div>
         </div>
 
         <!-- Slide 3: Motorista Profissional (Sua Imagem) -->
-        <div class="slide min-w-full h-full relative flex items-center justify-center sm:justify-start px-6 sm:px-12 lg:px-24">
+        <div class="slide min-w-full h-full relative flex items-center justify-center sm:justify-start px-4 sm:px-12 lg:px-24">
           <div class="absolute inset-0 bg-cover bg-center" style="background-image: url('/motorista.jpg');"></div>
-          <div class="absolute inset-0 bg-gradient-to-r from-[#035D29] via-[#035D29]/90 to-transparent"></div>
-          <div class="relative z-10 hero-content text-left">
+          <div class="absolute inset-0 bg-gradient-to-t sm:bg-gradient-to-r from-[#035D29] via-[#035D29]/90 to-transparent"></div>
+          <div class="relative z-10 hero-content text-center sm:text-left">
             <span class="tagline">Ecossistema Completo</span>
             <h1 class="title">Rastreamento e Gestão<br>em <span>Tempo Real.</span></h1>
-            <p class="description">
+            <p class="description mx-auto sm:mx-0">
               Acompanhe sua frota terceirizada com precisão militar. Inteligência de roteirização integrada para cortar seus custos logísticos.
             </p>
           </div>
@@ -71,7 +71,7 @@
       </div>
 
       <!-- Navegação do Slider (Pontos e Setas) -->
-      <div class="absolute bottom-40 left-0 right-0 flex justify-center items-center gap-6 z-20">
+      <div class="hero-controls absolute left-0 right-0 flex justify-center items-center gap-4 sm:gap-6 z-20">
         <button @click="prevSlide" class="w-10 h-10 rounded-full bg-white/10 hover:bg-white/30 flex items-center justify-center text-white backdrop-blur-sm transition-all focus:outline-none">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
         </button>
@@ -105,9 +105,9 @@
         <!-- Conteúdo do Widget (Mural de Cargas Animado) -->
         <div class="widget-content relative min-h-[300px] bg-slate-50/50">
           
-          <div class="flex justify-between items-center mb-4 px-2">
-            <h3 class="text-xs font-black text-slate-400 uppercase tracking-widest">Últimas publicações no Brasil</h3>
-            <span class="text-xs font-bold text-brand-600 bg-brand-50 px-2 py-1 rounded-md">Atualizando...</span>
+          <div class="flex flex-wrap gap-2 justify-between items-center mb-4 px-2">
+            <h3 class="text-xs font-black text-slate-400 uppercase tracking-widest w-full sm:w-auto text-center sm:text-left">Últimas publicações no Brasil</h3>
+            <span class="text-xs font-bold text-brand-600 bg-brand-50 px-2 py-1 rounded-md mx-auto sm:mx-0">Atualizando...</span>
           </div>
 
           <!-- Lista de Cargas Animada (Efeito Feed) -->
@@ -124,24 +124,26 @@
                 <div class="route-arrow">
                   <svg class="w-6 h-6 text-slate-300 transform transition-transform group-hover:translate-x-1 group-hover:text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"></path></svg>
                 </div>
-                <div class="route-point text-right">
+                <div class="route-point text-right right-aligned-mobile">
                   <span class="city">{{ carga.cidade_destino }}, {{ carga.uf_destino }}</span>
                   <span class="label">Destino</span>
                 </div>
               </div>
 
               <div class="freight-details">
-                <div class="detail-badge">
-                  <svg class="w-4 h-4 mr-1 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
-                  <span class="capitalize font-bold text-slate-700">{{ String(carga.tipo_veiculo).replace('_', ' ') }}</span>
+                <div class="flex flex-wrap justify-center sm:justify-start gap-3 sm:flex-col sm:gap-1">
+                  <div class="detail-badge">
+                    <svg class="w-4 h-4 mr-1 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
+                    <span class="capitalize font-bold text-slate-700">{{ String(carga.tipo_veiculo).replace('_', ' ') }}</span>
+                  </div>
+                  <div class="detail-badge">
+                    <svg class="w-4 h-4 mr-1 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
+                    <span class="truncate max-w-[150px] font-bold text-slate-700">{{ carga.produto }}</span>
+                  </div>
                 </div>
-                <div class="detail-badge">
-                  <svg class="w-4 h-4 mr-1 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
-                  <span class="truncate max-w-[150px] font-bold text-slate-700">{{ carga.produto }}</span>
-                </div>
-                <div class="value-blurred group-hover/blur cursor-pointer mt-1" @click="requireLogin" title="Faça login para ver o valor exato">
+                <div class="value-blurred group-hover/blur cursor-pointer mt-2 sm:mt-1" @click="requireLogin" title="Faça login para ver o valor exato">
                   R$ ****,**
-                  <span class="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-slate-900 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover/blur:opacity-100 transition-opacity whitespace-nowrap shadow-lg">Faça login para ver valores</span>
+                  <span class="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-slate-900 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover/blur:opacity-100 transition-opacity whitespace-nowrap shadow-lg z-10 hidden sm:block">Faça login para ver valores</span>
                 </div>
               </div>
 
@@ -167,12 +169,12 @@
     <!-- SEÇÕES INFORMATIVAS (Estilo Cards Clean) -->
     <section id="plataforma" class="info-section">
       <div class="container mx-auto px-6 max-w-6xl">
-        <div class="text-center mb-12">
+        <div class="text-center mb-8 sm:mb-12">
           <h2 class="section-title">A evolução do transporte de cargas</h2>
           <p class="section-subtitle">Nossa meta arquitetural absorve de 1.300 parceiros iniciais até o volume de 2 milhões de usuários sem gargalos operacionais.</p>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
           <div class="feature-card">
             <div class="icon-wrapper">01</div>
             <h3>Contratos Digitais</h3>
@@ -192,9 +194,9 @@
       </div>
     </section>
 
-    <section id="tecnologia" class="bg-white py-20 border-t border-slate-200">
+    <section id="tecnologia" class="bg-white py-12 sm:py-20 border-t border-slate-200">
       <div class="container mx-auto px-6 max-w-6xl">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-12">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 sm:gap-12">
           <div class="audience-box bg-slate-50 border border-slate-200">
             <h2 class="audience-title text-brand-600">Para Embarcadores</h2>
             <h3 class="font-bold text-xl mb-6 text-slate-800">Blindagem Corporativa</h3>
@@ -231,7 +233,7 @@
             <span style="color: #035D29;">123</span><span style="color: var(--c-brand);">fretei</span>
           </span>
         </div>
-        <p class="text-sm text-slate-500 font-medium">&copy; 2026 123fretei. Engenharia de Software e Logística Integrada.</p>
+        <p class="text-sm text-slate-500 font-medium text-center md:text-left">&copy; 2026 123fretei. Engenharia de Software e Logística Integrada.</p>
       </div>
     </footer>
 
@@ -240,7 +242,7 @@
       <div class="modal-box text-center">
         <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-orange-100 mb-6">
           <svg class="h-8 w-8 text-brand-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2-2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
           </svg>
         </div>
         <h3 class="modal-title">Acesso Restrito</h3>
@@ -447,6 +449,9 @@ onUnmounted(() => {
   line-height: 1.6;
   text-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
+.hero-controls {
+  bottom: 10rem;
+}
 
 /* ================= WIDGET LOCALIZA STYLE ================= */
 .widget-section {
@@ -507,7 +512,7 @@ onUnmounted(() => {
 /* ================= INFO SECTIONS ================= */
 .info-section { padding: 8rem 0 6rem 0; }
 .section-title { font-size: 2.2rem; font-weight: 800; color: #0f172a; letter-spacing: -1px; margin-bottom: 1rem; }
-.section-subtitle { font-size: 1.1rem; color: #64748b; max-width: 600px; margin: 0 auto; }
+.section-subtitle { font-size: 1.1rem; color: #64748b; max-width: 600px; margin: 0 auto; line-height: 1.6; }
 .feature-card { background: white; border: 1px solid #e2e8f0; padding: 2.5rem; border-radius: 16px; transition: transform 0.2s; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02); }
 .feature-card:hover { transform: translateY(-5px); border-color: var(--c-green); }
 .icon-wrapper { font-size: 1.5rem; font-weight: 900; color: var(--c-green); background: #ecfdf5; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; border-radius: 12px; margin-bottom: 1.5rem; }
@@ -522,33 +527,73 @@ onUnmounted(() => {
 .benefits-list.dark li::before { color: var(--c-brand); }
 
 /* ================= MODAL ================= */
-.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(8px); z-index: 999; display: flex; justify-content: center; align-items: center; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; }
+.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(8px); z-index: 999; display: flex; justify-content: center; align-items: center; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; padding: 1rem; }
 .modal-overlay.active { opacity: 1; pointer-events: auto; }
-.modal-box { background: white; padding: 3rem 2rem; border-radius: 24px; max-width: 450px; width: 90%; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); transform: scale(0.95); transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); border: 1px solid #e2e8f0; }
+.modal-box { background: white; padding: 3rem 2rem; border-radius: 24px; max-width: 450px; width: 100%; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); transform: scale(0.95); transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); border: 1px solid #e2e8f0; }
 .modal-overlay.active .modal-box { transform: scale(1); }
 .modal-title { font-size: 1.5rem; font-weight: 900; margin-bottom: 0.5rem; color: #0f172a; letter-spacing: -0.5px;}
 .modal-text { font-size: 0.95rem; color: #64748b; line-height: 1.6; }
 
-/* ================= RESPONSIVO ================= */
+
+/* ================= RESPONSIVO SEGURO (MANTENDO TUDO) ================= */
+/* Tablets e Telas Médias (iPad) */
 @media (max-width: 1024px) {
-  .freight-card { grid-template-columns: 1fr; gap: 1rem; }
+  .freight-card { grid-template-columns: 1fr; gap: 1rem; padding: 1.5rem; }
   .freight-card > div { border-bottom: 1px solid #f1f5f9; padding-bottom: 1rem; }
   .freight-card > div:last-child { border-bottom: none; padding-bottom: 0; }
-  .route-info { justify-content: flex-start; gap: 1rem; }
-  .route-arrow svg { transform: rotate(90deg); }
+  .route-info { justify-content: flex-start; gap: 1.5rem; }
+  .route-arrow svg { transform: rotate(0deg); }
+  .widget-section { margin-top: -8rem; }
 }
 
+/* Smartphones (Android / iPhone) */
 @media (max-width: 768px) {
-  .hero-carousel-container { height: 60vh; min-height: 450px; }
-  .slide { align-items: flex-end; padding-bottom: 12rem; } /* Sobe o texto no mobile pro widget não tampar */
-  .title { font-size: 2.2rem; }
-  .widget-section { margin-top: -6rem; }
-  .widget-content { padding: 1.2rem; }
-  .tab { font-size: 0.85rem; padding: 1rem 0.5rem; text-align: center; flex-direction: column; gap: 4px;}
-  
+  /* Navbar Compacta */
+  .navbar { padding: 1rem 4%; }
+  .nav-brand .brand-logo { height: 26px !important; }
+  .nav-brand .brand-text { font-size: 1.4rem !important; }
   .nav-actions { gap: 0.8rem; }
-  .btn-primary { padding: 0.5rem 1rem; font-size: 0.8rem; }
+  .btn-text { font-size: 0.85rem; }
+  .btn-primary { padding: 0.5rem 1rem; font-size: 0.85rem; }
+
+  /* Hero Ajustado */
+  .hero-carousel-container { height: 75vh; min-height: 500px; }
+  .slide { padding-bottom: 8rem; align-items: center; } 
+  .title { font-size: 2rem; }
+  .description { font-size: 1rem; }
+  .hero-controls { bottom: 5rem; }
   
+  /* Widget Sobreposto Otimizado */
+  .widget-section { margin-top: -4rem; padding: 0 3%; }
+  .widget-content { padding: 1rem; }
+  .tab { font-size: 0.85rem; padding: 1rem 0.5rem; flex-direction: column; gap: 6px; }
+  
+  /* Card de Carga Empilhado Verticalmente */
+  .route-info { 
+    flex-direction: column; 
+    align-items: center; 
+    text-align: center; 
+    gap: 0.5rem;
+  }
+  .route-point { align-items: center; }
+  .route-point.right-aligned-mobile { text-align: center; }
+  .route-arrow svg { transform: rotate(90deg); margin: 0.2rem 0; color: var(--c-brand); opacity: 0.5; }
+  
+  .freight-details { align-items: center; text-align: center; padding: 0.5rem 0; }
+  .value-blurred { font-size: 1.5rem; margin-top: 0.5rem; }
+  .btn-action { font-size: 0.95rem; padding: 0.8rem; }
+
+  /* Info Sections Reduzidas */
+  .info-section { padding: 4rem 0 3rem 0; }
+  .section-title { font-size: 1.8rem; }
+  .feature-card { padding: 1.5rem; }
   .audience-box { padding: 2rem; }
+  .modal-box { padding: 2rem 1.5rem; }
+}
+
+/* Smartphones Muito Pequenos (iPhone SE) */
+@media (max-width: 480px) {
+  .title { font-size: 1.7rem; }
+  .btn-primary { font-size: 0.8rem; padding: 0.5rem 0.8rem; }
 }
 </style>

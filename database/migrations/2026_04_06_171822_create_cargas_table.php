@@ -31,6 +31,12 @@ return new class extends Migration
             $table->decimal('valor_frete', 10, 2);
             $table->decimal('taxa_plataforma', 10, 2)->default(0);
             
+            // ADICIONADO: Campo para o Vale-Pedágio (Pode ser nulo/zero)
+            $table->decimal('pedagio', 10, 2)->nullable()->default(0);
+            
+            // ADICIONADO: Congela o valor oficial da ANTT no momento da criação da carga
+            $table->decimal('piso_antt', 10, 2)->nullable();
+            
             // CIRURGIA APLICADA: Inicialização como "publicada" alinhado ao Frontend e Backend
             $table->string('status')->default('publicada');
 

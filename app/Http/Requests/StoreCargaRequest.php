@@ -55,6 +55,10 @@ class StoreCargaRequest extends FormRequest
             'valor_frete' => 'required|numeric|min:1',
             'data_coleta' => 'required|date|after_or_equal:today',
             'data_entrega_prevista' => 'nullable|date|after_or_equal:data_coleta',
+            
+            // ADICIONADOS: Proteção e liberação para o Pedágio e Piso ANTT
+            'pedagio' => 'nullable|numeric|min:0',
+            'piso_antt' => 'nullable|numeric|min:0',
         ];
     }
 

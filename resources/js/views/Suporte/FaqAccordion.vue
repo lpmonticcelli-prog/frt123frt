@@ -1,53 +1,71 @@
 <template>
-  <div class="space-y-8 max-w-4xl mx-auto py-8">
-    <div class="text-center mb-10">
-      <h2 class="text-3xl font-black text-slate-900 tracking-tight">Central de Ajuda</h2>
-      <p class="text-sm text-slate-500 mt-2">Encontre respostas rápidas para as dúvidas mais comuns.</p>
-    </div>
-
-    <div v-if="loading" class="flex justify-center p-12">
-      <div class="animate-pulse flex flex-col items-center">
-        <div class="h-8 w-32 bg-slate-200 rounded mb-4"></div>
-        <div class="h-4 w-64 bg-slate-100 rounded"></div>
+  <div class="max-w-4xl mx-auto space-y-4 sm:space-y-6 animate-fade-in pb-8">
+    
+    <!-- HEADER DO FAQ -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 sm:p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div>
+        <h2 class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Central de Ajuda (FAQ)</h2>
+        <p class="text-sm text-slate-500 mt-1 font-medium">Encontre respostas rápidas para as dúvidas mais comuns da operação.</p>
+      </div>
+      <div class="hidden sm:flex items-center justify-center w-12 h-12 bg-emerald-50 rounded-full border border-emerald-100 shrink-0">
+        <svg class="w-6 h-6 text-[#035D29]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
       </div>
     </div>
 
-    <div v-else-if="!temDadosSeguros" class="text-center p-12 bg-white rounded-xl border border-slate-200 shadow-sm">
-      <svg class="mx-auto h-12 w-12 text-slate-300 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>
-      <p class="text-slate-500 font-bold">Nenhum artigo encontrado no momento.</p>
-      <p class="text-xs text-slate-400 mt-1">Nossa equipa está a atualizar a base de conhecimento.</p>
+    <!-- ESTADO: CARREGANDO -->
+    <div v-if="loading" class="flex flex-col items-center justify-center p-12 text-slate-500 font-bold bg-white rounded-2xl border border-slate-200 shadow-sm">
+      <svg class="w-10 h-10 animate-spin mb-4 text-[#ff5500]" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+      <span class="text-sm">Buscando base de conhecimento...</span>
     </div>
 
+    <!-- ESTADO: VAZIO -->
+    <div v-else-if="!temDadosSeguros" class="p-16 text-center bg-white rounded-2xl border border-slate-200 shadow-sm">
+      <div class="mx-auto w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-5 border border-slate-100 shadow-inner">
+        <svg class="h-10 w-10 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      </div>
+      <h3 class="text-lg font-black text-slate-900 tracking-tight">Nenhum artigo encontrado</h3>
+      <p class="text-sm text-slate-500 mt-1 max-w-sm mx-auto">A nossa equipe de suporte está atualizando a base de conhecimento no momento.</p>
+    </div>
+
+    <!-- LISTA DE FAQS -->
     <div v-else class="space-y-6">
-      <div v-for="(questions, category) in faqsData" :key="category" class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+      <!-- Proteção extra no v-for usando (faqsData || {}) -->
+      <div v-for="(questions, category) in (faqsData || {})" :key="category" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
         
-        <div class="bg-slate-50 px-6 py-4 border-b border-slate-200">
-          <h3 class="text-lg font-black text-slate-800 uppercase tracking-wider">{{ category }}</h3>
+        <!-- CABEÇALHO DA CATEGORIA -->
+        <div class="bg-slate-900 px-5 py-4 border-b border-slate-200 flex items-center">
+          <h3 class="text-xs font-black text-white uppercase tracking-widest">{{ category }}</h3>
         </div>
 
+        <!-- PERGUNTAS E RESPOSTAS -->
         <div class="divide-y divide-slate-100">
-          <div v-for="faq in questions" :key="faq.id" class="px-6 py-4">
+          <div v-for="faq in questions" :key="faq.id" class="group">
             <button 
               @click="toggle(faq.id)" 
-              class="w-full flex justify-between items-center text-left focus:outline-none group"
+              class="w-full flex justify-between items-center text-left px-5 py-5 focus:outline-none hover:bg-slate-50 transition-colors"
             >
-              <span class="font-bold text-slate-900 group-hover:text-blue-600 transition-colors pr-4">{{ faq.question }}</span>
-              <svg 
-                class="w-5 h-5 text-slate-400 transform transition-transform duration-200 shrink-0" 
-                :class="{'rotate-180 text-blue-600': openFaq === faq.id}"
-                fill="none" viewBox="0 0 24 24" stroke="currentColor"
-              >
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-              </svg>
+              <span class="text-sm font-bold text-slate-900 group-hover:text-[#035D29] transition-colors pr-4">{{ faq.question }}</span>
+              <div class="w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-colors" :class="openFaq === faq.id ? 'bg-emerald-50 border border-emerald-100' : 'bg-slate-50 border border-slate-200 group-hover:bg-emerald-50 group-hover:border-emerald-100'">
+                 <svg 
+                   class="w-4 h-4 transform transition-transform duration-200" 
+                   :class="openFaq === faq.id ? 'rotate-180 text-[#035D29]' : 'text-slate-400 group-hover:text-[#035D29]'"
+                   fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                 >
+                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
+                 </svg>
+              </div>
             </button>
             
+            <!-- RESPOSTA (EXPANSÍVEL) -->
             <div 
               v-show="openFaq === faq.id" 
-              class="mt-4 text-sm text-slate-600 leading-relaxed bg-slate-50 p-4 rounded-lg border border-slate-100"
+              class="px-5 pb-5 pt-1 animate-fade-in"
             >
-              {{ faq.answer }}
+              <div class="p-5 bg-slate-50 rounded-xl border border-slate-200 text-sm text-slate-700 font-medium leading-relaxed shadow-inner">
+                {{ faq.answer }}
+              </div>
             </div>
           </div>
         </div>
@@ -61,25 +79,15 @@
 import { ref, onMounted, computed } from 'vue';
 import axios from 'axios';
 
+// Já iniciamos com um objeto vazio garantido
 const faqsData = ref({});
 const loading = ref(true);
 const openFaq = ref(null);
 
-// Lógica de proteção infalível (Substitui o Object.keys falho)
+// Lógica de proteção simplificada e segura
 const temDadosSeguros = computed(() => {
-  if (faqsData.value === null || faqsData.value === undefined) {
-    return false;
-  }
-  if (typeof faqsData.value !== 'object') {
-    return false;
-  }
-  // Se for um array ou objeto válido, iteramos de forma segura
-  for (let key in faqsData.value) {
-    if (Object.prototype.hasOwnProperty.call(faqsData.value, key)) {
-      return true;
-    }
-  }
-  return false;
+  if (!faqsData.value) return false;
+  return Object.keys(faqsData.value).length > 0;
 });
 
 const toggle = (id) => {
@@ -91,8 +99,8 @@ const fetchFaqs = async () => {
   try {
     const res = await axios.get('/api/v1/suporte/faqs');
     
-    // Filtro atômico contra lixo vindo da API
-    if (res && res.data && res.data.data) {
+    // Filtro atômico com blindagem máxima contra retornos inesperados
+    if (res && res.data && typeof res.data.data === 'object' && !Array.isArray(res.data.data)) {
        faqsData.value = res.data.data;
     } else {
        faqsData.value = {};
@@ -100,7 +108,7 @@ const fetchFaqs = async () => {
 
   } catch (error) {
     console.error('[FAQ] Erro ao carregar:', error);
-    faqsData.value = {};
+    faqsData.value = {}; // Força objeto vazio em caso de erro na rede
   } finally {
     loading.value = false;
   }
@@ -110,3 +118,8 @@ onMounted(() => {
   fetchFaqs();
 });
 </script>
+
+<style scoped>
+.animate-fade-in { animation: fadeIn 0.3s ease-out; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+</style>

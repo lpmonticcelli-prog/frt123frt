@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\V1\AnttController;
 use App\Http\Controllers\Api\V1\Auth\AuthController;
 use App\Http\Controllers\Api\V1\LocalidadeController;
+use App\Http\Controllers\Api\V1\PublicController; // <--- ADICIONADO: Importação do Controller Público
 
 // 2. Admin
 use App\Http\Controllers\Api\V1\Admin\AdminController;
@@ -21,7 +22,7 @@ use App\Http\Controllers\Api\V1\Embarcador\CertificadoController;
 use App\Http\Controllers\Api\V1\Embarcador\CheckoutController;
 use App\Http\Controllers\Api\V1\Embarcador\DocumentoFiscalController;
 use App\Http\Controllers\Api\V1\Embarcador\FaturaController;
-use App\Http\Controllers\Api\V1\Embarcador\LocalOperacionalController; // <--- CORRIGIDO
+use App\Http\Controllers\Api\V1\Embarcador\LocalOperacionalController;
 use App\Http\Controllers\Api\V1\Embarcador\PerfilController as EmbarcadorPerfilController;
 
 // 4. Motorista
@@ -49,6 +50,11 @@ Route::prefix('v1')->group(function () {
     // =========================================================
     // ROTAS PÚBLICAS
     // =========================================================
+
+    // NOVO: Rota pública para alimentar o Feed Ao Vivo da Landing Page
+    Route::prefix('public')->group(function () {
+        Route::get('/cargas-recentes', [PublicController::class, 'cargasRecentes']);
+    });
     
     Route::controller(AuthController::class)->group(function () {
         Route::post('/login', 'login')->middleware('throttle:5,1');
@@ -81,7 +87,11 @@ Route::prefix('v1')->group(function () {
             Route::get('/me', 'me');
         });
 
+        // NOVAS ROTAS DA ANTT E GOOGLE MAPS ===================
         Route::post('/antt/calcular', [AnttController::class, 'calcular']);
+        Route::post('/antt/distancia', [AnttController::class, 'calcularDistancia']);
+        // =====================================================
+
         Route::put('/upload-mock', function() { return response()->json(['ok' => true]); });
         Route::get('/suporte/faqs', [FaqController::class, 'index']);
         
@@ -113,7 +123,7 @@ Route::prefix('v1')->group(function () {
                 Route::get('/documento', 'exibirDocumento');
             });
             
-            Route::apiResource('locais', LocalOperacionalController::class); // <--- CORRIGIDO
+            Route::apiResource('locais', LocalOperacionalController::class);
 
             Route::apiResource('cargas', EmbarcadorCargaController::class);
             Route::controller(EmbarcadorCargaController::class)->prefix('cargas')->group(function () {

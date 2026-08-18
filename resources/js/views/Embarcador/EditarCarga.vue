@@ -1,188 +1,203 @@
 <template>
-  <div class="max-w-4xl mx-auto space-y-6">
-    <div class="flex items-center justify-between">
-      <h2 class="text-xl font-bold text-gray-900">Editar Frete #{{ route.params.id }}</h2>
-      <button @click="$router.push({ name: 'EmbarcadorDashboard' })" class="text-sm font-bold text-blue-600 hover:text-blue-800 transition-colors">
-        &larr; Voltar ao Painel
-      </button>
-    </div>
-
-    <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+  <div class="w-full relative min-h-screen bg-slate-50 pb-12 pt-8 px-4 sm:px-6">
+    <div class="max-w-4xl mx-auto">
       
-      <div v-if="pageLoading" class="flex justify-center items-center py-12">
-        <div class="text-gray-500 font-bold">Buscando dados e malha logística...</div>
+      <!-- HEADER -->
+      <div class="flex justify-between items-center bg-white p-6 rounded-t-2xl border-b border-slate-200 shadow-sm">
+        <div>
+          <h2 class="text-2xl font-black text-slate-900 tracking-tight">Editar Frete #{{ route.params.id }}</h2>
+          <p class="text-sm text-slate-500 mt-1 font-medium">Atualize os dados e requisitos logísticos da carga.</p>
+        </div>
+        <button @click="$router.push({ name: 'EmbarcadorDashboard' })" class="text-sm font-bold text-slate-600 hover:text-slate-900 transition-colors focus:outline-none focus:ring-2 focus:ring-slate-200 rounded-lg px-4 py-2 border border-slate-200 hover:bg-slate-50 shadow-sm">
+          &larr; Voltar
+        </button>
       </div>
 
-      <div v-else>
-        <div v-if="message.text" :class="`m-6 p-4 rounded-md text-sm font-bold ${message.type === 'success' ? 'bg-green-50 text-green-800 border-l-4 border-green-500' : 'bg-red-50 text-red-800 border-l-4 border-red-500'}`">
-          {{ message.text }}
+      <!-- CONTAINER PRINCIPAL -->
+      <div class="bg-white rounded-b-2xl shadow-sm border border-t-0 border-slate-200 overflow-hidden">
+        
+        <!-- ESTADO: CARREGANDO -->
+        <div v-if="pageLoading" class="flex flex-col justify-center items-center py-20">
+          <svg class="w-10 h-10 animate-spin text-[#ff5500] mb-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+          <div class="text-slate-500 font-bold tracking-wide">Sincronizando dados da malha logística...</div>
         </div>
 
-        <form @submit.prevent="updateCarga" class="p-6 space-y-8">
-          
-          <div>
-            <h3 class="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4 border-b pb-2">Informações da Mercadoria</h3>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div class="md:col-span-2">
-                <label class="block text-sm font-bold text-gray-700 mb-1">Produto</label>
-                <input v-model="form.produto" type="text" required class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm">
+        <div v-else>
+          <!-- MENSAGENS DE SUCESSO/ERRO -->
+          <div v-if="message.text" :class="`m-6 p-4 rounded-xl text-sm font-bold shadow-sm border ${message.type === 'success' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-red-50 text-red-800 border-red-200'}`">
+            {{ message.text }}
+          </div>
+
+          <form @submit.prevent="updateCarga" class="p-6 sm:p-8 space-y-10">
+            
+            <!-- SEÇÃO 1: MERCADORIA -->
+            <div>
+              <h3 class="text-xs font-black text-slate-400 uppercase tracking-widest mb-6 border-b border-slate-100 pb-3">Informações da Mercadoria</h3>
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="md:col-span-2">
+                  <label class="block text-sm font-bold text-slate-700 mb-2">Produto</label>
+                  <input v-model="form.produto" type="text" required class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#035D29] focus:border-[#035D29] text-sm bg-slate-50 focus:bg-white transition-colors shadow-sm">
+                </div>
+                <div>
+                  <label class="block text-sm font-bold text-slate-700 mb-2">Espécie / Embalagem</label>
+                  <select v-model="form.especie" class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#035D29] focus:border-[#035D29] text-sm bg-slate-50 focus:bg-white transition-colors shadow-sm" required>
+                    <option value="" disabled>Selecione...</option>
+                    <option value="caixas">Caixas</option>
+                    <option value="paletes">Paletes</option>
+                    <option value="sacaria">Sacaria</option>
+                    <option value="granel">Granel</option>
+                    <option value="tambores">Tambores</option>
+                    <option value="outro">Outro</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label class="block text-sm font-bold text-slate-700 mb-2">Peso Bruto (KG)</label>
+                  <input 
+                      v-model="formVisual.peso_kg" 
+                      v-maska
+                      data-maska="9.99#,##" 
+                      data-maska-tokens="9:[0-9]:repeated" 
+                      data-maska-reversed="true"
+                      @maska="formUnmasked.peso_kg = $event.detail.unmasked"
+                      type="text" 
+                      class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#035D29] focus:border-[#035D29] text-sm bg-slate-50 focus:bg-white transition-colors shadow-sm" 
+                      required
+                  >
+                </div>
+                <div>
+                  <label class="block text-sm font-bold text-slate-700 mb-2">Cubagem (m³)</label>
+                  <input 
+                      v-model="formVisual.cubagem_m3" 
+                      v-maska
+                      data-maska="9.99#,##" 
+                      data-maska-tokens="9:[0-9]:repeated" 
+                      data-maska-reversed="true"
+                      @maska="formUnmasked.cubagem_m3 = $event.detail.unmasked"
+                      type="text" 
+                      class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#035D29] focus:border-[#035D29] text-sm bg-slate-50 focus:bg-white transition-colors shadow-sm"
+                  >
+                </div>
+                <div>
+                   <label class="block text-sm font-bold text-slate-700 mb-2">Valor do Frete (R$)</label>
+                   <input 
+                      v-model="formVisual.valor_frete" 
+                      v-maska
+                      data-maska="9.99#,##" 
+                      data-maska-tokens="9:[0-9]:repeated" 
+                      data-maska-reversed="true"
+                      @maska="formUnmasked.valor_frete = $event.detail.unmasked"
+                      type="text" 
+                      class="w-full px-4 py-3 border border-[#035D29]/30 rounded-xl focus:ring-2 focus:ring-[#035D29] focus:border-[#035D29] text-sm font-black text-[#035D29] bg-emerald-50/50 shadow-inner transition-colors" 
+                      required
+                   >
+                </div>
               </div>
-              <div>
-                <label class="block text-sm font-bold text-gray-700 mb-1">Espécie / Embalagem</label>
-                <select v-model="form.especie" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm bg-white" required>
-                  <option value="" disabled>Selecione...</option>
-                  <option value="caixas">Caixas</option>
-                  <option value="paletes">Paletes</option>
-                  <option value="sacaria">Sacaria</option>
-                  <option value="granel">Granel</option>
-                  <option value="tambores">Tambores</option>
-                  <option value="outro">Outro</option>
-                </select>
+            </div>
+
+            <!-- SEÇÃO 2: REQUISITOS LOGÍSTICOS -->
+            <div>
+              <h3 class="text-xs font-black text-slate-400 uppercase tracking-widest mb-6 border-b border-slate-100 pb-3">Requisitos Logísticos</h3>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label class="block text-sm font-bold text-slate-700 mb-2">Tipo de Veículo Exigido</label>
+                  <select v-model="form.tipo_veiculo" class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#035D29] focus:border-[#035D29] text-sm bg-slate-50 focus:bg-white transition-colors shadow-sm" required>
+                    <option value="" disabled>Selecione o veículo...</option>
+                    <option value="fiorino">Fiorino / Van</option>
+                    <option value="toco">Toco</option>
+                    <option value="truck">Truck</option>
+                    <option value="bitruck">Bitruck</option>
+                    <option value="carreta">Carreta</option>
+                    <option value="carreta_ls">Carreta LS</option>
+                    <option value="vanderleia">Vanderléia</option>
+                    <option value="bitrem">Bitrem / Rodotrem</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-sm font-bold text-slate-700 mb-2">Tipo de Carroceria</label>
+                  <select v-model="form.tipo_carroceria" class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#035D29] focus:border-[#035D29] text-sm bg-slate-50 focus:bg-white transition-colors shadow-sm" required>
+                    <option value="" disabled>Selecione a carroceria...</option>
+                    <option value="bau">Baú Fechado</option>
+                    <option value="sider">Sider</option>
+                    <option value="aberta">Carroceria Aberta / Carga Seca</option>
+                    <option value="graneleiro">Graneleiro</option>
+                    <option value="frigorifico">Frigorífico</option>
+                    <option value="prancha">Prancha</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <!-- SEÇÃO 3: ROTA -->
+            <div>
+              <h3 class="text-xs font-black text-slate-400 uppercase tracking-widest mb-6 border-b border-slate-100 pb-3">Rota da Carga</h3>
+              
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6 p-6 bg-slate-50/50 border border-slate-200 rounded-2xl shadow-sm">
+                <div>
+                  <label class="block text-sm font-bold text-slate-700 mb-2">UF Origem</label>
+                  <select v-model="form.uf_origem" @change="carregarCidades(form.uf_origem, 'origem')" class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#035D29] focus:border-[#035D29] text-sm bg-white shadow-sm" required>
+                    <option value="" disabled>Estado</option>
+                    <option v-for="uf in ufs" :key="uf.sigla" :value="uf.sigla">{{ uf.sigla }}</option>
+                  </select>
+                </div>
+                <div class="md:col-span-2">
+                  <label class="block text-sm font-bold text-slate-700 mb-2">Cidade de Origem</label>
+                  <select v-model="form.cidade_origem" :disabled="!form.uf_origem || loadingCidadesOrigem" class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#035D29] focus:border-[#035D29] text-sm bg-white shadow-sm disabled:bg-slate-100 disabled:text-slate-400" required>
+                    <option value="" disabled>{{ loadingCidadesOrigem ? 'Carregando cidades...' : 'Selecione a cidade' }}</option>
+                    <option v-for="cidade in cidadesOrigem" :key="cidade.id" :value="cidade.nome">{{ cidade.nome }}</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div>
+                  <label class="block text-sm font-bold text-slate-700 mb-2">UF Destino</label>
+                  <select v-model="form.uf_destino" @change="carregarCidades(form.uf_destino, 'destino')" class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#035D29] focus:border-[#035D29] text-sm bg-slate-50 focus:bg-white transition-colors shadow-sm" required>
+                    <option value="" disabled>Estado</option>
+                    <option v-for="uf in ufs" :key="uf.sigla" :value="uf.sigla">{{ uf.sigla }}</option>
+                  </select>
+                </div>
+                <div class="md:col-span-2">
+                  <label class="block text-sm font-bold text-slate-700 mb-2">Cidade de Destino</label>
+                  <select v-model="form.cidade_destino" :disabled="!form.uf_destino || loadingCidadesDestino" class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#035D29] focus:border-[#035D29] text-sm bg-slate-50 focus:bg-white transition-colors shadow-sm disabled:bg-slate-100 disabled:text-slate-400" required>
+                    <option value="" disabled>{{ loadingCidadesDestino ? 'Carregando cidades...' : 'Selecione a cidade' }}</option>
+                    <option v-for="cidade in cidadesDestino" :key="cidade.id" :value="cidade.nome">{{ cidade.nome }}</option>
+                  </select>
+                </div>
               </div>
               
-              <div>
-                <label class="block text-sm font-bold text-gray-700 mb-1">Peso Bruto (KG)</label>
-                <input 
-                    v-model="formVisual.peso_kg" 
-                    v-maska
-                    data-maska="9.99#,##" 
-                    data-maska-tokens="9:[0-9]:repeated" 
-                    data-maska-reversed="true"
-                    @maska="formUnmasked.peso_kg = $event.detail.unmasked"
-                    type="text" 
-                    class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm" 
-                    required
-                >
-              </div>
-              <div>
-                <label class="block text-sm font-bold text-gray-700 mb-1">Cubagem (m³)</label>
-                <input 
-                    v-model="formVisual.cubagem_m3" 
-                    v-maska
-                    data-maska="9.99#,##" 
-                    data-maska-tokens="9:[0-9]:repeated" 
-                    data-maska-reversed="true"
-                    @maska="formUnmasked.cubagem_m3 = $event.detail.unmasked"
-                    type="text" 
-                    class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm"
-                >
-              </div>
-              <div>
-                 <label class="block text-sm font-bold text-gray-700 mb-1">Valor do Frete (R$)</label>
-                 <input 
-                    v-model="formVisual.valor_frete" 
-                    v-maska
-                    data-maska="9.99#,##" 
-                    data-maska-tokens="9:[0-9]:repeated" 
-                    data-maska-reversed="true"
-                    @maska="formUnmasked.valor_frete = $event.detail.unmasked"
-                    type="text" 
-                    class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm font-bold text-blue-900 bg-blue-50" 
-                    required
-                 >
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <h3 class="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4 border-b pb-2">Requisitos Logísticos</h3>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label class="block text-sm font-bold text-gray-700 mb-1">Tipo de Veículo Exigido</label>
-                <select v-model="form.tipo_veiculo" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm bg-white" required>
-                  <option value="" disabled>Selecione o veículo...</option>
-                  <option value="fiorino">Fiorino / Van</option>
-                  <option value="toco">Toco</option>
-                  <option value="truck">Truck</option>
-                  <option value="bitruck">Bitruck</option>
-                  <option value="carreta">Carreta</option>
-                  <option value="carreta_ls">Carreta LS</option>
-                  <option value="vanderleia">Vanderléia</option>
-                  <option value="bitrem">Bitrem / Rodotrem</option>
-                </select>
-              </div>
-              <div>
-                <label class="block text-sm font-bold text-gray-700 mb-1">Tipo de Carroceria</label>
-                <select v-model="form.tipo_carroceria" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm bg-white" required>
-                  <option value="" disabled>Selecione a carroceria...</option>
-                  <option value="bau">Baú Fechado</option>
-                  <option value="sider">Sider</option>
-                  <option value="aberta">Carroceria Aberta / Carga Seca</option>
-                  <option value="graneleiro">Graneleiro</option>
-                  <option value="frigorifico">Frigorífico</option>
-                  <option value="prancha">Prancha</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <h3 class="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4 border-b pb-2">Rota da Carga</h3>
-            
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
-              <div>
-                <label class="block text-sm font-bold text-gray-700 mb-1">UF Origem</label>
-                <select v-model="form.uf_origem" @change="carregarCidades(form.uf_origem, 'origem')" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm bg-white" required>
-                  <option value="" disabled>Estado</option>
-                  <option v-for="uf in ufs" :key="uf.sigla" :value="uf.sigla">{{ uf.sigla }}</option>
-                </select>
-              </div>
-              <div class="md:col-span-2">
-                <label class="block text-sm font-bold text-gray-700 mb-1">Cidade de Origem</label>
-                <select v-model="form.cidade_origem" :disabled="!form.uf_origem || loadingCidadesOrigem" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm bg-white disabled:bg-gray-100" required>
-                  <option value="" disabled>{{ loadingCidadesOrigem ? 'Carregando cidades...' : 'Selecione a cidade' }}</option>
-                  <option v-for="cidade in cidadesOrigem" :key="cidade.id" :value="cidade.nome">{{ cidade.nome }}</option>
-                </select>
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                   <label class="block text-sm font-bold text-slate-700 mb-2">Data de Coleta</label>
+                   <input v-model="form.data_coleta" type="date" class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#035D29] focus:border-[#035D29] text-sm bg-slate-50 focus:bg-white transition-colors shadow-sm" required>
+                </div>
+                <div>
+                   <label class="block text-sm font-bold text-slate-700 mb-2">Previsão de Entrega</label>
+                   <input v-model="form.data_entrega_prevista" type="date" class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#035D29] focus:border-[#035D29] text-sm bg-slate-50 focus:bg-white transition-colors shadow-sm">
+                </div>
+                <div>
+                   <label class="block text-sm font-bold text-slate-700 mb-2">Distância Estimada (KM)</label>
+                   <input v-model.number="form.distancia_km" type="number" step="0.1" class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#035D29] focus:border-[#035D29] text-sm bg-slate-50 focus:bg-white transition-colors shadow-sm" placeholder="Opcional">
+                </div>
               </div>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-              <div>
-                <label class="block text-sm font-bold text-gray-700 mb-1">UF Destino</label>
-                <select v-model="form.uf_destino" @change="carregarCidades(form.uf_destino, 'destino')" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm bg-white" required>
-                  <option value="" disabled>Estado</option>
-                  <option v-for="uf in ufs" :key="uf.sigla" :value="uf.sigla">{{ uf.sigla }}</option>
-                </select>
-              </div>
-              <div class="md:col-span-2">
-                <label class="block text-sm font-bold text-gray-700 mb-1">Cidade de Destino</label>
-                <select v-model="form.cidade_destino" :disabled="!form.uf_destino || loadingCidadesDestino" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm bg-white disabled:bg-gray-100" required>
-                  <option value="" disabled>{{ loadingCidadesDestino ? 'Carregando cidades...' : 'Selecione a cidade' }}</option>
-                  <option v-for="cidade in cidadesDestino" :key="cidade.id" :value="cidade.nome">{{ cidade.nome }}</option>
-                </select>
-              </div>
+            <!-- AÇÕES FINAIS -->
+            <div class="pt-8 mt-8 border-t border-slate-200 flex flex-col-reverse sm:flex-row justify-end sm:space-x-4 gap-3 sm:gap-0">
+              <button type="button" @click="$router.push({ name: 'EmbarcadorDashboard' })" class="w-full sm:w-auto px-6 py-3 border border-slate-300 text-slate-700 font-bold rounded-xl hover:bg-slate-50 focus:outline-none transition-colors shadow-sm">
+                Cancelar
+              </button>
+              <button 
+                type="submit" 
+                :disabled="submitLoading"
+                class="w-full sm:w-auto px-10 py-3 bg-[#035D29] text-white font-bold rounded-xl hover:bg-[#023818] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#035D29] disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-md"
+              >
+                {{ submitLoading ? 'Salvando...' : 'Salvar Alterações' }}
+              </button>
             </div>
-            
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div>
-                 <label class="block text-sm font-bold text-gray-700 mb-1">Data de Coleta</label>
-                 <input v-model="form.data_coleta" type="date" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm" required>
-              </div>
-              <div>
-                 <label class="block text-sm font-bold text-gray-700 mb-1">Previsão de Entrega (Opcional)</label>
-                 <input v-model="form.data_entrega_prevista" type="date" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm">
-              </div>
-              <div>
-                 <label class="block text-sm font-bold text-gray-700 mb-1">Distância Estimada (KM)</label>
-                 <input v-model.number="form.distancia_km" type="number" step="0.1" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm" placeholder="Opcional">
-              </div>
-            </div>
-          </div>
 
-          <div class="pt-4 border-t border-gray-200 flex justify-end space-x-4">
-            <button type="button" @click="$router.push({ name: 'EmbarcadorDashboard' })" class="px-6 py-2 border border-gray-300 text-gray-700 font-bold rounded-md hover:bg-gray-50 focus:outline-none transition-colors">
-              Cancelar
-            </button>
-            <button 
-              type="submit" 
-              :disabled="submitLoading"
-              class="px-6 py-2 bg-blue-600 text-white font-bold rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
-            >
-              {{ submitLoading ? 'Salvando...' : 'Salvar Alterações' }}
-            </button>
-          </div>
-
-        </form>
+          </form>
+        </div>
       </div>
     </div>
   </div>

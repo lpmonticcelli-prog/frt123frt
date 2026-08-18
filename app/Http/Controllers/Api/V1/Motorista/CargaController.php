@@ -46,12 +46,56 @@ class CargaController extends Controller
         return htmlspecialchars($clean, ENT_QUOTES | ENT_HTML5 | ENT_SUBSTITUTE, 'UTF-8', false);
     }
 
+    /**
+     * CENTRAL INTELIGENTE DE FRETES (RADAR DE RETORNO)
+     * Aceita parâmetros de GPS (lat, lng, raio) ou Busca Livre (cidade).
+     */
     public function disponiveis(Request $request): JsonResponse
     {
-        $cargas = Carga::with(['embarcador.user:id,name,email'])
-            ->where('status', self::STATUS_PUBLICADA)
-            ->orderBy('created_at', 'desc')
-            ->paginate(20);
+        $query = Carga::where('status', self::STATUS_PUBLICADA);
+
+        // MODO 1: MOTORISTA USOU O BOTÃO DE GPS (CÁLCULO MATEMÁTICO HAVERSINE)
+        if ($request->filled('lat') && $request->filled('lng')) {
+            $lat = (float) $request->lat;
+            $lng = (float) $request->lng;
+            $raio = $request->filled('raio') ? (int) $request->raio : 150; // Padrão 150km de raio
+
+            // Fórmula Global de Haversine para achar distâncias curvos na terra via SQL
+            $haversine = "(6371 * acos(cos(radians(?)) 
+                         * cos(radians(lat_origem)) 
+                         * cos(radians(lng_origem) - radians(?)) 
+                         + sin(radians(?)) 
+                         * sin(radians(lat_origem))))";
+
+            $query->select('*') 
+                  ->selectRaw("{$haversine} AS distancia_calc", [$lat, $lng, $lat]) 
+                  ->whereNotNull('lat_origem') 
+                  ->whereRaw("{$haversine} <= ?", [$lat, $lng, $lat, $raio]) 
+                  ->orderBy('distancia_calc', 'asc'); // Cargas que estão na rua dele primeiro
+        } 
+        
+        // MODO 2: BUSCA MANUAL POR NOME DA CIDADE OU ESTADO (ILike Case-Insensitive)
+        else if ($request->filled('cidade')) {
+            $termo = $request->cidade;
+            
+            $query->where(function($q) use ($termo) {
+                // Se for PostgreSQL, substitua LIKE por ILIKE para ignorar maiúsculas/minúsculas perfeitamente
+                $q->where('cidade_origem', 'LIKE', "%{$termo}%")
+                  ->orWhere('uf_origem', 'LIKE', "%{$termo}%");
+            });
+            
+            $query->select('*')->selectRaw('NULL as distancia_calc');
+            $query->orderBy('created_at', 'desc');
+        } 
+        
+        // MODO 3: PADRÃO (SEM FILTRO)
+        else {
+            $query->select('*')->selectRaw('NULL as distancia_calc');
+            $query->orderBy('created_at', 'desc');
+        }
+
+        $cargas = $query->with('embarcador:id,razao_social')
+                        ->paginate(20);
 
         return response()->json([
             'status' => 'success',
