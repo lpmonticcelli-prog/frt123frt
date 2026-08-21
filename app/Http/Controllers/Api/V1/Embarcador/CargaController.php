@@ -60,19 +60,19 @@ class CargaController extends Controller
                 $percentualTaxa = $user->embarcador->taxa_frete_percentual ?? 5.00;
                 $taxaPlataforma = round($validated['valor_frete'] * ($percentualTaxa / 100), 2);
 
-                // CIRURGIA DE GEOLOCALIZAÇÃO: Captura das coordenadas da Origem
+                // CIRURGIA DE BUSCA AVANÇADA: Ignora maiúsculas, minúsculas e espaços em branco na Origem
                 $cidadeOrigem = DB::table('cidades')
                     ->join('estados', 'cidades.estado_id', '=', 'estados.id')
-                    ->where('cidades.nome', $validated['cidade_origem'])
-                    ->where('estados.uf', strtoupper($validated['uf_origem']))
+                    ->whereRaw('LOWER(TRIM(cidades.nome)) = ?', [mb_strtolower(trim($validated['cidade_origem']), 'UTF-8')])
+                    ->where('estados.uf', strtoupper(trim($validated['uf_origem'])))
                     ->select('cidades.latitude', 'cidades.longitude')
                     ->first();
 
-                // CIRURGIA DE GEOLOCALIZAÇÃO: Captura das coordenadas do Destino (Caso a migration já as suporte)
+                // CIRURGIA DE BUSCA AVANÇADA: Ignora maiúsculas, minúsculas e espaços em branco no Destino
                 $cidadeDestino = DB::table('cidades')
                     ->join('estados', 'cidades.estado_id', '=', 'estados.id')
-                    ->where('cidades.nome', $validated['cidade_destino'])
-                    ->where('estados.uf', strtoupper($validated['uf_destino']))
+                    ->whereRaw('LOWER(TRIM(cidades.nome)) = ?', [mb_strtolower(trim($validated['cidade_destino']), 'UTF-8')])
+                    ->where('estados.uf', strtoupper(trim($validated['uf_destino'])))
                     ->select('cidades.latitude', 'cidades.longitude')
                     ->first();
 
@@ -85,16 +85,15 @@ class CargaController extends Controller
                     'tipo_veiculo' => $validated['tipo_veiculo'],
                     'tipo_carroceria' => $validated['tipo_carroceria'],
                     'cidade_origem' => $this->sanitizeText($validated['cidade_origem']),
-                    'uf_origem' => strtoupper($validated['uf_origem']),
+                    'uf_origem' => strtoupper(trim($validated['uf_origem'])),
                     
                     // Injeção silenciosa das coordenadas geográficas capturadas no banco local
                     'lat_origem' => $cidadeOrigem ? $cidadeOrigem->latitude : null,
                     'lng_origem' => $cidadeOrigem ? $cidadeOrigem->longitude : null,
                     
                     'cidade_destino' => $this->sanitizeText($validated['cidade_destino']),
-                    'uf_destino' => strtoupper($validated['uf_destino']),
+                    'uf_destino' => strtoupper(trim($validated['uf_destino'])),
                     
-                    // Se sua tabela cargas já tiver lat/lng de destino, descomente abaixo:
                     // 'lat_destino' => $cidadeDestino ? $cidadeDestino->latitude : null,
                     // 'lng_destino' => $cidadeDestino ? $cidadeDestino->longitude : null,
 
@@ -105,7 +104,6 @@ class CargaController extends Controller
                     'data_entrega_prevista' => $validated['data_entrega_prevista'] ?? null,
                     'status' => self::STATUS_PUBLICADA,
                     
-                    // CIRURGIA APLICADA: Gravação explícita dos novos campos
                     'pedagio' => $request->input('pedagio', 0),
                     'piso_antt' => $request->input('piso_antt', null),
                 ]);
@@ -229,8 +227,8 @@ class CargaController extends Controller
             // Refaz a checagem de coordenadas caso o Embarcador tenha alterado a rota na edição
             $cidadeOrigem = DB::table('cidades')
                 ->join('estados', 'cidades.estado_id', '=', 'estados.id')
-                ->where('cidades.nome', $validated['cidade_origem'])
-                ->where('estados.uf', strtoupper($validated['uf_origem']))
+                ->whereRaw('LOWER(TRIM(cidades.nome)) = ?', [mb_strtolower(trim($validated['cidade_origem']), 'UTF-8')])
+                ->where('estados.uf', strtoupper(trim($validated['uf_origem'])))
                 ->select('cidades.latitude', 'cidades.longitude')
                 ->first();
 
@@ -240,14 +238,13 @@ class CargaController extends Controller
                 'cidade_origem' => $this->sanitizeText($validated['cidade_origem']),
                 'cidade_destino' => $this->sanitizeText($validated['cidade_destino']),
                 'taxa_plataforma' => $taxaPlataforma,
-                'uf_origem' => strtoupper($validated['uf_origem']),
-                'uf_destino' => strtoupper($validated['uf_destino']),
+                'uf_origem' => strtoupper(trim($validated['uf_origem'])),
+                'uf_destino' => strtoupper(trim($validated['uf_destino'])),
                 
                 // Recalibra o GPS
                 'lat_origem' => $cidadeOrigem ? $cidadeOrigem->latitude : $cargaLock->lat_origem,
                 'lng_origem' => $cidadeOrigem ? $cidadeOrigem->longitude : $cargaLock->lng_origem,
                 
-                // CIRURGIA APLICADA: Permite edição do pedágio e piso_antt
                 'pedagio' => $request->input('pedagio', $cargaLock->pedagio),
                 'piso_antt' => $request->input('piso_antt', $cargaLock->piso_antt),
             ]));
@@ -305,7 +302,6 @@ class CargaController extends Controller
         }
 
         try {
-            // Delegação atômica para a camada de serviço (que já deve possuir sua própria transação)
             $this->candidaturaService->aprovarCandidato($carga->id, (int) $request->candidatura_id, $user->embarcador->id);
             return response()->json(['message' => 'Motorista aprovado. O processo de alocação foi iniciado.'], 200);
         } catch (\Exception $e) {
@@ -313,9 +309,6 @@ class CargaController extends Controller
         }
     }
 
-    /**
-     * Auditoria Financeira Crítica: Finalização e Liberação de Ciot.
-     */
     public function avaliarEFinalizarEntrega(Request $request, Carga $carga): JsonResponse
     {
         $request->validate([
@@ -338,7 +331,6 @@ class CargaController extends Controller
         try {
             DB::beginTransaction();
             
-            // Processa a avaliação (deve ser idempotente ou fazer parte da transação se possível)
             $avaliacao = $this->reputacaoService->processarAvaliacao(
                 $carga->id, $user->embarcador->id, $carga->motorista_id,
                 (int) $request->nota_pontualidade, (int) $request->nota_cuidado,
@@ -357,7 +349,6 @@ class CargaController extends Controller
                 
                 if ($ciot && $ciot->status === 'emitido') {
                     $ciot->update(['status' => self::CIOT_PROCESSANDO_LIQUIDACAO]);
-                    // Job despachado apenas se o commit de banco for bem sucedido (ver listener no framework ou afterCommit)
                     LiquidarFreteJob::dispatch($ciot->codigo_ciot)->onQueue('financeiro')->afterCommit();
                 }
             }
@@ -410,10 +401,6 @@ class CargaController extends Controller
         }
     }
 
-    /**
-     * Proxy Zero Trust para visualização de POD (Proof of Delivery).
-     * Saneado e agnóstico de ambiente (S3 / Local).
-     */
     public function exibirDocumentoPod(Request $request): StreamedResponse|JsonResponse
     {
         $user = $request->user();
@@ -432,7 +419,6 @@ class CargaController extends Controller
             return response()->json(['error' => 'Escopo de diretório violado.'], 403);
         }
 
-        // Recupera o ID da carga através da regex
         preg_match('/carga_(\d+)/', $path, $matches);
         if (!isset($matches[1])) {
              return response()->json(['error' => 'Assinatura do documento inválida.'], 400);
@@ -446,7 +432,6 @@ class CargaController extends Controller
             return response()->json(['error' => 'Acesso negado. Documento pertence a outra organização.'], 403);
         }
 
-        // Operação de I/O Abstrata (Storage Driver configurado)
         if (!Storage::exists($path)) {
             return response()->json(['error' => 'Objeto de entrega não encontrado na storage.'], 404);
         }
