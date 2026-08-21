@@ -13,7 +13,6 @@ use App\Models\User;
 use App\Models\Role;
 use App\Models\Embarcador;
 use App\Models\Motorista;
-use App\Models\Carga;
 
 class DatabaseSeeder extends Seeder
 {
@@ -21,6 +20,9 @@ class DatabaseSeeder extends Seeder
     {
         $faker = Faker::create('pt_BR');
         $now = Carbon::now();
+
+        // Expande a memória temporariamente para processar a malha do Brasil inteiro
+        ini_set('memory_limit', '512M');
 
         // ZT-DEFENSE: Passada a limpo. Não requer hash prévio devido ao mutator `$casts = ['password' => 'hashed']`
         $plainPassword = env('SEED_DEFAULT_PASSWORD');
@@ -30,7 +32,7 @@ class DatabaseSeeder extends Seeder
             $this->command->warn('SALVE ESTA SENHA. ELA NÃO SERÁ EXIBIDA NOVAMENTE.');
         }
 
-        $this->command->info('🚀 Iniciando População Massiva Enterprise (Eloquent Strict)...');
+        $this->command->info('🚀 Iniciando População Massiva Enterprise (Escala Nacional)...');
 
         DB::beginTransaction();
 
@@ -105,40 +107,82 @@ class DatabaseSeeder extends Seeder
                 $motoristaModelIds[] = $motorista->id; 
             }
 
-            $this->command->info('⚙️ Gerando 200 Cargas (Com Coordenadas na Origem)...');
-            $cargas = [];
-            for ($i = 0; $i < 200; $i++) {
-                $cargas[] = [
-                    'embarcador_id' => $faker->randomElement($embarcadorIds),
-                    'motorista_id' => $faker->boolean(40) ? $faker->randomElement($motoristaModelIds) : null,
-                    'produto' => $faker->words(2, true),
-                    'especie' => $faker->randomElement(['Caixas', 'Paletes', 'Granel', 'Sacas']),
-                    'peso_kg' => $faker->randomFloat(2, 500, 30000),
-                    'tipo_veiculo' => $faker->randomElement(['Truck', 'Carreta', 'Toco', 'VUC', 'Fiorino']),
-                    'tipo_carroceria' => $faker->randomElement(['Baú', 'Sider', 'Grade Baixa', 'Câmara Fria']),
-                    'cidade_origem' => $faker->city,
-                    'uf_origem' => strtoupper($faker->lexify('??')), // Fake UF genérico
-                    'lat_origem' => $faker->latitude(-25.0, -20.0), // Coordenadas no SE/SP
-                    'lng_origem' => $faker->longitude(-49.0, -45.0),
-                    'cidade_destino' => $faker->city,
-                    'uf_destino' => strtoupper($faker->lexify('??')),
-                    // LAT E LNG DE DESTINO REMOVIDOS AQUI PARA NÃO QUEBRAR O BANCO
-                    'valor_frete' => $faker->randomFloat(2, 500, 15000),
-                    'taxa_plataforma' => 50,
-                    'data_coleta' => $faker->dateTimeBetween('-1 month', '+1 month')->format('Y-m-d H:i:s'),
-                    'status' => $faker->randomElement(['publicada', 'em_transito', 'concluida', 'cancelada']),
-                    'created_at' => $now,
-                    'updated_at' => $now
-                ];
-            }
+            $this->command->info('🗺️ Mapeando Cidades do Banco de Dados para a Memória...');
             
-            // Cargas não possuem criptografia at-rest, usamos DB::table para contornar gargalo e overhead do Reverb.
-            foreach (array_chunk($cargas, 50) as $chunk) {
-                DB::table('cargas')->insert($chunk);
+            // Busca a malha real do banco
+            $cidades = DB::table('cidades')
+                ->join('estados', 'cidades.estado_id', '=', 'estados.id')
+                ->select('cidades.nome', 'estados.uf', 'cidades.latitude', 'cidades.longitude')
+                ->get()
+                ->toArray();
+
+            if (empty($cidades)) {
+                throw new \Exception("A tabela de cidades está vazia. Rode o LocalidadeSeeder primeiro!");
             }
 
-            $this->command->info('⚙️ Gerando Disputas e Tickets...');
-            $cargaIdsArray = DB::table('cargas')->pluck('id')->toArray();
+            $totalCidades = count($cidades);
+            $this->command->info("📦 Gerando de 2 a 6 cargas reais para cada uma das {$totalCidades} cidades...");
+
+            $cargasLote = [];
+            $contadorCargas = 0;
+
+            foreach ($cidades as $cidadeOrigem) {
+                // Sorteia a quantidade de cargas para esta cidade específica (entre 2 e 6)
+                $qtdCargas = random_int(2, 6);
+
+                for ($i = 0; $i < $qtdCargas; $i++) {
+                    // Sorteia um destino aleatório da mesma lista de cidades reais
+                    $cidadeDestino = $cidades[random_int(0, $totalCidades - 1)];
+
+                    $cargasLote[] = [
+                        'embarcador_id' => $faker->randomElement($embarcadorIds),
+                        'motorista_id' => $faker->boolean(30) ? $faker->randomElement($motoristaModelIds) : null,
+                        'produto' => $faker->words(2, true),
+                        'especie' => $faker->randomElement(['Caixas', 'Paletes', 'Granel', 'Sacas']),
+                        'peso_kg' => $faker->randomFloat(2, 500, 30000),
+                        'tipo_veiculo' => $faker->randomElement(['Truck', 'Carreta', 'Toco', 'VUC', 'Fiorino']),
+                        'tipo_carroceria' => $faker->randomElement(['Baú', 'Sider', 'Grade Baixa', 'Câmara Fria']),
+                        
+                        // Origem real com coordenadas
+                        'cidade_origem' => $cidadeOrigem->nome,
+                        'uf_origem' => $cidadeOrigem->uf,
+                        'lat_origem' => $cidadeOrigem->latitude,
+                        'lng_origem' => $cidadeOrigem->longitude,
+                        
+                        // Destino real
+                        'cidade_destino' => $cidadeDestino->nome,
+                        'uf_destino' => $cidadeDestino->uf,
+                        
+                        'valor_frete' => $faker->randomFloat(2, 500, 15000),
+                        'taxa_plataforma' => 50,
+                        'data_coleta' => $faker->dateTimeBetween('-1 month', '+1 month')->format('Y-m-d H:i:s'),
+                        'status' => $faker->randomElement(['publicada', 'em_transito', 'concluida', 'cancelada']),
+                        'created_at' => $now,
+                        'updated_at' => $now
+                    ];
+
+                    $contadorCargas++;
+
+                    // Insere no banco em pacotes de 1.000 para não travar o PostgreSQL
+                    if (count($cargasLote) === 1000) {
+                        DB::table('cargas')->insert($cargasLote);
+                        $cargasLote = [];
+                        $this->command->info("   -> {$contadorCargas} cargas inseridas...");
+                    }
+                }
+            }
+            
+            // Insere as cargas que sobraram na última rodada do loop
+            if (!empty($cargasLote)) {
+                DB::table('cargas')->insert($cargasLote);
+                $this->command->info("   -> {$contadorCargas} cargas inseridas (FIM).");
+            }
+
+            $this->command->info('⚙️ Gerando Disputas e Tickets (Amostragem Rápida)...');
+            
+            // Pega apenas 200 IDs aleatórios para não sobrecarregar a memória
+            $cargaIdsArray = DB::table('cargas')->inRandomOrder()->limit(200)->pluck('id')->toArray();
+            
             if (!empty($cargaIdsArray)) {
                 for ($i = 0; $i < 15; $i++) {
                     DB::table('disputas')->insert([
@@ -157,7 +201,7 @@ class DatabaseSeeder extends Seeder
                 DB::table('tickets')->insert([
                     'user_id' => $faker->randomElement($todosUsuariosIds),
                     'staff_id' => $faker->randomElement([$admin->id, null]),
-                    'carga_id' => $faker->randomElement(array_merge($cargaIdsArray, [null])),
+                    'carga_id' => empty($cargaIdsArray) ? null : $faker->randomElement(array_merge($cargaIdsArray, [null])),
                     'assunto' => $faker->sentence(3),
                     'categoria' => $faker->randomElement(['Operacional', 'Financeiro', 'Aplicativo', 'Dúvida']),
                     'prioridade' => $faker->randomElement(['baixa', 'normal', 'alta', 'urgente']),
@@ -168,7 +212,7 @@ class DatabaseSeeder extends Seeder
             }
 
             DB::commit();
-            $this->command->info('✅ BANCO DE DADOS POPULADO COM SUCESSO! CLOUD NATIVE E ZERO TRUST READY.');
+            $this->command->info('✅ BANCO DE DADOS POPULADO! ECOSSISTEMA LOGÍSTICO EM ESCALA NACIONAL PRONTO.');
 
         } catch (\Exception $e) {
             DB::rollBack();
