@@ -37,7 +37,6 @@ class LocalidadeSeeder extends Seeder
 
         $this->command->info('🗺️ Baixando base de Cidades via CDN (jsDelivr)...');
 
-        // URL alterada para a CDN: Maior velocidade e envia o header 'application/json' corretamente
         $cidadesUrl = 'https://cdn.jsdelivr.net/gh/kelvins/municipios-brasileiros@main/json/municipios.json';
         
         $response = Http::withUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64)')
@@ -45,12 +44,19 @@ class LocalidadeSeeder extends Seeder
                         ->withoutVerifying()
                         ->get($cidadesUrl);
 
-        // Limpa impurezas (BOM) do texto que podem quebrar o leitor de JSON
-        $body = preg_replace('/^[\xef\xbb\xbf]/', '', $response->body());
-        $cidadesApi = json_decode($body, true);
+        $body = $response->body();
 
-        if (empty($cidadesApi)) {
-            $this->command->error("❌ Falha no Parse do JSON! Erro do PHP: " . json_last_error_msg());
+        // 1. Remove a marcação BOM corretamente (SEM os colchetes assassinos)
+        $body = preg_replace('/^\xEF\xBB\xBF/', '', $body);
+        
+        // 2. Garante a sanitização final forçando o UTF-8
+        $body = mb_convert_encoding($body, 'UTF-8', 'UTF-8');
+
+        // 3. Usa a flag do PHP que substitui caracteres quebrados ao invés de explodir a aplicação
+        $cidadesApi = json_decode($body, true, 512, JSON_INVALID_UTF8_SUBSTITUTE);
+
+        if (json_last_error() !== JSON_ERROR_NONE || empty($cidadesApi)) {
+            $this->command->error("❌ Falha no Parse do JSON! Erro: " . json_last_error_msg());
             return;
         }
 
