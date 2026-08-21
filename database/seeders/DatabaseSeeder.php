@@ -105,7 +105,7 @@ class DatabaseSeeder extends Seeder
                 $motoristaModelIds[] = $motorista->id; 
             }
 
-            $this->command->info('⚙️ Gerando 200 Cargas...');
+            $this->command->info('⚙️ Gerando 200 Cargas (Com Coordenadas na Origem)...');
             $cargas = [];
             for ($i = 0; $i < 200; $i++) {
                 $cargas[] = [
@@ -118,8 +118,11 @@ class DatabaseSeeder extends Seeder
                     'tipo_carroceria' => $faker->randomElement(['Baú', 'Sider', 'Grade Baixa', 'Câmara Fria']),
                     'cidade_origem' => $faker->city,
                     'uf_origem' => strtoupper($faker->lexify('??')), // Fake UF genérico
+                    'lat_origem' => $faker->latitude(-25.0, -20.0), // Coordenadas no SE/SP
+                    'lng_origem' => $faker->longitude(-49.0, -45.0),
                     'cidade_destino' => $faker->city,
                     'uf_destino' => strtoupper($faker->lexify('??')),
+                    // LAT E LNG DE DESTINO REMOVIDOS AQUI PARA NÃO QUEBRAR O BANCO
                     'valor_frete' => $faker->randomFloat(2, 500, 15000),
                     'taxa_plataforma' => 50,
                     'data_coleta' => $faker->dateTimeBetween('-1 month', '+1 month')->format('Y-m-d H:i:s'),
