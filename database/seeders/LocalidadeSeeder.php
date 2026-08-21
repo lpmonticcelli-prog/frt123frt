@@ -12,14 +12,17 @@ class LocalidadeSeeder extends Seeder
     {
         $this->command->info('📥 Baixando Malha Geográfica Completa (IBGE + Coordenadas)...');
 
-        // Limpa as tabelas para recriar do zero e evitar duplicação (Cuidado em produção!)
         DB::table('cidades')->delete();
         DB::table('estados')->delete();
 
-        // 1. Baixamos a lista de estados para referenciar
         $estadosApi = Http::timeout(60)->withoutVerifying()->get('https://servicodados.ibge.gov.br/api/v1/localidades/estados')->json();
-        $estadosMap = [];
+        
+        if (!$estadosApi) {
+            $this->command->error('❌ Falha ao contatar a API do IBGE para baixar os estados.');
+            return;
+        }
 
+        $estadosMap = [];
         foreach ($estadosApi as $est) {
             $estadoId = DB::table('estados')->insertGetId([
                 'nome' => $est['nome'],
@@ -28,22 +31,31 @@ class LocalidadeSeeder extends Seeder
                 'created_at' => now(),
                 'updated_at' => now()
             ]);
-            $estadosMap[$est['id']] = $estadoId; // Guarda o ID para relacionar com a cidade
-            $this->command->info("✅ Estado criado: {$est['nome']}");
+            $estadosMap[$est['id']] = $estadoId;
         }
+        $this->command->info('✅ Todos os Estados foram criados.');
 
-        $this->command->info('🗺️ Injetando Cidades e Coordenadas...');
+        $this->command->info('🗺️ Baixando base de Cidades com Coordenadas do GitHub...');
 
-        // 2. Buscamos um repositório público consolidado do IBGE (que já traz Lat/Lng em JSON)
-        // Esse endpoint público no GitHub é mantido pela comunidade e tem as 5570 cidades com as coordenadas do centroide.
-        $cidadesUrl = 'https://raw.githubusercontent.com/kelvins/Municipios-Brasileiros/main/json/municipios.json';
-        $cidadesApi = Http::timeout(60)->withoutVerifying()->get($cidadesUrl)->json();
+        // URL 100% Corrigida (tudo em minúsculas) e adição de User-Agent para o GitHub não bloquear
+        $cidadesUrl = 'https://raw.githubusercontent.com/kelvins/municipios-brasileiros/main/json/municipios.json';
+        
+        $response = Http::withUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64)')
+                        ->timeout(60)
+                        ->withoutVerifying()
+                        ->get($cidadesUrl);
+
+        $cidadesApi = $response->json();
+
+        if (empty($cidadesApi)) {
+            $this->command->error("❌ Falha ao baixar o arquivo JSON de cidades! Status HTTP: " . $response->status());
+            return;
+        }
 
         $cidadesLote = [];
         $contador = 0;
 
         foreach ($cidadesApi as $cid) {
-            // Ignora cidades de estados que não conseguimos mapear
             if (!isset($estadosMap[$cid['codigo_uf']])) {
                 continue;
             }
@@ -52,13 +64,12 @@ class LocalidadeSeeder extends Seeder
                 'estado_id' => $estadosMap[$cid['codigo_uf']],
                 'nome' => $cid['nome'],
                 'codigo_ibge' => $cid['codigo_ibge'],
-                'latitude' => $cid['latitude'],   // A Mágica Acontece Aqui!
-                'longitude' => $cid['longitude'], // E Aqui!
+                'latitude' => $cid['latitude'],
+                'longitude' => $cid['longitude'],
                 'created_at' => now(),
                 'updated_at' => now()
             ];
 
-            // Inserimos de 500 em 500 para não estourar a memória RAM da VPS
             if (count($cidadesLote) === 500) {
                 DB::table('cidades')->insert($cidadesLote);
                 $cidadesLote = [];
@@ -67,9 +78,10 @@ class LocalidadeSeeder extends Seeder
             }
         }
 
-        // Insere o restinho que sobrou
         if (!empty($cidadesLote)) {
             DB::table('cidades')->insert($cidadesLote);
+            $contador += count($cidadesLote);
+            $this->command->info("   -> {$contador} cidades processadas (FIM).");
         }
 
         $this->command->info('🎯 Malha 100% atualizada! O Perto de Mim vai funcionar no Brasil inteiro.');
