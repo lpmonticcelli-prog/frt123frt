@@ -35,20 +35,22 @@ class LocalidadeSeeder extends Seeder
         }
         $this->command->info('✅ Todos os Estados foram criados.');
 
-        $this->command->info('🗺️ Baixando base de Cidades com Coordenadas do GitHub...');
+        $this->command->info('🗺️ Baixando base de Cidades via CDN (jsDelivr)...');
 
-        // URL 100% Corrigida (tudo em minúsculas) e adição de User-Agent para o GitHub não bloquear
-        $cidadesUrl = 'https://raw.githubusercontent.com/kelvins/municipios-brasileiros/main/json/municipios.json';
+        // URL alterada para a CDN: Maior velocidade e envia o header 'application/json' corretamente
+        $cidadesUrl = 'https://cdn.jsdelivr.net/gh/kelvins/municipios-brasileiros@main/json/municipios.json';
         
         $response = Http::withUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64)')
                         ->timeout(60)
                         ->withoutVerifying()
                         ->get($cidadesUrl);
 
-        $cidadesApi = $response->json();
+        // Limpa impurezas (BOM) do texto que podem quebrar o leitor de JSON
+        $body = preg_replace('/^[\xef\xbb\xbf]/', '', $response->body());
+        $cidadesApi = json_decode($body, true);
 
         if (empty($cidadesApi)) {
-            $this->command->error("❌ Falha ao baixar o arquivo JSON de cidades! Status HTTP: " . $response->status());
+            $this->command->error("❌ Falha no Parse do JSON! Erro do PHP: " . json_last_error_msg());
             return;
         }
 
