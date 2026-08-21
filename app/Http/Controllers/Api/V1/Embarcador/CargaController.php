@@ -60,6 +60,22 @@ class CargaController extends Controller
                 $percentualTaxa = $user->embarcador->taxa_frete_percentual ?? 5.00;
                 $taxaPlataforma = round($validated['valor_frete'] * ($percentualTaxa / 100), 2);
 
+                // CIRURGIA DE GEOLOCALIZAÇÃO: Captura das coordenadas da Origem
+                $cidadeOrigem = DB::table('cidades')
+                    ->join('estados', 'cidades.estado_id', '=', 'estados.id')
+                    ->where('cidades.nome', $validated['cidade_origem'])
+                    ->where('estados.uf', strtoupper($validated['uf_origem']))
+                    ->select('cidades.latitude', 'cidades.longitude')
+                    ->first();
+
+                // CIRURGIA DE GEOLOCALIZAÇÃO: Captura das coordenadas do Destino (Caso a migration já as suporte)
+                $cidadeDestino = DB::table('cidades')
+                    ->join('estados', 'cidades.estado_id', '=', 'estados.id')
+                    ->where('cidades.nome', $validated['cidade_destino'])
+                    ->where('estados.uf', strtoupper($validated['uf_destino']))
+                    ->select('cidades.latitude', 'cidades.longitude')
+                    ->first();
+
                 $novaCarga = Carga::create([
                     'embarcador_id' => $user->embarcador->id,
                     'produto' => $this->sanitizeText($validated['produto']),
@@ -70,8 +86,18 @@ class CargaController extends Controller
                     'tipo_carroceria' => $validated['tipo_carroceria'],
                     'cidade_origem' => $this->sanitizeText($validated['cidade_origem']),
                     'uf_origem' => strtoupper($validated['uf_origem']),
+                    
+                    // Injeção silenciosa das coordenadas geográficas capturadas no banco local
+                    'lat_origem' => $cidadeOrigem ? $cidadeOrigem->latitude : null,
+                    'lng_origem' => $cidadeOrigem ? $cidadeOrigem->longitude : null,
+                    
                     'cidade_destino' => $this->sanitizeText($validated['cidade_destino']),
                     'uf_destino' => strtoupper($validated['uf_destino']),
+                    
+                    // Se sua tabela cargas já tiver lat/lng de destino, descomente abaixo:
+                    // 'lat_destino' => $cidadeDestino ? $cidadeDestino->latitude : null,
+                    // 'lng_destino' => $cidadeDestino ? $cidadeDestino->longitude : null,
+
                     'distancia_km' => $validated['distancia_km'] ?? null,
                     'valor_frete' => $validated['valor_frete'],
                     'taxa_plataforma' => $taxaPlataforma, 
@@ -200,6 +226,14 @@ class CargaController extends Controller
             $percentualTaxa = $user->embarcador->taxa_frete_percentual ?? 5.00;
             $taxaPlataforma = round($validated['valor_frete'] * ($percentualTaxa / 100), 2);
 
+            // Refaz a checagem de coordenadas caso o Embarcador tenha alterado a rota na edição
+            $cidadeOrigem = DB::table('cidades')
+                ->join('estados', 'cidades.estado_id', '=', 'estados.id')
+                ->where('cidades.nome', $validated['cidade_origem'])
+                ->where('estados.uf', strtoupper($validated['uf_origem']))
+                ->select('cidades.latitude', 'cidades.longitude')
+                ->first();
+
             $cargaLock->update(array_merge($validated, [
                 'produto' => $this->sanitizeText($validated['produto']),
                 'especie' => $this->sanitizeText($validated['especie']),
@@ -208,6 +242,10 @@ class CargaController extends Controller
                 'taxa_plataforma' => $taxaPlataforma,
                 'uf_origem' => strtoupper($validated['uf_origem']),
                 'uf_destino' => strtoupper($validated['uf_destino']),
+                
+                // Recalibra o GPS
+                'lat_origem' => $cidadeOrigem ? $cidadeOrigem->latitude : $cargaLock->lat_origem,
+                'lng_origem' => $cidadeOrigem ? $cidadeOrigem->longitude : $cargaLock->lng_origem,
                 
                 // CIRURGIA APLICADA: Permite edição do pedágio e piso_antt
                 'pedagio' => $request->input('pedagio', $cargaLock->pedagio),
