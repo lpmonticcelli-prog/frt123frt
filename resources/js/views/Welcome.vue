@@ -18,7 +18,6 @@
       
       <div class="nav-actions">
         <router-link :to="{ name: 'Login' }" class="btn-text">Entrar</router-link>
-        <!-- ATUALIZADO: Rota agora aponta para a tela de Seleção de Perfil -->
         <router-link to="/register" class="btn-primary">Criar Conta</router-link>
       </div>
     </nav>
@@ -30,7 +29,7 @@
         class="hero-track flex transition-transform duration-700 ease-in-out h-full"
         :style="{ transform: `translateX(-${currentSlide * 100}%)` }"
       >
-        <!-- Slide 1: Caminhão no Pôr do Sol (Sua Imagem) -->
+        <!-- Slide 1: Caminhão no Pôr do Sol -->
         <div class="slide min-w-full h-full relative flex items-center justify-center sm:justify-start px-4 sm:px-12 lg:px-24">
           <div class="absolute inset-0 bg-cover bg-center" style="background-image: url('/pordosol.jpg');"></div>
           <div class="absolute inset-0 bg-gradient-to-t sm:bg-gradient-to-r from-[#035D29] via-[#035D29]/90 to-transparent"></div>
@@ -43,9 +42,8 @@
           </div>
         </div>
 
-        <!-- Slide 2: Pagamento Garantido / Docas (Sua Imagem) -->
+        <!-- Slide 2: Pagamento Garantido / Docas -->
         <div class="slide min-w-full h-full relative flex items-center justify-center sm:justify-start px-4 sm:px-12 lg:px-24">
-          <!-- Puxando a imagem local pagamento.jpg que você acabou de adicionar -->
           <div class="absolute inset-0 bg-cover bg-center" style="background-image: url('/pagamento.jpg');"></div>
           <div class="absolute inset-0 bg-gradient-to-t sm:bg-gradient-to-r from-slate-900 via-slate-900/90 to-transparent"></div>
           <div class="relative z-10 hero-content text-center sm:text-left">
@@ -57,7 +55,7 @@
           </div>
         </div>
 
-        <!-- Slide 3: Motorista Profissional (Sua Imagem) -->
+        <!-- Slide 3: Motorista Profissional -->
         <div class="slide min-w-full h-full relative flex items-center justify-center sm:justify-start px-4 sm:px-12 lg:px-24">
           <div class="absolute inset-0 bg-cover bg-center" style="background-image: url('/motorista.jpg');"></div>
           <div class="absolute inset-0 bg-gradient-to-t sm:bg-gradient-to-r from-[#035D29] via-[#035D29]/90 to-transparent"></div>
@@ -71,7 +69,7 @@
         </div>
       </div>
 
-      <!-- Navegação do Slider (Pontos e Setas) -->
+      <!-- Navegação do Slider -->
       <div class="hero-controls absolute left-0 right-0 flex justify-center items-center gap-4 sm:gap-6 z-20">
         <button @click="prevSlide" class="w-10 h-10 rounded-full bg-white/10 hover:bg-white/30 flex items-center justify-center text-white backdrop-blur-sm transition-all focus:outline-none">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
@@ -142,8 +140,10 @@
                     <span class="truncate max-w-[150px] font-bold text-slate-700">{{ carga.produto }}</span>
                   </div>
                 </div>
-                <div class="value-blurred group-hover/blur cursor-pointer mt-2 sm:mt-1" @click="requireLogin" title="Faça login para ver o valor exato">
-                  R$ ****,**
+                <!-- ATUALIZADO: Valor borrado com pontinhos perfeitos estilo banco -->
+                <div class="value-blurred group-hover/blur cursor-pointer mt-2 sm:mt-1 flex items-baseline justify-center sm:justify-start" @click="requireLogin" title="Faça login para ver o valor exato">
+                  <span class="mr-1 text-sm font-bold">R$</span> 
+                  <span class="tracking-[0.1em] text-lg mt-1">&bull;&bull;&bull;&bull;,&bull;&bull;</span>
                   <span class="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-slate-900 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover/blur:opacity-100 transition-opacity whitespace-nowrap shadow-lg z-10 hidden sm:block">Faça login para ver valores</span>
                 </div>
               </div>
@@ -167,7 +167,7 @@
       </div>
     </section>
 
-    <!-- SEÇÕES INFORMATIVAS (Estilo Cards Clean) -->
+    <!-- SEÇÕES INFORMATIVAS -->
     <section id="plataforma" class="info-section">
       <div class="container mx-auto px-6 max-w-6xl">
         <div class="text-center mb-8 sm:mb-12">
@@ -210,7 +210,6 @@
           </div>
           
           <div class="audience-box bg-slate-900 border border-slate-800 text-white relative overflow-hidden">
-            <!-- Efeito de brilho no card escuro -->
             <div class="absolute -right-20 -top-20 w-64 h-64 bg-emerald-500 rounded-full mix-blend-overlay filter blur-3xl opacity-20"></div>
             
             <h2 class="audience-title text-emerald-400 relative z-10">Para Motoristas</h2>
@@ -251,7 +250,6 @@
         
         <div class="flex flex-col gap-3 mt-8">
           <button @click="$router.push({ name: 'Login' })" class="btn-primary w-full py-3 text-lg shadow-lg shadow-[#035D29]/20 hover:scale-[1.02] transition-transform">Fazer Login Agora</button>
-          <!-- ATUALIZADO: Rota agora aponta para a tela de Seleção de Perfil -->
           <button @click="$router.push({ name: 'ChooseProfile' })" class="btn-text w-full py-2 border border-transparent hover:border-slate-200 rounded-xl transition-all">Não tenho conta e quero me cadastrar</button>
         </div>
       </div>
@@ -289,15 +287,13 @@ const isModalOpen = ref(false);
 const requireLogin = () => isModalOpen.value = true;
 const closeModal = () => isModalOpen.value = false;
 
-// ================= ESTADO DO FEED AO VIVO (SIMULADOR DE ALTA PERFORMANCE) =================
+// ================= ESTADO DO FEED AO VIVO =================
 const cargasAoVivo = ref([]);
 const loading = ref(true);
 let feedTimeout = null; 
 
-// Base que vai receber as cargas REAIS (ou falsas, caso haja erro/banco vazio)
 let rotasDisponiveis = [];
 
-// Fallback: Banco de Dados Cenográfico (Para quando o BD estiver vazio)
 const mockDatabase = [
   { cidade_origem: 'São Paulo', uf_origem: 'SP', cidade_destino: 'Curitiba', uf_destino: 'PR', tipo_veiculo: 'Carreta LS', produto: 'Eletrônicos (Paletes)' },
   { cidade_origem: 'Sorriso', uf_origem: 'MT', cidade_destino: 'Paranaguá', uf_destino: 'PR', tipo_veiculo: 'Bitrem', produto: 'Soja a Granel' },
@@ -311,40 +307,32 @@ const mockDatabase = [
   { cidade_origem: 'Ribeirão Preto', uf_origem: 'SP', cidade_destino: 'Uberlândia', uf_destino: 'MG', tipo_veiculo: 'Carreta Graneleira', produto: 'Açúcar Granulado' }
 ];
 
-// Lógica de sorteio infinito que não repete a última carga imediatamente
 let lastInjectedIndex = -1;
 
 const injectNewLoad = () => {
-  // Se por acaso a base estiver vazia, não faz nada
   if (rotasDisponiveis.length === 0) return;
 
-  // 1. Sorteia uma carga que seja DIFERENTE da última que entrou
   let randomIndex;
   do {
     randomIndex = Math.floor(Math.random() * rotasDisponiveis.length);
-  } while (randomIndex === lastInjectedIndex && rotasDisponiveis.length > 1); // A condição extra evita loop infinito se só tiver 1 rota no BD
+  } while (randomIndex === lastInjectedIndex && rotasDisponiveis.length > 1);
   
   lastInjectedIndex = randomIndex;
   const randomLoad = rotasDisponiveis[randomIndex];
   
-  // 2. Cria a nova carga (com ID único para garantir a animação)
   const novaCarga = { ...randomLoad, id: Date.now() + Math.random(), isNew: true };
   
-  // 3. Adiciona no topo
   cargasAoVivo.value.unshift(novaCarga);
   
-  // 4. Remove o brilho visual de "novo" após 2s
   setTimeout(() => { 
       const item = cargasAoVivo.value.find(c => c.id === novaCarga.id);
       if(item) item.isNew = false; 
   }, 2000);
 
-  // 5. Mantém a lista com um bom volume (até 5 itens para parecer cheio, removendo os mais velhos)
   if (cargasAoVivo.value.length > 5) {
     cargasAoVivo.value.pop();
   }
 
-  // 6. Agenda a PRÓXIMA injeção com tempo aleatório (entre 3 e 6 segundos) para dar realismo orgânico
   const nextDelay = Math.floor(Math.random() * (6000 - 3000 + 1) + 3000);
   feedTimeout = setTimeout(injectNewLoad, nextDelay);
 };
@@ -352,21 +340,16 @@ const injectNewLoad = () => {
 const fetchCargasAoVivo = async () => {
   try {
     const response = await axios.get('/api/v1/public/cargas-recentes');
-    
-    // Se a API retornou dados reais, usaremos eles como nossa base rotativa
     if (response.data && response.data.length > 0) {
       rotasDisponiveis = response.data;
     } else {
-      // Se retornou vazio, usamos o Mock
       rotasDisponiveis = mockDatabase;
     }
   } catch (error) {
-    // Se a API falhou, usamos o Mock
     rotasDisponiveis = mockDatabase;
   } finally {
     loading.value = false;
     
-    // Independentemente de ser BD Real ou Mock, vamos preencher a tela inicial com até 3 cargas
     const initialLoads = Math.min(3, rotasDisponiveis.length);
     for(let i = 0; i < initialLoads; i++) {
       let randomIndex;
@@ -375,7 +358,6 @@ const fetchCargasAoVivo = async () => {
       cargasAoVivo.value.push({ ...rotasDisponiveis[randomIndex], id: Date.now() + i });
     }
 
-    // Inicia a máquina de sorteio infinito orgânico
     feedTimeout = setTimeout(injectNewLoad, 4000);
   }
 };
@@ -440,7 +422,7 @@ onUnmounted(() => {
 
 /* ================= HERO CAROUSEL ================= */
 .hero-carousel-container {
-  height: 80vh; /* Altura generosa estilo Localiza */
+  height: 80vh; 
   min-height: 600px;
   max-height: 800px;
   background-color: var(--c-green-dark);
@@ -450,7 +432,7 @@ onUnmounted(() => {
   height: 100%;
 }
 .slide {
-  flex: 0 0 100%; /* Cada slide ocupa 100% da tela */
+  flex: 0 0 100%; 
 }
 .hero-content {
   max-width: 800px;
@@ -490,10 +472,10 @@ onUnmounted(() => {
   bottom: 10rem;
 }
 
-/* ================= WIDGET LOCALIZA STYLE ================= */
+/* ================= WIDGET ================= */
 .widget-section {
   position: relative;
-  margin-top: -10rem; /* Sobrepõe o Hero */
+  margin-top: -10rem; 
   z-index: 10;
   padding: 0 4%;
 }
@@ -528,12 +510,9 @@ onUnmounted(() => {
 .detail-badge { display: flex; align-items: center; font-size: 0.85rem; color: #475569; font-weight: 600; }
 .value-blurred {
   position: relative;
-  font-size: 1.2rem;
-  font-weight: 900;
   color: #cbd5e1;
   text-shadow: 0 0 12px rgba(0,0,0,0.15);
   user-select: none;
-  display: inline-block;
 }
 .btn-action {
   background: #f8fafc;
@@ -572,8 +551,7 @@ onUnmounted(() => {
 .modal-text { font-size: 0.95rem; color: #64748b; line-height: 1.6; }
 
 
-/* ================= RESPONSIVO SEGURO (MANTENDO TUDO) ================= */
-/* Tablets e Telas Médias (iPad) */
+/* ================= RESPONSIVO ================= */
 @media (max-width: 1024px) {
   .freight-card { grid-template-columns: 1fr; gap: 1rem; padding: 1.5rem; }
   .freight-card > div { border-bottom: 1px solid #f1f5f9; padding-bottom: 1rem; }
@@ -583,9 +561,7 @@ onUnmounted(() => {
   .widget-section { margin-top: -8rem; }
 }
 
-/* Smartphones (Android / iPhone) */
 @media (max-width: 768px) {
-  /* Navbar Compacta */
   .navbar { padding: 1rem 4%; }
   .nav-brand .brand-logo { height: 26px !important; }
   .nav-brand .brand-text { font-size: 1.4rem !important; }
@@ -593,19 +569,16 @@ onUnmounted(() => {
   .btn-text { font-size: 0.85rem; }
   .btn-primary { padding: 0.5rem 1rem; font-size: 0.85rem; }
 
-  /* Hero Ajustado */
   .hero-carousel-container { height: 75vh; min-height: 500px; }
   .slide { padding-bottom: 8rem; align-items: center; } 
   .title { font-size: 2rem; }
   .description { font-size: 1rem; }
   .hero-controls { bottom: 5rem; }
   
-  /* Widget Sobreposto Otimizado */
   .widget-section { margin-top: -4rem; padding: 0 3%; }
   .widget-content { padding: 1rem; }
   .tab { font-size: 0.85rem; padding: 1rem 0.5rem; flex-direction: column; gap: 6px; }
   
-  /* Card de Carga Empilhado Verticalmente */
   .route-info { 
     flex-direction: column; 
     align-items: center; 
@@ -617,10 +590,8 @@ onUnmounted(() => {
   .route-arrow svg { transform: rotate(90deg); margin: 0.2rem 0; color: var(--c-brand); opacity: 0.5; }
   
   .freight-details { align-items: center; text-align: center; padding: 0.5rem 0; }
-  .value-blurred { font-size: 1.5rem; margin-top: 0.5rem; }
   .btn-action { font-size: 0.95rem; padding: 0.8rem; }
 
-  /* Info Sections Reduzidas */
   .info-section { padding: 4rem 0 3rem 0; }
   .section-title { font-size: 1.8rem; }
   .feature-card { padding: 1.5rem; }
@@ -628,7 +599,6 @@ onUnmounted(() => {
   .modal-box { padding: 2rem 1.5rem; }
 }
 
-/* Smartphones Muito Pequenos (iPhone SE) */
 @media (max-width: 480px) {
   .title { font-size: 1.7rem; }
   .btn-primary { font-size: 0.8rem; padding: 0.5rem 0.8rem; }
