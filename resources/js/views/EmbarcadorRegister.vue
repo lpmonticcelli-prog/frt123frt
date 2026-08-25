@@ -1,73 +1,14 @@
-<script setup>
-import { ref } from 'vue';
-import { useRouter } from 'vue-router';
-import axios from 'axios';
-import { useAuthStore } from '../stores/auth';
-
-const router = useRouter();
-const authStore = useAuthStore();
-
-// Estado visual do formulário (AGORA COM CONFIRMAÇÃO DE SENHA)
-const form = ref({
-    name: '',
-    email: '',
-    password: '',
-    password_confirmation: '',
-    phone: '',
-    razao_social: '',
-    cnpj: '',
-    inscricao_estadual: ''
-});
-
-const formUnmasked = ref({
-    phone: '',
-    cnpj: ''
-});
-
-const loading = ref(false);
-const errorMsg = ref('');
-
-const handleRegister = async () => {
-    // Validação de senha no Front-end
-    if (form.value.password !== form.value.password_confirmation) {
-        errorMsg.value = 'As senhas não coincidem. Verifique e tente novamente.';
-        return;
-    }
-
-    loading.value = true;
-    errorMsg.value = '';
-    
-    const payload = {
-        ...form.value,
-        phone: formUnmasked.value.phone,
-        cnpj: formUnmasked.value.cnpj
-    };
-
-    try {
-        await axios.get('/sanctum/csrf-cookie');
-        const { data } = await axios.post('/api/register/embarcador', payload);
-        authStore.user = data.user;
-        router.push({ name: 'EmbarcadorDashboard' });
-    } catch (error) {
-        if (error.response?.data?.errors) {
-            const firstError = Object.values(error.response.data.errors)[0][0];
-            errorMsg.value = firstError;
-        } else {
-            errorMsg.value = error.response?.data?.message || 'Erro crítico ao processar o registo.';
-        }
-    } finally {
-        loading.value = false;
-    }
-};
-</script>
-
 <template>
   <div class="min-h-screen flex items-center justify-center bg-[#F5F5F7] p-6 font-sans">
     <div class="w-full max-w-2xl bg-white rounded-2xl shadow-sm border border-gray-200 p-10">
       
       <div class="mb-8">
-        <h2 class="text-3xl font-extrabold tracking-tight text-gray-900">Registo de Indústria</h2>
-        <p class="text-gray-500 mt-2">Preencha os dados corporativos para iniciar a homologação.</p>
+        <h2 class="text-3xl font-extrabold tracking-tight text-gray-900">
+            {{ isGoogleUser ? 'Complete seu Perfil' : 'Registro de Indústria' }}
+        </h2>
+        <p class="text-gray-500 mt-2">
+            {{ isGoogleUser ? 'Forneça o CNPJ para finalizarmos sua homologação.' : 'Preencha os dados corporativos para iniciar a homologação.' }}
+        </p>
       </div>
 
       <div v-if="errorMsg" class="mb-6 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 text-sm font-medium animate-pulse">
@@ -75,7 +16,7 @@ const handleRegister = async () => {
       </div>
 
       <!-- BOTÃO DO GOOGLE -->
-      <div class="mb-6">
+      <div v-if="!isGoogleUser" class="mb-6">
         <a href="/api/auth/google/redirect" class="w-full flex items-center justify-center px-4 py-3 border border-gray-300 shadow-sm text-sm font-semibold rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
             <svg class="w-5 h-5 mr-3" viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -87,7 +28,7 @@ const handleRegister = async () => {
         </a>
       </div>
 
-      <div class="relative mb-6">
+      <div v-if="!isGoogleUser" class="relative mb-6">
         <div class="absolute inset-0 flex items-center">
             <div class="w-full border-t border-gray-200"></div>
         </div>
@@ -105,23 +46,22 @@ const handleRegister = async () => {
                 
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Nome do Responsável</label>
-                    <input type="text" v-model="form.name" required class="w-full bg-gray-50 border border-gray-300 rounded-lg py-2.5 px-4 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-colors">
+                    <input type="text" v-model="form.name" required :disabled="isGoogleUser" :class="{'bg-gray-100 cursor-not-allowed text-gray-500': isGoogleUser}" class="w-full bg-gray-50 border border-gray-300 rounded-lg py-2.5 px-4 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-colors">
                 </div>
                 
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">E-mail Corporativo</label>
-                    <input type="email" v-model="form.email" required class="w-full bg-gray-50 border border-gray-300 rounded-lg py-2.5 px-4 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-colors">
+                    <input type="email" v-model="form.email" required :disabled="isGoogleUser" :class="{'bg-gray-100 cursor-not-allowed text-gray-500': isGoogleUser}" class="w-full bg-gray-50 border border-gray-300 rounded-lg py-2.5 px-4 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-colors">
                 </div>
 
-                <div>
+                <!-- SENHAS OCULTADAS PARA USUÁRIO GOOGLE -->
+                <div v-if="!isGoogleUser">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Senha Segura</label>
-                    <input type="password" v-model="form.password" required minlength="8" class="w-full bg-gray-50 border border-gray-300 rounded-lg py-2.5 px-4 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-colors">
+                    <input type="password" v-model="form.password" :required="!isGoogleUser" minlength="8" class="w-full bg-gray-50 border border-gray-300 rounded-lg py-2.5 px-4 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-colors">
                 </div>
-
-                <!-- CAMPO ADICIONADO PARA CORRIGIR O BUG -->
-                <div>
+                <div v-if="!isGoogleUser">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Confirmação de Senha</label>
-                    <input type="password" v-model="form.password_confirmation" required minlength="8" class="w-full bg-gray-50 border border-gray-300 rounded-lg py-2.5 px-4 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-colors">
+                    <input type="password" v-model="form.password_confirmation" :required="!isGoogleUser" minlength="8" class="w-full bg-gray-50 border border-gray-300 rounded-lg py-2.5 px-4 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-colors">
                 </div>
 
                 <div>
@@ -170,15 +110,90 @@ const handleRegister = async () => {
         </div>
 
         <div class="pt-4 flex items-center justify-between border-t border-gray-100">
-            <router-link to="/login" class="text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors">
+            <router-link v-if="!isGoogleUser" to="/login" class="text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors">
                 ← Voltar ao Login
             </router-link>
+            <div v-else></div> <!-- Espaçador para manter o botão alinhado à direita -->
             
             <button type="submit" :disabled="loading" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 px-8 rounded-lg shadow-md disabled:opacity-50 transition-all">
-                {{ loading ? 'A Analisar Dados (RFB)...' : 'Solicitar Homologação' }}
+                {{ loading ? 'A Analisar Dados (RFB)...' : (isGoogleUser ? 'Completar Cadastro' : 'Solicitar Homologação') }}
             </button>
         </div>
       </form>
     </div>
   </div>
 </template>
+
+<script setup>
+import { ref, onMounted, computed } from 'vue';
+import { useRouter } from 'vue-router';
+import axios from 'axios';
+import { useAuthStore } from '../stores/auth';
+
+const router = useRouter();
+const authStore = useAuthStore();
+
+// Inteligência do Google
+const isGoogleUser = computed(() => authStore.isAuthenticated && authStore.user);
+
+const form = ref({
+    name: '',
+    email: '',
+    password: '',
+    password_confirmation: '',
+    phone: '',
+    razao_social: '',
+    cnpj: '',
+    inscricao_estadual: ''
+});
+
+const formUnmasked = ref({
+    phone: '',
+    cnpj: ''
+});
+
+const loading = ref(false);
+const errorMsg = ref('');
+
+onMounted(() => {
+    if (isGoogleUser.value) {
+        form.value.name = authStore.user.name || '';
+        form.value.email = authStore.user.email || '';
+    }
+});
+
+const handleRegister = async () => {
+    // Validação de senha no Front-end (SÓ SE NÃO FOR GOOGLE)
+    if (!isGoogleUser.value) {
+        if (form.value.password !== form.value.password_confirmation) {
+            errorMsg.value = 'As senhas não coincidem. Verifique e tente novamente.';
+            return;
+        }
+    }
+
+    loading.value = true;
+    errorMsg.value = '';
+    
+    const payload = {
+        ...form.value,
+        phone: formUnmasked.value.phone,
+        cnpj: formUnmasked.value.cnpj
+    };
+
+    try {
+        await axios.get('/sanctum/csrf-cookie');
+        const { data } = await axios.post('/api/register/embarcador', payload);
+        authStore.user = data.user;
+        router.push({ name: 'EmbarcadorDashboard' });
+    } catch (error) {
+        if (error.response?.data?.errors) {
+            const firstError = Object.values(error.response.data.errors)[0][0];
+            errorMsg.value = firstError;
+        } else {
+            errorMsg.value = error.response?.data?.message || 'Erro crítico ao processar o registo.';
+        }
+    } finally {
+        loading.value = false;
+    }
+};
+</script>

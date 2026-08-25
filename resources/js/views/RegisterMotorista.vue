@@ -3,10 +3,10 @@
     <div class="max-w-md w-full space-y-8 bg-white p-8 rounded-xl shadow-md border border-gray-100">
       <div>
         <h2 class="mt-2 text-center text-3xl font-extrabold text-gray-900">
-          Cadastro de Motorista
+          {{ isGoogleUser ? 'Complete seu Perfil' : 'Cadastro de Motorista' }}
         </h2>
         <p class="mt-2 text-center text-sm text-gray-600">
-          Encontre fretes e aumente sua renda.
+          {{ isGoogleUser ? 'Falta pouco! Preencha seus documentos para começar.' : 'Encontre fretes e aumente sua renda.' }}
         </p>
       </div>
       
@@ -14,8 +14,8 @@
         {{ errorMessage }}
       </div>
 
-      <!-- BOTÃO DO GOOGLE -->
-      <div class="mt-6">
+      <!-- BOTÃO DO GOOGLE (Some se já estiver logado pelo Google) -->
+      <div v-if="!isGoogleUser" class="mt-6">
         <a href="/api/auth/google/redirect" class="w-full flex items-center justify-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-semibold rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
             <svg class="w-5 h-5 mr-3" viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -27,7 +27,7 @@
         </a>
       </div>
 
-      <div class="relative my-6">
+      <div v-if="!isGoogleUser" class="relative my-6">
         <div class="absolute inset-0 flex items-center">
             <div class="w-full border-t border-gray-200"></div>
         </div>
@@ -39,9 +39,16 @@
       <form class="space-y-6" @submit.prevent="register">
         <div class="rounded-md shadow-sm space-y-4">
           
+          <!-- NOME -->
           <div>
             <label class="block text-sm font-medium text-gray-700">Nome Completo</label>
-            <input v-model="form.name" type="text" required class="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+            <input v-model="form.name" type="text" required :disabled="isGoogleUser" :class="{'bg-gray-100 cursor-not-allowed text-gray-500': isGoogleUser}" class="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+          </div>
+
+          <!-- EMAIL -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700">E-mail</label>
+            <input v-model="form.email" type="email" required :disabled="isGoogleUser" :class="{'bg-gray-100 cursor-not-allowed text-gray-500': isGoogleUser}" class="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
           </div>
           
           <div class="grid grid-cols-2 gap-4">
@@ -98,30 +105,26 @@
             >
           </div>
 
-          <div class="border-t border-gray-100 pt-4 mt-4">
-            <label class="block text-sm font-medium text-gray-700">E-mail</label>
-            <input v-model="form.email" type="email" required class="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-          </div>
-
-          <div class="grid grid-cols-2 gap-4">
+          <!-- SENHAS (Somem se já estiver logado pelo Google) -->
+          <div v-if="!isGoogleUser" class="grid grid-cols-2 gap-4 border-t border-gray-100 pt-4 mt-4">
             <div>
               <label class="block text-sm font-medium text-gray-700">Senha</label>
-              <input v-model="form.password" type="password" required class="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+              <input v-model="form.password" type="password" :required="!isGoogleUser" class="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700">Confirmação de Senha</label>
-              <input v-model="form.password_confirmation" type="password" required class="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+              <label class="block text-sm font-medium text-gray-700">Confirmação</label>
+              <input v-model="form.password_confirmation" type="password" :required="!isGoogleUser" class="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
             </div>
           </div>
         </div>
 
         <div>
           <button type="submit" :disabled="loading" class="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-bold rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition-colors cursor-pointer disabled:cursor-not-allowed">
-            {{ loading ? 'Criando conta...' : 'Finalizar Cadastro' }}
+            {{ loading ? 'Processando...' : (isGoogleUser ? 'Completar Perfil e Entrar' : 'Finalizar Cadastro') }}
           </button>
         </div>
         
-        <div class="text-center mt-4">
+        <div v-if="!isGoogleUser" class="text-center mt-4">
           <router-link :to="{ name: 'Login' }" class="font-medium text-sm text-blue-600 hover:text-blue-500">
             Já tem uma conta? Faça login
           </router-link>
@@ -132,13 +135,16 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
 import axios from 'axios';
 
 const router = useRouter();
 const authStore = useAuthStore();
+
+// Inteligência que detecta se o usuário veio do Google
+const isGoogleUser = computed(() => authStore.isAuthenticated && authStore.user);
 
 const form = ref({
   name: '',
@@ -161,16 +167,25 @@ const formUnmasked = ref({
 const loading = ref(false);
 const errorMessage = ref('');
 
+onMounted(() => {
+    // Se veio do Google, preenche automaticamente os campos que já temos
+    if (isGoogleUser.value) {
+        form.value.name = authStore.user.name || '';
+        form.value.email = authStore.user.email || '';
+    }
+});
+
 const register = async () => {
-  // TRAVA ANTI-DUPLO-CLIQUE: Se já estiver processando, aborta imediatamente
   if (loading.value) return;
 
-  if (form.value.password !== form.value.password_confirmation) {
-    errorMessage.value = 'As senhas não coincidem.';
-    return;
+  // Só checa a senha se NÃO for do Google
+  if (!isGoogleUser.value) {
+      if (form.value.password !== form.value.password_confirmation) {
+        errorMessage.value = 'As senhas não coincidem.';
+        return;
+      }
   }
 
-  // Trava a interface visualmente
   loading.value = true;
   errorMessage.value = '';
 
@@ -186,17 +201,14 @@ const register = async () => {
     const { data } = await axios.post('/api/register/motorista', payload);
     authStore.user = data.user;
     
-    // REDIRECIONAMENTO IMEDIATO AO SUCESSO:
     router.push({ name: 'MotoristaDashboard' });
   } catch (error) {
-    // TRATAMENTO DE ERRO
     if (error.response?.data?.errors) {
       errorMessage.value = Object.values(error.response.data.errors)[0][0];
     } else {
       errorMessage.value = error.response?.data?.message || 'Erro ao realizar o cadastro.';
     }
   } finally {
-    // Libera a trava caso haja erro (para que o usuário possa corrigir e tentar novamente)
     loading.value = false;
   }
 };
