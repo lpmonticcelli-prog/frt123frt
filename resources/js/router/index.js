@@ -1,16 +1,13 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
 
-// 🔥 IMPORTAÇÃO SÍNCRONA! Força o Vite a amarrar o arquivo no momento do build.
-import SelectRole from '../views/SelectRole.vue';
-
 const routes = [
     { path: '/', name: 'Welcome', component: () => import('../views/Welcome.vue') },
     { path: '/login', name: 'Login', component: () => import('../views/Login.vue') },
     { path: '/reset-password', name: 'ResetPassword', component: () => import('../views/ResetPassword.vue'), meta: { title: 'Redefinir Senha' } },
     
-    // 🔥 USANDO A IMPORTAÇÃO SÍNCRONA: Agora é só 'SelectRole' sem os parenteses
-    { path: '/register', name: 'SelectRole', component: SelectRole },
+    // 🔥 IMPORTAÇÃO ASSÍNCRONA CORRETA (Isso evita a tela branca de compilação)
+    { path: '/register', name: 'SelectRole', component: () => import('../views/SelectRole.vue') },
     
     { path: '/register/embarcador', name: 'RegisterEmbarcador', component: () => import('../views/RegisterEmbarcador.vue') },
     { path: '/register/motorista', name: 'RegisterMotorista', component: () => import('../views/RegisterMotorista.vue') },
