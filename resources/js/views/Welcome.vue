@@ -18,7 +18,8 @@
       
       <div class="nav-actions">
         <router-link :to="{ name: 'Login' }" class="btn-text">Entrar</router-link>
-        <router-link to="/register">Criar Conta</router-link>
+        <!-- ATUALIZADO: Rota agora aponta para a tela de Seleção de Perfil -->
+        <router-link to="/register" class="btn-primary">Criar Conta</router-link>
       </div>
     </nav>
 
@@ -250,7 +251,8 @@
         
         <div class="flex flex-col gap-3 mt-8">
           <button @click="$router.push({ name: 'Login' })" class="btn-primary w-full py-3 text-lg shadow-lg shadow-[#035D29]/20 hover:scale-[1.02] transition-transform">Fazer Login Agora</button>
-          <button @click="$router.push({ name: 'RegisterMotorista' })" class="btn-text w-full py-2 border border-transparent hover:border-slate-200 rounded-xl transition-all">Sou Motorista e quero me cadastrar</button>
+          <!-- ATUALIZADO: Rota agora aponta para a tela de Seleção de Perfil -->
+          <button @click="$router.push({ name: 'SelectRole' })" class="btn-text w-full py-2 border border-transparent hover:border-slate-200 rounded-xl transition-all">Não tenho conta e quero me cadastrar</button>
         </div>
       </div>
     </div>
