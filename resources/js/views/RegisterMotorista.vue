@@ -116,7 +116,7 @@
         </div>
 
         <div>
-          <button type="submit" :disabled="loading" class="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-bold rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition-colors">
+          <button type="submit" :disabled="loading" class="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-bold rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition-colors cursor-pointer disabled:cursor-not-allowed">
             {{ loading ? 'Criando conta...' : 'Finalizar Cadastro' }}
           </button>
         </div>
@@ -162,11 +162,15 @@ const loading = ref(false);
 const errorMessage = ref('');
 
 const register = async () => {
+  // TRAVA ANTI-DUPLO-CLIQUE: Se já estiver processando, aborta imediatamente
+  if (loading.value) return;
+
   if (form.value.password !== form.value.password_confirmation) {
     errorMessage.value = 'As senhas não coincidem.';
     return;
   }
 
+  // Trava a interface visualmente
   loading.value = true;
   errorMessage.value = '';
 
@@ -181,14 +185,18 @@ const register = async () => {
     await axios.get('/sanctum/csrf-cookie');
     const { data } = await axios.post('/api/register/motorista', payload);
     authStore.user = data.user;
+    
+    // REDIRECIONAMENTO IMEDIATO AO SUCESSO:
     router.push({ name: 'MotoristaDashboard' });
   } catch (error) {
+    // TRATAMENTO DE ERRO
     if (error.response?.data?.errors) {
       errorMessage.value = Object.values(error.response.data.errors)[0][0];
     } else {
       errorMessage.value = error.response?.data?.message || 'Erro ao realizar o cadastro.';
     }
   } finally {
+    // Libera a trava caso haja erro (para que o usuário possa corrigir e tentar novamente)
     loading.value = false;
   }
 };

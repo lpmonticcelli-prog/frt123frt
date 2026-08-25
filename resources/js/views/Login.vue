@@ -1,10 +1,11 @@
 <script setup>
-import { ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, onMounted } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
 import axios from 'axios'; 
 
 const router = useRouter();
+const route = useRoute();
 const authStore = useAuthStore();
 
 // Estados
@@ -23,6 +24,74 @@ const toggleView = () => {
     password.value = '';
 };
 
+// =======================================================================
+// INTERCEPTADOR DO RETORNO DO GOOGLE (À Prova de Falhas - JS Nativo)
+// =======================================================================
+onMounted(async () => {
+    // Lê a URL bruta diretamente do navegador instantaneamente
+    const urlParams = new URLSearchParams(window.location.search);
+    const tokenDaUrl = urlParams.get('token');
+    const erroDaUrl = urlParams.get('error');
+
+    // Verifica se voltou do Google com erro
+    if (erroDaUrl === 'google_falhou') {
+        errorMsg.value = 'Falha ao tentar se conectar com o Google. Tente novamente.';
+        // Limpa a URL na marra sem recarregar a página
+        window.history.replaceState({}, document.title, window.location.pathname);
+        return;
+    }
+
+    // Verifica se voltou do Google com sucesso (com token na URL)
+    if (tokenDaUrl) {
+        loading.value = true;
+        
+        try {
+            // 1. Salva o token no localStorage
+            localStorage.setItem('auth_token', tokenDaUrl);
+            
+            // 2. Configura o Axios para usar esse token imediatamente
+            axios.defaults.headers.common['Authorization'] = `Bearer ${tokenDaUrl}`;
+            
+            // 3. Limpa a URL instantaneamente para não deixar o token visível
+            window.history.replaceState({}, document.title, window.location.pathname);
+
+            // 4. Pede os dados do usuário para o backend
+            const response = await axios.get('/api/me');
+            
+            // 5. Atualiza a Store do Pinia
+            authStore.user = response.data;
+            
+            // 6. Faz o roteamento baseado no cargo (role)
+            const role = authStore.user?.role?.slug;
+            const staffRoles = ['admin', 'manager', 'compliance', 'suporte_n1'];
+
+            if (staffRoles.includes(role)) {
+                if (role === 'suporte_n1') {
+                    router.push('/admin/suporte'); 
+                } else {
+                    router.push('/admin/dashboard'); 
+                }
+            } else if (role) {
+                router.push(`/${role}/painel`); 
+            } else {
+                // Redireciona usuário sem cargo para a tela de completar o perfil
+                router.push({ name: 'ChooseProfile' }); 
+            }
+            
+        } catch (error) {
+            console.error('Erro ao processar token do Google:', error);
+            errorMsg.value = 'A sessão do Google expirou ou é inválida. Faça login novamente.';
+            localStorage.removeItem('auth_token');
+            delete axios.defaults.headers.common['Authorization'];
+        } finally {
+            loading.value = false;
+        }
+    }
+});
+
+// =======================================================================
+// LOGIN TRADICIONAL (E-MAIL E SENHA)
+// =======================================================================
 const handleLogin = async () => {
     loading.value = true;
     errorMsg.value = '';
@@ -46,7 +115,7 @@ const handleLogin = async () => {
         } else if (role) {
             router.push(`/${role}/painel`); 
         } else {
-            router.push('/'); 
+            router.push({ name: 'ChooseProfile' }); 
         }
         
     } catch (error) {
