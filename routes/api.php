@@ -7,9 +7,9 @@ use Illuminate\Support\Facades\Route;
 // 1. Auth & Public
 use App\Http\Controllers\Api\V1\AnttController;
 use App\Http\Controllers\Api\V1\Auth\AuthController;
-use App\Http\Controllers\Api\V1\Auth\SocialAuthController; // <--- NOVO: Importação do Controller do Google
+use App\Http\Controllers\Api\V1\Auth\SocialAuthController;
 use App\Http\Controllers\Api\V1\LocalidadeController;
-use App\Http\Controllers\Api\V1\PublicController; // <--- Importação do Controller Público
+use App\Http\Controllers\Api\V1\PublicController;
 
 // 2. Admin
 use App\Http\Controllers\Api\V1\Admin\AdminController;
@@ -47,19 +47,16 @@ use App\Http\Controllers\Api\V1\Webhooks\TransatWebhookController;
 */
 
 // =========================================================
-// ROTAS DO GOOGLE OAUTH (Sem prefixo v1, para bater com o Frontend)
+// ROTAS DO GOOGLE OAUTH
 // =========================================================
 Route::get('/auth/google/redirect', [SocialAuthController::class, 'redirect']);
 Route::get('/auth/google/callback', [SocialAuthController::class, 'callback']);
-
 
 Route::prefix('v1')->group(function () {
 
     // =========================================================
     // ROTAS PÚBLICAS
     // =========================================================
-
-    // Rota pública para alimentar o Feed Ao Vivo da Landing Page
     Route::prefix('public')->group(function () {
         Route::get('/cargas-recentes', [PublicController::class, 'cargasRecentes']);
     });
