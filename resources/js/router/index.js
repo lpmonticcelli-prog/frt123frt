@@ -7,9 +7,7 @@ const routes = [
     { path: '/reset-password', name: 'ResetPassword', component: () => import('../views/ResetPassword.vue'), meta: { title: 'Redefinir Senha' } },
     
     // 🔥 IMPORTAÇÃO ASSÍNCRONA CORRETA (Isso evita a tela branca de compilação)
-    { path: '/register', name: 'SelectRole', component: () => import('../views/SelectRole.vue') },
-    
-    { path: '/register/embarcador', name: 'RegisterEmbarcador', component: () => import('../views/RegisterEmbarcador.vue') },
+    { path: '/register', name: 'ChooseProfile', component: () => import('../views/ChooseProfile.vue') },
     { path: '/register/motorista', name: 'RegisterMotorista', component: () => import('../views/RegisterMotorista.vue') },
 
     // ==========================================
