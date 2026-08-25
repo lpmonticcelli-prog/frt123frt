@@ -61,22 +61,28 @@ onMounted(async () => {
             // 5. Atualiza a Store do Pinia
             authStore.user = response.data;
             
-            // 6. Faz o roteamento blindado contra "undefined"
-            const role = String(authStore.user?.role?.slug || '');
+            // =========================================================
+            // 6. ROTEAMENTO BLINDADO (LISTA BRANCA)
+            // =========================================================
+            const role = authStore.user?.role?.slug || '';
+            const safeRole = String(role).trim().toLowerCase();
             const staffRoles = ['admin', 'manager', 'compliance', 'suporte_n1'];
 
-            // Se não tiver cargo, ou se for a palavra "undefined", manda para completar o cadastro
-            if (!role || role === '' || role === 'undefined' || role === 'null') {
-                router.push({ name: 'ChooseProfile' }); 
+            // 1. Se for EXATAMENTE motorista ou embarcador, vai pro painel
+            if (safeRole === 'motorista' || safeRole === 'embarcador') {
+                router.push(`/${safeRole}/painel`); 
             } 
-            else if (staffRoles.includes(role)) {
-                if (role === 'suporte_n1') {
+            // 2. Se for da equipe administrativa
+            else if (staffRoles.includes(safeRole)) {
+                if (safeRole === 'suporte_n1') {
                     router.push('/admin/suporte'); 
                 } else {
                     router.push('/admin/dashboard'); 
                 }
-            } else {
-                router.push(`/${role}/painel`); 
+            } 
+            // 3. Qualquer outra coisa (nulo, undefined, vazio) joga pra tela de escolha
+            else {
+                router.push({ name: 'ChooseProfile' }); 
             }
             
         } catch (error) {
@@ -104,22 +110,28 @@ const handleLogin = async () => {
             password: password.value 
         });
         
-        // Roteamento blindado contra "undefined"
-        const role = String(authStore.user?.role?.slug || '');
+        // =========================================================
+        // ROTEAMENTO BLINDADO (LISTA BRANCA)
+        // =========================================================
+        const role = authStore.user?.role?.slug || '';
+        const safeRole = String(role).trim().toLowerCase();
         const staffRoles = ['admin', 'manager', 'compliance', 'suporte_n1'];
 
-        // Se não tiver cargo, ou se for a palavra "undefined", manda para completar o cadastro
-        if (!role || role === '' || role === 'undefined' || role === 'null') {
-            router.push({ name: 'ChooseProfile' }); 
+        // 1. Se for EXATAMENTE motorista ou embarcador, vai pro painel
+        if (safeRole === 'motorista' || safeRole === 'embarcador') {
+            router.push(`/${safeRole}/painel`); 
         } 
-        else if (staffRoles.includes(role)) {
-            if (role === 'suporte_n1') {
+        // 2. Se for da equipe administrativa
+        else if (staffRoles.includes(safeRole)) {
+            if (safeRole === 'suporte_n1') {
                 router.push('/admin/suporte'); 
             } else {
                 router.push('/admin/dashboard'); 
             }
-        } else {
-            router.push(`/${role}/painel`); 
+        } 
+        // 3. Qualquer outra coisa (nulo, undefined, vazio) joga pra tela de escolha
+        else {
+            router.push({ name: 'ChooseProfile' }); 
         }
         
     } catch (error) {
