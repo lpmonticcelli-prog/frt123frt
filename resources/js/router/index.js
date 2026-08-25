@@ -5,6 +5,10 @@ const routes = [
     { path: '/', name: 'Welcome', component: () => import('../views/Welcome.vue') },
     { path: '/login', name: 'Login', component: () => import('../views/Login.vue') },
     { path: '/reset-password', name: 'ResetPassword', component: () => import('../views/ResetPassword.vue'), meta: { title: 'Redefinir Senha' } },
+    
+    // 🔥 AQUI ESTÁ A CORREÇÃO: Nova rota da Tela de Seleção de Perfil
+    { path: '/register', name: 'SelectRole', component: () => import('../views/SelectRole.vue') },
+    
     { path: '/register/embarcador', name: 'RegisterEmbarcador', component: () => import('../views/RegisterEmbarcador.vue') },
     { path: '/register/motorista', name: 'RegisterMotorista', component: () => import('../views/RegisterMotorista.vue') },
 
@@ -28,8 +32,6 @@ const routes = [
             { path: 'loja', name: 'EmbarcadorLoja', component: () => import('../views/Hub/LojaView.vue'), meta: { title: 'Loja' } },
             { path: 'voucher', name: 'EmbarcadorVoucher', component: () => import('../views/Hub/VoucherView.vue'), meta: { title: 'Gestão de Vouchers' } },
             { path: 'parceiros', name: 'EmbarcadorParceiros', component: () => import('../views/Hub/ParceirosView.vue'), meta: { title: 'Parceiros Estratégicos' } },
-            
-            // 🔥 A CURA DA TELA BRANCA FOI INJETADA AQUI:
             { path: 'rastreamento/:id', name: 'EmbarcadorRastreamento', component: () => import('../views/Embarcador/Rastreamento.vue'), meta: { title: 'Rastreamento' } }
         ]
     },
@@ -127,7 +129,8 @@ router.beforeEach(async (to, from) => {
         return { name: 'Login' };
     }
 
-    const guestRoutes = ['/login', '/reset-password'];
+    // 🔥 ADICIONEI '/register' NA LISTA DE ROTAS DE VISITANTE
+    const guestRoutes = ['/login', '/reset-password', '/register', '/register/embarcador', '/register/motorista'];
     if (guestRoutes.includes(to.path) && authStore.isAuthenticated && authStore.user) {
         const staffRoles = ['admin', 'manager', 'compliance', 'suporte_n1'];
         if (staffRoles.includes(userRole)) {
