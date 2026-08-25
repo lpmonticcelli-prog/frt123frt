@@ -6,8 +6,12 @@ const routes = [
     { path: '/login', name: 'Login', component: () => import('../views/Login.vue') },
     { path: '/reset-password', name: 'ResetPassword', component: () => import('../views/ResetPassword.vue'), meta: { title: 'Redefinir Senha' } },
     
-    // 🔥 IMPORTAÇÃO ASSÍNCRONA CORRETA (Isso evita a tela branca de compilação)
+    // 🔥 IMPORTAÇÕES ASSÍNCRONAS CORRETAS (Evita tela branca)
     { path: '/register', name: 'ChooseProfile', component: () => import('../views/ChooseProfile.vue') },
+    
+    // 👇 A ROTA DO EMBARCADOR VOLTOU AQUI (Apontando para o EmbarcadorRegister.vue)
+    { path: '/register/embarcador', name: 'RegisterEmbarcador', component: () => import('../views/EmbarcadorRegister.vue') },
+    
     { path: '/register/motorista', name: 'RegisterMotorista', component: () => import('../views/RegisterMotorista.vue') },
 
     // ==========================================
