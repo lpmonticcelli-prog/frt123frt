@@ -1,13 +1,16 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
 
+// 🔥 IMPORTAÇÃO SÍNCRONA! Força o Vite a amarrar o arquivo no momento do build.
+import SelectRole from '../views/SelectRole.vue';
+
 const routes = [
     { path: '/', name: 'Welcome', component: () => import('../views/Welcome.vue') },
     { path: '/login', name: 'Login', component: () => import('../views/Login.vue') },
     { path: '/reset-password', name: 'ResetPassword', component: () => import('../views/ResetPassword.vue'), meta: { title: 'Redefinir Senha' } },
     
-    // 🔥 AQUI ESTÁ A CORREÇÃO: Nova rota da Tela de Seleção de Perfil
-    { path: '/register', name: 'SelectRole', component: () => import('../views/SelectRole.vue') },
+    // 🔥 USANDO A IMPORTAÇÃO SÍNCRONA: Agora é só 'SelectRole' sem os parenteses
+    { path: '/register', name: 'SelectRole', component: SelectRole },
     
     { path: '/register/embarcador', name: 'RegisterEmbarcador', component: () => import('../views/RegisterEmbarcador.vue') },
     { path: '/register/motorista', name: 'RegisterMotorista', component: () => import('../views/RegisterMotorista.vue') },
@@ -129,7 +132,6 @@ router.beforeEach(async (to, from) => {
         return { name: 'Login' };
     }
 
-    // 🔥 ADICIONEI '/register' NA LISTA DE ROTAS DE VISITANTE
     const guestRoutes = ['/login', '/reset-password', '/register', '/register/embarcador', '/register/motorista'];
     if (guestRoutes.includes(to.path) && authStore.isAuthenticated && authStore.user) {
         const staffRoles = ['admin', 'manager', 'compliance', 'suporte_n1'];
