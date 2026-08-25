@@ -252,7 +252,7 @@
         <div class="flex flex-col gap-3 mt-8">
           <button @click="$router.push({ name: 'Login' })" class="btn-primary w-full py-3 text-lg shadow-lg shadow-[#035D29]/20 hover:scale-[1.02] transition-transform">Fazer Login Agora</button>
           <!-- ATUALIZADO: Rota agora aponta para a tela de Seleção de Perfil -->
-          <button @click="$router.push({ name: 'SelectRole' })" class="btn-text w-full py-2 border border-transparent hover:border-slate-200 rounded-xl transition-all">Não tenho conta e quero me cadastrar</button>
+          <button @click="$router.push({ name: 'ChooseProfile' })" class="btn-text w-full py-2 border border-transparent hover:border-slate-200 rounded-xl transition-all">Não tenho conta e quero me cadastrar</button>
         </div>
       </div>
     </div>
@@ -281,7 +281,7 @@ const goToSlide = (index) => {
   currentSlide.value = index;
 };
 const startSlideTimer = () => {
-  slideInterval = setInterval(nextSlide, 5000); // Passa o slide a cada 5 segundos
+  slideInterval = setInterval(nextSlide, 5000); 
 };
 
 // ================= ESTADO DO MODAL =================
@@ -289,59 +289,94 @@ const isModalOpen = ref(false);
 const requireLogin = () => isModalOpen.value = true;
 const closeModal = () => isModalOpen.value = false;
 
-// ================= ESTADO DO FEED AO VIVO (SIMULADOR) =================
+// ================= ESTADO DO FEED AO VIVO (SIMULADOR DE ALTA PERFORMANCE) =================
 const cargasAoVivo = ref([]);
 const loading = ref(true);
-let feedInterval = null;
+let feedTimeout = null; 
 
-// Banco de Dados Cenográfico com várias rotas pelo Brasil para dar ilusão de "Vida"
+// Base que vai receber as cargas REAIS (ou falsas, caso haja erro/banco vazio)
+let rotasDisponiveis = [];
+
+// Fallback: Banco de Dados Cenográfico (Para quando o BD estiver vazio)
 const mockDatabase = [
   { cidade_origem: 'São Paulo', uf_origem: 'SP', cidade_destino: 'Curitiba', uf_destino: 'PR', tipo_veiculo: 'Carreta LS', produto: 'Eletrônicos (Paletes)' },
   { cidade_origem: 'Sorriso', uf_origem: 'MT', cidade_destino: 'Paranaguá', uf_destino: 'PR', tipo_veiculo: 'Bitrem', produto: 'Soja a Granel' },
   { cidade_origem: 'Itatiba', uf_origem: 'SP', cidade_destino: 'Belo Horizonte', uf_destino: 'MG', tipo_veiculo: 'Truck Bau', produto: 'Autopeças' },
-  { cidade_origem: 'Rio Verde', uf_origem: 'MT', cidade_destino: 'Santos', uf_destino: 'PR', tipo_veiculo: 'Rodo Trem', produto: 'Milho' },
+  { cidade_origem: 'Rio Verde', uf_origem: 'MT', cidade_destino: 'Santos', uf_destino: 'SP', tipo_veiculo: 'Rodo Trem', produto: 'Milho' },
   { cidade_origem: 'Manaus', uf_origem: 'AM', cidade_destino: 'Goiânia', uf_destino: 'GO', tipo_veiculo: 'Carreta Sider', produto: 'Eletrodomésticos' },
   { cidade_origem: 'Extrema', uf_origem: 'MG', cidade_destino: 'Salvador', uf_destino: 'BA', tipo_veiculo: 'Carreta Bau', produto: 'Carga Fracionada' },
-  { cidade_origem: 'Jundiaí', uf_origem: 'SP', cidade_destino: 'Porto Alegre', uf_destino: 'PR', tipo_veiculo: 'Truck Sider', produto: 'Bobinas de Papel' },
+  { cidade_origem: 'Jundiaí', uf_origem: 'SP', cidade_destino: 'Porto Alegre', uf_destino: 'RS', tipo_veiculo: 'Truck Sider', produto: 'Bobinas de Papel' },
   { cidade_origem: 'Joinville', uf_origem: 'SC', cidade_destino: 'Campinas', uf_destino: 'SP', tipo_veiculo: 'Fiorino', produto: 'Carga Expressa Leve' },
+  { cidade_origem: 'Recife', uf_origem: 'BA', cidade_destino: 'Fortaleza', uf_destino: 'CE', tipo_veiculo: 'Truck Frigorífico', produto: 'Alimentos Congelados' },
+  { cidade_origem: 'Ribeirão Preto', uf_origem: 'SP', cidade_destino: 'Uberlândia', uf_destino: 'MG', tipo_veiculo: 'Carreta Graneleira', produto: 'Açúcar Granulado' }
 ];
 
+// Lógica de sorteio infinito que não repete a última carga imediatamente
+let lastInjectedIndex = -1;
+
 const injectNewLoad = () => {
-  // Sorteia uma carga do banco de dados falso
-  const randomLoad = mockDatabase[Math.floor(Math.random() * mockDatabase.length)];
+  // Se por acaso a base estiver vazia, não faz nada
+  if (rotasDisponiveis.length === 0) return;
+
+  // 1. Sorteia uma carga que seja DIFERENTE da última que entrou
+  let randomIndex;
+  do {
+    randomIndex = Math.floor(Math.random() * rotasDisponiveis.length);
+  } while (randomIndex === lastInjectedIndex && rotasDisponiveis.length > 1); // A condição extra evita loop infinito se só tiver 1 rota no BD
   
-  // Cria um objeto novo com ID único baseado no tempo para o Vue reconhecer como item novo na Animação
-  const novaCarga = { ...randomLoad, id: Date.now(), isNew: true };
+  lastInjectedIndex = randomIndex;
+  const randomLoad = rotasDisponiveis[randomIndex];
   
-  // Empurra pro topo da lista
+  // 2. Cria a nova carga (com ID único para garantir a animação)
+  const novaCarga = { ...randomLoad, id: Date.now() + Math.random(), isNew: true };
+  
+  // 3. Adiciona no topo
   cargasAoVivo.value.unshift(novaCarga);
   
-  // Remove o efeito visual de "Novo" depois de 2 segundos
-  setTimeout(() => { novaCarga.isNew = false; }, 2000);
+  // 4. Remove o brilho visual de "novo" após 2s
+  setTimeout(() => { 
+      const item = cargasAoVivo.value.find(c => c.id === novaCarga.id);
+      if(item) item.isNew = false; 
+  }, 2000);
 
-  // Se a lista ficar maior que 3 itens, remove o último suavemente
-  if (cargasAoVivo.value.length > 3) {
+  // 5. Mantém a lista com um bom volume (até 5 itens para parecer cheio, removendo os mais velhos)
+  if (cargasAoVivo.value.length > 5) {
     cargasAoVivo.value.pop();
   }
+
+  // 6. Agenda a PRÓXIMA injeção com tempo aleatório (entre 3 e 6 segundos) para dar realismo orgânico
+  const nextDelay = Math.floor(Math.random() * (6000 - 3000 + 1) + 3000);
+  feedTimeout = setTimeout(injectNewLoad, nextDelay);
 };
 
 const fetchCargasAoVivo = async () => {
   try {
     const response = await axios.get('/api/v1/public/cargas-recentes');
+    
+    // Se a API retornou dados reais, usaremos eles como nossa base rotativa
     if (response.data && response.data.length > 0) {
-      cargasAoVivo.value = response.data;
+      rotasDisponiveis = response.data;
     } else {
-      throw new Error("Usar Fallback");
+      // Se retornou vazio, usamos o Mock
+      rotasDisponiveis = mockDatabase;
     }
   } catch (error) {
-    // Inicia com 3 itens
-    for(let i=0; i<3; i++) {
-      cargasAoVivo.value.push({ ...mockDatabase[i], id: Date.now() + i });
-    }
-    // Começa o simulador dinâmico: a cada 4 segundos entra uma carga nova!
-    feedInterval = setInterval(injectNewLoad, 4000);
+    // Se a API falhou, usamos o Mock
+    rotasDisponiveis = mockDatabase;
   } finally {
     loading.value = false;
+    
+    // Independentemente de ser BD Real ou Mock, vamos preencher a tela inicial com até 3 cargas
+    const initialLoads = Math.min(3, rotasDisponiveis.length);
+    for(let i = 0; i < initialLoads; i++) {
+      let randomIndex;
+      do { randomIndex = Math.floor(Math.random() * rotasDisponiveis.length); } while (randomIndex === lastInjectedIndex && rotasDisponiveis.length > 1);
+      lastInjectedIndex = randomIndex;
+      cargasAoVivo.value.push({ ...rotasDisponiveis[randomIndex], id: Date.now() + i });
+    }
+
+    // Inicia a máquina de sorteio infinito orgânico
+    feedTimeout = setTimeout(injectNewLoad, 4000);
   }
 };
 
@@ -351,7 +386,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-  if (feedInterval) clearInterval(feedInterval);
+  if (feedTimeout) clearTimeout(feedTimeout);
   if (slideInterval) clearInterval(slideInterval);
 });
 </script>
