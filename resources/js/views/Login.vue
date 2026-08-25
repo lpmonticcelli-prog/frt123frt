@@ -61,21 +61,22 @@ onMounted(async () => {
             // 5. Atualiza a Store do Pinia
             authStore.user = response.data;
             
-            // 6. Faz o roteamento baseado no cargo (role)
-            const role = authStore.user?.role?.slug;
+            // 6. Faz o roteamento blindado contra "undefined"
+            const role = String(authStore.user?.role?.slug || '');
             const staffRoles = ['admin', 'manager', 'compliance', 'suporte_n1'];
 
-            if (staffRoles.includes(role)) {
+            // Se não tiver cargo, ou se for a palavra "undefined", manda para completar o cadastro
+            if (!role || role === '' || role === 'undefined' || role === 'null') {
+                router.push({ name: 'ChooseProfile' }); 
+            } 
+            else if (staffRoles.includes(role)) {
                 if (role === 'suporte_n1') {
                     router.push('/admin/suporte'); 
                 } else {
                     router.push('/admin/dashboard'); 
                 }
-            } else if (role) {
-                router.push(`/${role}/painel`); 
             } else {
-                // Redireciona usuário sem cargo para a tela de completar o perfil
-                router.push({ name: 'ChooseProfile' }); 
+                router.push(`/${role}/painel`); 
             }
             
         } catch (error) {
@@ -103,19 +104,22 @@ const handleLogin = async () => {
             password: password.value 
         });
         
-        const role = authStore.user?.role?.slug;
+        // Roteamento blindado contra "undefined"
+        const role = String(authStore.user?.role?.slug || '');
         const staffRoles = ['admin', 'manager', 'compliance', 'suporte_n1'];
 
-        if (staffRoles.includes(role)) {
+        // Se não tiver cargo, ou se for a palavra "undefined", manda para completar o cadastro
+        if (!role || role === '' || role === 'undefined' || role === 'null') {
+            router.push({ name: 'ChooseProfile' }); 
+        } 
+        else if (staffRoles.includes(role)) {
             if (role === 'suporte_n1') {
                 router.push('/admin/suporte'); 
             } else {
                 router.push('/admin/dashboard'); 
             }
-        } else if (role) {
-            router.push(`/${role}/painel`); 
         } else {
-            router.push({ name: 'ChooseProfile' }); 
+            router.push(`/${role}/painel`); 
         }
         
     } catch (error) {
