@@ -9,7 +9,7 @@ use App\Http\Controllers\Api\V1\AnttController;
 use App\Http\Controllers\Api\V1\Auth\AuthController;
 use App\Http\Controllers\Api\V1\Auth\SocialAuthController;
 use App\Http\Controllers\Api\V1\LocalidadeController;
-use App\Http\Controllers\Api\V1\PublicController;
+use App\Http\Controllers\Api\PublicController; // <--- CORRIGIDO AQUI (Sem o \V1)
 
 // 2. Admin
 use App\Http\Controllers\Api\V1\Admin\AdminController;
