@@ -18,7 +18,7 @@
       
       <div class="nav-actions">
         <router-link :to="{ name: 'Login' }" class="btn-text">Entrar</router-link>
-        <router-link :to="{ name: 'RegisterEmbarcador' }" class="btn-primary text-center">Criar Conta</router-link>
+        <router-link to="/register">Criar Conta</router-link>
       </div>
     </nav>
 
