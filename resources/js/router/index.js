@@ -132,12 +132,33 @@ router.beforeEach(async (to, from) => {
     }
 
     const guestRoutes = ['/login', '/reset-password', '/register', '/register/embarcador', '/register/motorista'];
+    
+    // =======================================================
+    // CORREÇÃO: Tratamento blindado para usuário sem cargo (Google)
+    // =======================================================
     if (guestRoutes.includes(to.path) && authStore.isAuthenticated && authStore.user) {
+        
+        // Garante que safeRole não é a palavra 'undefined'
+        const safeRole = userRole ? String(userRole).trim().toLowerCase() : '';
         const staffRoles = ['admin', 'manager', 'compliance', 'suporte_n1'];
-        if (staffRoles.includes(userRole)) {
-            return userRole === 'suporte_n1' ? { name: 'AdminSuporte' } : { name: 'AdminDashboard' };
+
+        // 1. USUÁRIO NOVO (Sem cargo definido)
+        if (!safeRole || safeRole === 'undefined' || safeRole === 'null') {
+            // Se ele estiver tentando ir para qualquer página de registro, deixa passar.
+            if (to.path.startsWith('/register')) {
+                return true; 
+            }
+            // Se tentar ir para a home/login, joga ele para escolher o perfil
+            return { name: 'ChooseProfile' }; 
         }
-        return { path: `/${userRole}/painel` }; 
+
+        // 2. USUÁRIO DA EQUIPE (Admin/Suporte)
+        if (staffRoles.includes(safeRole)) {
+            return safeRole === 'suporte_n1' ? { name: 'AdminSuporte' } : { name: 'AdminDashboard' };
+        }
+        
+        // 3. USUÁRIO COMUM (Motorista ou Embarcador)
+        return { path: `/${safeRole}/painel` }; 
     }
 
     return true; 
