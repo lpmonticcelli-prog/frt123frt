@@ -30,6 +30,16 @@ return [
     ],
 
     // ==========================================
+    // LOGIN SOCIAL: GOOGLE OAUTH
+    // ==========================================
+    'google' => [
+        // ZT-DEFENSE: Mapeamento estrito das credenciais. Fail-secure se ausente.
+        'client_id' => env('GOOGLE_CLIENT_ID') ?: throw new \RuntimeException('GOOGLE_CLIENT_ID ausente no .env.'),
+        'client_secret' => env('GOOGLE_CLIENT_SECRET') ?: throw new \RuntimeException('GOOGLE_CLIENT_SECRET ausente no .env.'),
+        'redirect' => env('GOOGLE_REDIRECT_URI', 'https://beta.123fretei.com.br/api/auth/google/callback'),
+    ],
+
+    // ==========================================
     // LOGÍSTICA: PEF / CIOT (Integração ANTT)
     // ==========================================
     'pef' => [
