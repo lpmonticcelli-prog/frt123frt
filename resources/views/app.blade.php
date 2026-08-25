@@ -8,6 +8,9 @@
     
     <link rel="icon" type="image/png" href="/logo1.png?v=2">
 
+    <!-- TAG DE VERIFICAÇÃO DO GOOGLE SEARCH CONSOLE -->
+    <meta name="google-site-verification" content="googlec4ab3193d556a46a" />
+
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="antialiased bg-surface-50 text-surface-900">
