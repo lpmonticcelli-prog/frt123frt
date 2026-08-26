@@ -120,6 +120,16 @@ class DatabaseSeeder extends Seeder
                 throw new \Exception("A tabela de cidades está vazia. Rode o LocalidadeSeeder primeiro!");
             }
 
+            // LISTA DE PRODUTOS REAIS PARA ELIMINAR O LOREM IPSUM
+            $produtosBrasileiros = [
+                'Soja a Granel', 'Milho em Grãos', 'Autopeças Automotivas', 
+                'Eletrônicos (Paletes)', 'Eletrodomésticos', 'Carga Fracionada', 
+                'Bobinas de Papel', 'Alimentos Congelados', 'Açúcar Granulado', 
+                'Bebidas e Refrigerantes', 'Material de Construção', 'Fertilizantes', 
+                'Embalagens de Papelão', 'Produtos Químicos Não Perigosos',
+                'Cimento em Sacas', 'Rações Agrícolas', 'Medicamentos Genéricos'
+            ];
+
             $totalCidades = count($cidades);
             $this->command->info("📦 Gerando de 2 a 6 cargas reais para cada uma das {$totalCidades} cidades...");
 
@@ -137,7 +147,10 @@ class DatabaseSeeder extends Seeder
                     $cargasLote[] = [
                         'embarcador_id' => $faker->randomElement($embarcadorIds),
                         'motorista_id' => $faker->boolean(30) ? $faker->randomElement($motoristaModelIds) : null,
-                        'produto' => $faker->words(2, true),
+                        
+                        // A MÁGICA ACONTECE AQUI: Em vez do Faker, usa nossa lista real
+                        'produto' => $faker->randomElement($produtosBrasileiros),
+                        
                         'especie' => $faker->randomElement(['Caixas', 'Paletes', 'Granel', 'Sacas']),
                         'peso_kg' => $faker->randomFloat(2, 500, 30000),
                         'tipo_veiculo' => $faker->randomElement(['Truck', 'Carreta', 'Toco', 'VUC', 'Fiorino']),
@@ -156,7 +169,10 @@ class DatabaseSeeder extends Seeder
                         'valor_frete' => $faker->randomFloat(2, 500, 15000),
                         'taxa_plataforma' => 50,
                         'data_coleta' => $faker->dateTimeBetween('-1 month', '+1 month')->format('Y-m-d H:i:s'),
-                        'status' => $faker->randomElement(['publicada', 'em_transito', 'concluida', 'cancelada']),
+                        
+                        // Aumentei o peso do 'publicada' para o mural ficar cheio
+                        'status' => $faker->randomElement(['publicada', 'publicada', 'publicada', 'em_transito', 'concluida']),
+                        
                         'created_at' => $now,
                         'updated_at' => $now
                     ];
