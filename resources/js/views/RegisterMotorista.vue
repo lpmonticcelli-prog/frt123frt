@@ -1,6 +1,6 @@
 <template>
   <div class="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-    <div class="max-w-md w-full space-y-8 bg-white p-8 rounded-xl shadow-md border border-gray-100">
+    <div class="max-w-md w-full space-y-8 bg-white p-8 rounded-xl shadow-md border border-gray-100 relative">
       <div>
         <h2 class="mt-2 text-center text-3xl font-extrabold text-gray-900">
           {{ isGoogleUser ? 'Complete seu Perfil' : 'Cadastro de Motorista' }}
@@ -118,8 +118,33 @@
           </div>
         </div>
 
+        <!-- ========================================== -->
+        <!-- CHECKBOX DOS TERMOS DE USO (BLINDAGEM CLICKWRAP) -->
+        <!-- ========================================== -->
+        <div class="mt-6 mb-4 flex items-start gap-3 bg-gray-50 p-4 rounded-xl border border-gray-200">
+          <div class="flex items-center h-5 mt-0.5">
+            <input 
+              id="termos" 
+              v-model="form.aceite_termos" 
+              type="checkbox" 
+              class="w-5 h-5 text-blue-600 bg-white border-gray-300 rounded focus:ring-blue-500 focus:ring-2 cursor-pointer transition-colors"
+              required
+            >
+          </div>
+          <div class="text-sm">
+            <label for="termos" class="font-medium text-gray-700 cursor-pointer select-none">
+              Eu li, compreendi e concordo expressamente com os 
+              <button type="button" @click="modalTermosAberto = true" class="text-blue-600 hover:text-blue-800 font-bold underline focus:outline-none transition-colors">
+                Termos de Uso e Política de Isenção de Responsabilidade
+              </button> 
+              da 123FRETEI.
+            </label>
+          </div>
+        </div>
+
         <div>
-          <button type="submit" :disabled="loading" class="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-bold rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition-colors cursor-pointer disabled:cursor-not-allowed">
+          <!-- Botão Bloqueado se a Checkbox não estiver marcada -->
+          <button type="submit" :disabled="loading || !form.aceite_termos" class="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-bold rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition-colors cursor-pointer disabled:cursor-not-allowed">
             {{ loading ? 'Processando...' : (isGoogleUser ? 'Completar Perfil e Entrar' : 'Finalizar Cadastro') }}
           </button>
         </div>
@@ -130,6 +155,9 @@
           </router-link>
         </div>
       </form>
+
+      <!-- Modal Injetado no Escopo Principal -->
+      <TermosDeUsoModal :isOpen="modalTermosAberto" @close="modalTermosAberto = false" />
     </div>
   </div>
 </template>
@@ -139,12 +167,15 @@ import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
 import axios from 'axios';
+import TermosDeUsoModal from '../Components/TermosDeUsoModal.vue';
 
 const router = useRouter();
 const authStore = useAuthStore();
 
 // Inteligência que detecta se o usuário veio do Google
 const isGoogleUser = computed(() => authStore.isAuthenticated && authStore.user);
+
+const modalTermosAberto = ref(false);
 
 const form = ref({
   name: '',
@@ -155,7 +186,8 @@ const form = ref({
   password_confirmation: '',
   cnh: '',
   validade_cnh: '',
-  rntrc: ''
+  rntrc: '',
+  aceite_termos: false // <- Campo Obrigatório de Auditoria
 });
 
 const formUnmasked = ref({
@@ -176,7 +208,7 @@ onMounted(() => {
 });
 
 const register = async () => {
-  if (loading.value) return;
+  if (loading.value || !form.value.aceite_termos) return;
 
   // Só checa a senha se NÃO for do Google
   if (!isGoogleUser.value) {

@@ -8,19 +8,30 @@ import App from './App.vue';
 const app = createApp(App);
 const pinia = createPinia();
 
+// ==========================================
+// PLUGINS & DIRETIVAS
+// ==========================================
 app.use(pinia);
 app.use(router);
 app.directive("maska", vMaska);
 
+// ==========================================
+// ESCUDOS DE ERRO GLOBAIS (ZONA SEGURA)
+// ==========================================
 app.config.errorHandler = (err, instance, info) => {
-    console.error('🔥 [Vue Global Crash Prevented]:', err.message || err);
-    if (err.message && err.message.includes('No match for')) {
+    console.error('🔥 [Vue Global Crash Prevented]:', err?.message || err);
+    
+    // Suprime erros de rotas não encontradas para evitar loops de renderização
+    if (err?.message && err.message.includes('No match for')) {
         console.warn('⚠️ Rota não encontrada. Redirecionamento abortado pelo escudo de segurança.');
     }
 };
 
-window.addEventListener('unhandledrejection', function(event) {
+window.addEventListener('unhandledrejection', (event) => {
     console.warn('🌐 [Async Error Prevented]:', event.reason);
 });
 
+// ==========================================
+// INICIALIZAÇÃO DA APLICAÇÃO
+// ==========================================
 app.mount('#app');

@@ -1,6 +1,6 @@
 <template>
   <div class="min-h-screen flex items-center justify-center bg-[#F5F5F7] p-6 font-sans">
-    <div class="w-full max-w-2xl bg-white rounded-2xl shadow-sm border border-gray-200 p-10">
+    <div class="w-full max-w-2xl bg-white rounded-2xl shadow-sm border border-gray-200 p-10 relative">
       
       <div class="mb-8">
         <h2 class="text-3xl font-extrabold tracking-tight text-gray-900">
@@ -109,17 +109,44 @@
             </div>
         </div>
 
-        <div class="pt-4 flex items-center justify-between border-t border-gray-100">
+        <!-- ========================================== -->
+        <!-- CHECKBOX DOS TERMOS DE USO (BLINDAGEM CLICKWRAP) -->
+        <!-- ========================================== -->
+        <div class="mt-6 flex items-start gap-3 bg-gray-50 p-4 rounded-xl border border-gray-200">
+          <div class="flex items-center h-5 mt-0.5">
+            <input 
+              id="termos" 
+              v-model="form.aceite_termos" 
+              type="checkbox" 
+              class="w-5 h-5 text-blue-600 bg-white border-gray-300 rounded focus:ring-blue-500 focus:ring-2 cursor-pointer transition-colors"
+              required
+            >
+          </div>
+          <div class="text-sm">
+            <label for="termos" class="font-medium text-gray-700 cursor-pointer select-none">
+              Eu li, compreendi e concordo expressamente com os 
+              <button type="button" @click="modalTermosAberto = true" class="text-blue-600 hover:text-blue-800 font-bold underline focus:outline-none transition-colors">
+                Termos de Uso e Política de Isenção de Responsabilidade
+              </button> 
+              da 123FRETEI.
+            </label>
+          </div>
+        </div>
+
+        <div class="pt-6 flex flex-col-reverse sm:flex-row items-center justify-between border-t border-gray-100 gap-4 sm:gap-0">
             <router-link v-if="!isGoogleUser" to="/login" class="text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors">
                 ← Voltar ao Login
             </router-link>
-            <div v-else></div> <!-- Espaçador para manter o botão alinhado à direita -->
+            <div v-else></div>
             
-            <button type="submit" :disabled="loading" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 px-8 rounded-lg shadow-md disabled:opacity-50 transition-all">
+            <button type="submit" :disabled="loading || !form.aceite_termos" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-8 rounded-lg shadow-md disabled:opacity-50 transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
                 {{ loading ? 'A Analisar Dados (RFB)...' : (isGoogleUser ? 'Completar Cadastro' : 'Solicitar Homologação') }}
             </button>
         </div>
       </form>
+
+      <!-- Modal Injetado no Escopo Principal -->
+      <TermosDeUsoModal :isOpen="modalTermosAberto" @close="modalTermosAberto = false" />
     </div>
   </div>
 </template>
@@ -129,12 +156,15 @@ import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
 import { useAuthStore } from '../stores/auth';
+import TermosDeUsoModal from '../Components/TermosDeUsoModal.vue';
 
 const router = useRouter();
 const authStore = useAuthStore();
 
 // Inteligência do Google
 const isGoogleUser = computed(() => authStore.isAuthenticated && authStore.user);
+
+const modalTermosAberto = ref(false);
 
 const form = ref({
     name: '',
@@ -144,7 +174,8 @@ const form = ref({
     phone: '',
     razao_social: '',
     cnpj: '',
-    inscricao_estadual: ''
+    inscricao_estadual: '',
+    aceite_termos: false // <- Campo Obrigatório de Auditoria
 });
 
 const formUnmasked = ref({
@@ -163,6 +194,8 @@ onMounted(() => {
 });
 
 const handleRegister = async () => {
+    if (loading.value || !form.value.aceite_termos) return;
+
     // Validação de senha no Front-end (SÓ SE NÃO FOR GOOGLE)
     if (!isGoogleUser.value) {
         if (form.value.password !== form.value.password_confirmation) {

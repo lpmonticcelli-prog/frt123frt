@@ -15,9 +15,6 @@ window.axios.defaults.withXSRFToken = true;
 // ==========================================
 // ZT-DEFENSE: Injeção de Identidade Efêmera
 // ==========================================
-// Gera uma assinatura volátil que existe apenas enquanto a aba estiver aberta.
-// Se um malware roubar o cookie e mandar para a Rússia via cURL, a requisição não 
-// possuirá esse Header volátil. A defesa passiva será ativada instantaneamente.
 let ephemeralToken = sessionStorage.getItem('x_ephemeral_token');
 if (!ephemeralToken) {
     ephemeralToken = btoa(Math.random().toString(36).substring(2) + Date.now()).substring(0, 32);
@@ -25,18 +22,66 @@ if (!ephemeralToken) {
 }
 window.axios.defaults.headers.common['X-Ephemeral-Session'] = ephemeralToken;
 
+// ==========================================
+// INTERCEPTORS DE REQUISIÇÃO (REQUEST)
+// ==========================================
+window.axios.interceptors.request.use(config => {
+    if (config.url && config.url.startsWith('/api/') && !config.url.startsWith('/api/v1/')) {
+        config.url = config.url.replace('/api/', '/api/v1/');
+    }
+    
+    if (config.url && config.url.includes('/cargas/motorista/minhas')) {
+        config.url = config.url.replace('/cargas/motorista/minhas', '/motorista/cargas/minhas');
+    }
+    
+    if (config.url && config.url.includes('/api/v1/cargas') && !config.url.includes('/embarcador/') && !config.url.includes('/motorista/')) {
+        config.url = config.url.replace('/api/v1/cargas', '/api/v1/embarcador/cargas');
+    }
+    
+    return config;
+});
+
+// ==========================================
+// INTERCEPTORS DE RESPOSTA (RESPONSE)
+// ==========================================
 window.axios.interceptors.response.use(
     (response) => {
+        // 1. Defesa WAF: HTML não esperado em endpoint de API
         if (typeof response.data === 'string' && response.data.includes('<!DOCTYPE html>')) {
             console.error('🔥 [WAF Interceptor] O Endpoint bloqueou o acesso.');
             return Promise.reject(new Error('Acesso negado.'));
         }
+
+        // 2. Normalização de Envelopes de Dados (Unwrap de Paginação)
+        if (response.data && typeof response.data === 'object' && response.data.data !== undefined) {
+            response.data = response.data.data;
+        }
+
+        // 3. Normalização de Coleções (Tickets e Extratos)
+        if (response.config.url && (response.config.url.includes('/tickets') || response.config.url.includes('/extrato'))) {
+            if (!response.data) {
+                response.data = [];
+            } else if (!Array.isArray(response.data) && typeof response.data === 'object') {
+                response.data = Object.values(response.data);
+            }
+        }
+
+        // ==========================================
+        // 4. BLINDAGEM ATIVA: Verifica o usuário no Login e no /me
+        // ==========================================
+        const userData = response.data?.user || (response.data?.id ? response.data : null);
+        if (userData && userData.termo_aceite_em === null) {
+            console.warn('⚖️ [LEGAL SHIELD] Usuário logado sem termos aceitos. Invocando Modal.');
+            window.dispatchEvent(new CustomEvent('termo-pendente-detectado'));
+        }
+
         return response;
     },
     (error) => {
         if (error.response) {
             const status = error.response.status;
 
+            // 1. Defesa IAM: Sessão Expirada (Logout Forçado)
             if (status === 401 || status === 419) {
                 if (window.location.pathname !== '/login') {
                     localStorage.removeItem('user'); 
@@ -44,53 +89,20 @@ window.axios.interceptors.response.use(
                     window.location.href = '/login';
                 }
             }
+
+            // 2. BLINDAGEM JURÍDICA: Termos de Uso Pendentes (Retorno 403 do Middleware)
+            if (status === 403 && error.response.data?.error === 'TERMOS_PENDENTES') {
+                console.warn('⚖️ [LEGAL SHIELD] Requisição barrada. Invocando Modal.');
+                window.dispatchEvent(new CustomEvent('termo-pendente-detectado'));
+            }
         }
         return Promise.reject(error);
     }
 );
 
-window.axios.interceptors.request.use(config => {
-    if (config.url && config.url.startsWith('/api/') && !config.url.startsWith('/api/v1/')) {
-        config.url = config.url.replace('/api/', '/api/v1/');
-    }
-    return config;
-});
-
-window.axios.interceptors.response.use(response => {
-    if (response.data && Array.isArray(response.data.data) && typeof response.data.total === 'number') {
-        response.data = response.data.data;
-    }
-    return response;
-}, error => Promise.reject(error));
-
-window.axios.interceptors.response.use(response => {
-    if (response.data && typeof response.data === 'object' && response.data.data !== undefined) {
-        response.data = response.data.data;
-    }
-    if (response.config.url && (response.config.url.includes('/tickets') || response.config.url.includes('/extrato'))) {
-        if (!response.data) {
-            response.data = [];
-        } else if (!Array.isArray(response.data) && typeof response.data === 'object') {
-            response.data = Object.values(response.data);
-        }
-    }
-    return response;
-}, error => Promise.reject(error));
-
-window.axios.interceptors.request.use(config => {
-    if (config.url && config.url.includes('/cargas/motorista/minhas')) {
-        config.url = config.url.replace('/cargas/motorista/minhas', '/motorista/cargas/minhas');
-    }
-    return config;
-});
-
-window.axios.interceptors.request.use(config => {
-    if (config.url && config.url.includes('/api/v1/cargas') && !config.url.includes('/embarcador/') && !config.url.includes('/motorista/')) {
-        config.url = config.url.replace('/api/v1/cargas', '/api/v1/embarcador/cargas');
-    }
-    return config;
-});
-
+// ==========================================
+// WEBSOCKETS (REVERB / PUSHER)
+// ==========================================
 window.Pusher = Pusher;
 window.Echo = new Echo({
     broadcaster: 'reverb',

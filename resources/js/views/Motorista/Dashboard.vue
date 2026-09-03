@@ -120,7 +120,6 @@
         </div>
 
         <!-- LISTA CARDS (UNIVERSAL PARA TODOS OS DISPOSITIVOS) -->
-        <!-- Substituímos a tabela de Desktop por Cards Universais para consistência de UI/UX -->
         <template v-else>
           <div class="divide-y divide-slate-100" :class="{ 'opacity-50 pointer-events-none': loading }">
             
@@ -244,7 +243,7 @@
     </div>
 
     <!-- ========================================================================= -->
-    <!-- MODAL DE ACEITE BLINDADO -->
+    <!-- MODAL DE ACEITE GERAL DO FRETE -->
     <!-- ========================================================================= -->
     <transition enter-active-class="ease-out duration-300" enter-from-class="opacity-0" enter-to-class="opacity-100" leave-active-class="ease-in duration-200" leave-from-class="opacity-100" leave-to-class="opacity-0">
       <div v-if="showModalAceite" class="fixed inset-0 z-[100] overflow-y-auto" role="dialog" aria-modal="true">
@@ -375,6 +374,16 @@
       </div>
     </transition>
 
+    <!-- ========================================================================= -->
+    <!-- GATILHO DE VENDA IZA SEGURADORA E BLINDAGEM JURÍDICA (ADICIONADO) -->
+    <!-- ========================================================================= -->
+    <SeguroBloqueioModal 
+      v-if="showModalSeguro" 
+      :carga-id="cargaSelecionada?.id" 
+      @close="showModalSeguro = false"
+      @frete-liberado="freteFinalizadoComSucesso"
+    />
+
   </div>
 </template>
 
@@ -383,6 +392,7 @@ import { ref, onMounted, onBeforeUnmount, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
 import AdCarousel from '../../Components/AdCarousel.vue'; 
+import SeguroBloqueioModal from '@/Components/SeguroBloqueioModal.vue';
 
 const router = useRouter();
 
@@ -395,6 +405,9 @@ const actionLoading = ref(false);
 const ticketLoading = ref(false);
 const erroApi = ref(null);
 const pagination = ref({ current_page: 1, last_page: 1, total: 0 });
+
+// Estado do Seguro / Blindagem
+const showModalSeguro = ref(false);
 
 // ==========================================
 // CENTRAL INTELIGENTE (RADAR)
@@ -500,6 +513,9 @@ const isFormTicketValid = computed(() => ticketForm.value.assunto.trim().length 
 const abrirModalAceite = (c) => { cargaSelecionada.value = c; showModalAceite.value = true; };
 const fecharModalAceite = () => { showModalAceite.value = false; cargaSelecionada.value = null; };
 
+// ==========================================
+// INTEGRAÇÃO DE ACEITE COM BYPASS/SEGURO
+// ==========================================
 const confirmarAceite = async () => {
   if (!cargaSelecionada.value?.id) return;
   actionLoading.value = true;
@@ -509,8 +525,21 @@ const confirmarAceite = async () => {
     fecharModalAceite();
     router.push({ name: 'MotoristaMeusFretes' }); 
   } catch (err) {
-    alert(`Erro: ${err.response?.data?.error || 'Falha de comunicação'}`);
+    // INTERCEPTAÇÃO: Se o BypassRiskManager barrar por falta de seguro
+    if (err.response?.status === 403 && err.response?.data?.exibir_oferta_iza) {
+      fecharModalAceite();
+      showModalSeguro.value = true;
+    } else {
+      alert(`Erro: ${err.response?.data?.error || err.response?.data?.message || 'Falha de comunicação'}`);
+    }
   } finally { actionLoading.value = false; }
+};
+
+// Função acionada quando o motorista passa pelo SeguroBloqueioModal
+const freteFinalizadoComSucesso = () => {
+  showModalSeguro.value = false;
+  alert('Processo concluído com sucesso! Verifique a aba Meus Fretes.');
+  router.push({ name: 'MotoristaMeusFretes' });
 };
 
 const abrirModalTicket = (c) => { cargaSelecionada.value = c; ticketForm.value = { categoria: 'Dúvida Técnica', assunto: '', mensagem: '' }; showModalTicket.value = true; };

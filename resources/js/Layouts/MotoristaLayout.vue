@@ -62,6 +62,11 @@
         <div class="pt-6 mt-4 border-t border-surface-200">
           <span class="block px-4 mb-3 text-[10px] font-bold text-surface-400 uppercase tracking-widest">Hub 123fretei</span>
           
+          <!-- GATILHO PASSIVO / UPSELL: SEGURO IZA -->
+          <router-link :to="{ name: 'MotoristaSeguros' }" class="block px-4 py-3 rounded-md text-sm font-medium transition-colors text-[#035D29] bg-[#035D29]/5 hover:bg-[#035D29]/10 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-brand-500" active-class="bg-[#035D29] text-white shadow-clinical-sm font-bold">
+            🛡️ Seguros e Benefícios
+          </router-link>
+
           <router-link :to="{ name: 'MotoristaLoja' }" class="block px-4 py-3 rounded-md text-sm font-medium transition-colors text-surface-600 hover:bg-surface-100 hover:text-surface-900 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-surface-800" active-class="bg-surface-800 text-white shadow-clinical-sm font-semibold">
             Loja & EPIs
           </router-link>
@@ -111,7 +116,7 @@
       </header>
 
       <main class="flex-1 overflow-y-auto overflow-x-hidden scrollbar-clinical bg-surface-50 p-4 sm:p-6 lg:p-8 relative">
-        <router-view v-slot="{ Component }">
+        <router-view v-slot="{ Component, route }">
           <transition 
             enter-active-class="transition ease-out duration-200"
             enter-from-class="opacity-0 translate-y-2"
@@ -121,7 +126,8 @@
             leave-to-class="opacity-0 translate-y-2"
             mode="out-in"
           >
-            <component :is="Component" />
+            <!-- A chave (key) vinculada à rota elimina as quebras de transição e telas brancas -->
+            <component :is="Component" :key="route.fullPath" />
           </transition>
         </router-view>
       </main>

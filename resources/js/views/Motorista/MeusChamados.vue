@@ -1,6 +1,6 @@
 <template>
-  <!-- Envolvemos a tela para ocupar o espaço do Layout, adaptando para mobile e desktop -->
   <div class="flex flex-col lg:flex-row gap-4 sm:gap-6 h-[calc(100dvh-140px)] lg:h-[calc(100dvh-8rem)] animate-fade-in pb-4 lg:pb-0 px-2 sm:px-0">
+    <!-- Envolvemos a tela para ocupar o espaço do Layout, adaptando para mobile e desktop -->
     
     <!-- COLUNA ESQUERDA: LISTA DE CHAMADOS -->
     <div class="w-full lg:w-1/3 bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-[350px] shrink-0 lg:h-full lg:shrink">
@@ -114,6 +114,14 @@
                   <span class="text-[9px] font-bold opacity-60 tabular-nums">{{ formatarHora(msg?.created_at) }}</span>
                 </div>
                 <p class="text-sm sm:text-base whitespace-pre-wrap leading-relaxed font-medium">{{ msg?.mensagem }}</p>
+                
+                <!-- Exibição de Anexo (Se houver futuramente) -->
+                <div v-if="msg?.anexo_url" class="mt-3 pt-3 border-t border-emerald-700/30">
+                  <a :href="msg.anexo_url" target="_blank" class="text-xs font-bold underline flex items-center gap-1">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg>
+                    Ver Anexo Enviado
+                  </a>
+                </div>
               </div>
             </div>
           </template>
@@ -199,13 +207,33 @@
                   <label class="block text-[11px] font-black text-slate-500 uppercase tracking-widest mb-3">4. Detalhes (O que aconteceu?)</label>
                   <textarea v-model="formNovo.mensagem" rows="4" class="w-full bg-slate-50 border-2 border-slate-200 rounded-2xl focus:bg-white focus:ring-[#035D29] focus:border-[#035D29] text-base p-5 resize-none shadow-sm font-medium placeholder-slate-400" placeholder="Explique a situação detalhadamente..."></textarea>
                 </div>
+                
+                <!-- CAMPO DE ANEXO BLINDADO -->
+                <div>
+                  <label class="block text-[11px] font-black text-slate-500 uppercase tracking-widest mb-3">5. Anexo (Opcional - Máx 5MB)</label>
+                  <div class="flex items-center justify-center w-full">
+                    <label for="dropzone-file" class="flex flex-col items-center justify-center w-full h-32 border-2 border-slate-300 border-dashed rounded-2xl cursor-pointer bg-slate-50 hover:bg-slate-100 transition-colors" :class="{'border-[#035D29] bg-emerald-50': formNovo.anexo}">
+                      <div class="flex flex-col items-center justify-center pt-5 pb-6">
+                        <svg v-if="!formNovo.anexo" class="w-8 h-8 mb-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+                        <svg v-else class="w-8 h-8 mb-3 text-[#035D29]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        
+                        <p v-if="!formNovo.anexo" class="mb-2 text-sm text-slate-500 font-bold"><span class="font-black text-[#035D29]">Clique para enviar</span> ou arraste o arquivo</p>
+                        <p v-else class="mb-2 text-sm text-[#035D29] font-black">Arquivo selecionado: {{ formNovo.anexo.name }}</p>
+                        
+                        <p class="text-xs text-slate-500">PDF, JPG ou PNG</p>
+                      </div>
+                      <input id="dropzone-file" type="file" class="hidden" @change="handleFileUpload" accept=".pdf,image/png,image/jpeg" />
+                    </label>
+                  </div>
+                </div>
+
               </div>
             </div>
 
             <div class="bg-white px-6 sm:px-10 py-6 border-t border-slate-200 shrink-0">
               <button @click="enviarNovoChamado" :disabled="processandoNovo || !formNovo.categoria || !formNovo.assunto || !formNovo.mensagem" class="w-full px-8 py-5 bg-[#035D29] hover:bg-[#023818] text-white text-lg font-black rounded-2xl shadow-lg transition-transform active:scale-95 disabled:opacity-50 flex items-center justify-center focus:outline-none">
                 <svg v-if="processandoNovo" class="w-6 h-6 animate-spin mr-3" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                {{ processandoNovo ? 'Registrando...' : 'Abrir Chamado Seguro' }}
+                {{ formNovo.categoria === 'Envio de Apólice (Seguro Externo)' ? 'Enviar para Análise' : 'Abrir Chamado Seguro' }}
               </button>
             </div>
           </div>
@@ -218,7 +246,10 @@
 
 <script setup>
 import { ref, onMounted, nextTick } from 'vue';
+import { useRoute } from 'vue-router'; // <-- Importado o Vue Router para ler o link
 import axios from 'axios';
+
+const route = useRoute();
 
 // Estado das Listas
 const tickets = ref([]);
@@ -234,14 +265,25 @@ const enviando = ref(false);
 // Estado do Modal (Novo Chamado)
 const showModalNovo = ref(false);
 const processandoNovo = ref(false);
-const categorias = ['Disputa de Frete', 'Problema Operacional', 'Financeiro', 'Dúvida Técnica (Aplicativo)'];
-const formNovo = ref({ categoria: '', carga_id: null, assunto: '', mensagem: '' });
+const categorias = ['Disputa de Frete', 'Problema Operacional', 'Financeiro', 'Dúvida Técnica (Aplicativo)', 'Envio de Apólice (Seguro Externo)']; // <-- Categoria Adicionada
+const formNovo = ref({ categoria: '', carga_id: null, assunto: '', mensagem: '', anexo: null });
 
 const scrollToBottom = async () => {
   await nextTick();
   const container = document.getElementById('chat-container');
   if (container) {
     setTimeout(() => { container.scrollTop = container.scrollHeight; }, 50);
+  }
+};
+
+const handleFileUpload = (event) => {
+  const file = event.target.files[0];
+  if (file) {
+    if (file.size > 5 * 1024 * 1024) {
+      alert('O arquivo selecionado é muito grande. O limite máximo é 5MB.');
+      return;
+    }
+    formNovo.value.anexo = file;
   }
 };
 
@@ -305,10 +347,21 @@ const fetchTickets = async () => {
 const enviarNovoChamado = async () => {
   processandoNovo.value = true;
   try {
-    const res = await axios.post('/api/v1/suporte/tickets', formNovo.value);
+    // Transformamos o payload em FormData para permitir o envio do arquivo (Apólice PDF/Imagem)
+    const formData = new FormData();
+    formData.append('categoria', formNovo.value.categoria);
+    if (formNovo.value.carga_id) formData.append('carga_id', formNovo.value.carga_id);
+    formData.append('assunto', formNovo.value.assunto);
+    formData.append('mensagem', formNovo.value.mensagem);
+    if (formNovo.value.anexo) formData.append('anexo', formNovo.value.anexo);
+
+    const res = await axios.post('/api/v1/suporte/tickets', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    
     alert(res.data.message || 'Chamado aberto com sucesso!');
     showModalNovo.value = false;
-    formNovo.value = { categoria: '', carga_id: null, assunto: '', mensagem: '' };
+    formNovo.value = { categoria: '', carga_id: null, assunto: '', mensagem: '', anexo: null };
     await fetchTickets();
   } catch (error) {
     alert(error.response?.data?.message || 'Erro ao abrir chamado.');
@@ -368,6 +421,14 @@ const enviarResposta = async () => {
 
 onMounted(() => {
   fetchTickets();
+  
+  // GATILHO INTELIGENTE: Se o motorista vier do modal da Iza, já preenche e abre a tela de Envio de Apólice
+  if (route.query.action === 'enviar_apolice') {
+    showModalNovo.value = true;
+    formNovo.value.categoria = 'Envio de Apólice (Seguro Externo)';
+    formNovo.value.assunto = 'Análise de Apólice de Seguro de Acidentes Pessoais';
+    formNovo.value.mensagem = 'Olá, segue em anexo a minha apólice ativa de Seguro de Acidentes Pessoais para análise e liberação de fretes na plataforma.';
+  }
 });
 </script>
 

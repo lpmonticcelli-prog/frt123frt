@@ -21,8 +21,12 @@ class Carga extends Model
         'tipo_carroceria', 'uf_origem', 'cidade_origem', 'uf_destino',        
         'cidade_destino', 'distancia_km', 'valor_frete', 'taxa_plataforma',   
         'status', 'foto_canhoto', 'foto_carga', 'data_coleta', 'data_entrega_prevista',
-        'pedagio', // <--- MANTIDO
-        'piso_antt' // <--- ADICIONADO: Permissão para salvar o piso congelado da ANTT
+        'pedagio', 
+        'piso_antt',
+        // BLINDAGEM JURÍDICA: Campos de renúncia de seguro e responsabilidade
+        'isencao_seguro_aceite', 
+        'isencao_seguro_ip', 
+        'isencao_seguro_data'
     ];
 
     protected function casts(): array
@@ -35,8 +39,11 @@ class Carga extends Model
             'distancia_km' => 'decimal:2',
             'valor_frete' => 'decimal:2',
             'taxa_plataforma' => 'decimal:2',
-            'pedagio' => 'decimal:2', // <--- MANTIDO
-            'piso_antt' => 'decimal:2', // <--- ADICIONADO: Tipagem correta para o banco
+            'pedagio' => 'decimal:2', 
+            'piso_antt' => 'decimal:2', 
+            // Tipagem da blindagem
+            'isencao_seguro_aceite' => 'boolean',
+            'isencao_seguro_data' => 'datetime',
         ];
     }
 

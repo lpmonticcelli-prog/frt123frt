@@ -21,6 +21,11 @@ class User extends Authenticatable
         'phone_bidx',
         'role_id',
         'status',
+        // Logs de Blindagem Jurídica (Clickwrap)
+        'termo_versao',
+        'termo_ip',
+        'termo_user_agent',
+        'termo_aceite_em',
     ];
 
     protected $hidden = [
@@ -36,6 +41,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'phone' => 'encrypted',
+            'termo_aceite_em' => 'datetime', // Converte automaticamente o registro para objeto Carbon
         ];
     }
 

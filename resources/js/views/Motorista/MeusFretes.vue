@@ -275,6 +275,13 @@
       </div>
     </transition>
 
+    <!-- GATILHO DE VENDA IZA SEGURADORA E BLINDAGEM JURÍDICA -->
+    <SeguroBloqueioModal 
+      v-if="modalIzaAberto" 
+      :carga-id="cargaSelecionada?.id" 
+      @close="modalIzaAberto = false"
+      @frete-liberado="tentarIniciarNovamente"
+    />
   </div>
 </template>
 
@@ -283,6 +290,7 @@ import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import axios from 'axios';
 import imageCompression from 'browser-image-compression';
 import { useAuthStore } from '../../stores/auth';
+import SeguroBloqueioModal from '@/Components/SeguroBloqueioModal.vue';
 
 const authStore = useAuthStore();
 const cargas = ref([]);
@@ -303,6 +311,9 @@ const previewCarga = ref(null);
 const mensagensChat = ref([]);
 const novaMensagemChat = ref('');
 const enviandoMsg = ref(false);
+
+const modalIzaAberto = ref(false);
+const mensagemBloqueio = ref('');
 
 const getStatusClass = (status) => {
   const classes = { 
@@ -348,10 +359,23 @@ const iniciarViagem = async (id) => {
     alert('Viagem iniciada com sucesso. Dirija com segurança!');
     fetchMinhasCargas(); 
   } catch (error) { 
-      alert(error.response?.data?.message || error.response?.data?.error || 'Aguarde o status ser aprovado para iniciar viagem.'); 
+      if (error.response?.status === 403 && error.response?.data?.exibir_oferta_iza) {
+          mensagemBloqueio.value = error.response.data.mensagem;
+          cargaSelecionada.value = { id };
+          modalIzaAberto.value = true;
+      } else {
+          alert(error.response?.data?.message || error.response?.data?.error || 'Aguarde o status ser aprovado para iniciar viagem.'); 
+      }
   } finally { 
       actionLoading.value = false; 
   }
+};
+
+const tentarIniciarNovamente = async () => {
+    modalIzaAberto.value = false;
+    if (cargaSelecionada.value?.id) {
+        await iniciarViagem(cargaSelecionada.value.id);
+    }
 };
 
 const abrirModalFinalizacao = (carga) => { cargaSelecionada.value = carga; showModalFinalizacao.value = true; };

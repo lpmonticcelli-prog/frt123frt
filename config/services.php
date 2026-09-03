@@ -66,4 +66,15 @@ return [
         'split_receiver_id' => env('GATEWAY_SPLIT_RECEIVER_ID'),
     ],
 
+    // ==========================================
+    // SEGURO: IZA SEGURADORA (Acidentes Pessoais)
+    // ==========================================
+    'iza' => [
+        'base_url' => env('IZA_BASE_URL', 'https://api-sandbox.iza.com.vc'),
+        // ZT-DEFENSE: Mapeamento estrito das credenciais. Fail-secure se ausente.
+        'client_id' => env('IZA_CLIENT_ID') ?: throw new \RuntimeException('IZA_CLIENT_ID ausente no .env.'),
+        'client_secret' => env('IZA_CLIENT_SECRET') ?: throw new \RuntimeException('IZA_CLIENT_SECRET ausente no .env.'),
+        'webhook_secret' => env('IZA_WEBHOOK_SECRET') ?: throw new \RuntimeException('Segredo Webhook Iza ausente no .env.'),
+    ],
+
 ];

@@ -55,7 +55,10 @@ const routes = [
             { path: 'faq', name: 'MotoristaFaq', component: () => import('../views/Hub/FaqView.vue'), meta: { title: 'Central de Ajuda (FAQ)' } },
             { path: 'loja', name: 'MotoristaLoja', component: () => import('../views/Hub/LojaView.vue'), meta: { title: 'Loja' } },
             { path: 'voucher', name: 'MotoristaVoucher', component: () => import('../views/Hub/VoucherView.vue'), meta: { title: 'Meus Vouchers' } },
-            { path: 'parceiros', name: 'MotoristaParceiros', component: () => import('../views/Hub/ParceirosView.vue'), meta: { title: 'Parceiros Estratégicos' } }
+            { path: 'parceiros', name: 'MotoristaParceiros', component: () => import('../views/Hub/ParceirosView.vue'), meta: { title: 'Parceiros Estratégicos' } },
+            
+            // 👇 GATILHO PASSIVO / UPSELL DA IZA SEGURADORA (Components com "C" maiúsculo)
+            { path: 'seguros', name: 'MotoristaSeguros', component: () => import('../Components/SeguroIzaPanel.vue'), meta: { title: 'Seguros e Benefícios' } }
         ]
     },
 

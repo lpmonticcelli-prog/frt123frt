@@ -31,6 +31,7 @@ use App\Http\Controllers\Api\V1\Motorista\CargaController as MotoristaCargaContr
 use App\Http\Controllers\Api\V1\Motorista\CarteiraController;
 use App\Http\Controllers\Api\V1\Motorista\GrController;
 use App\Http\Controllers\Api\V1\Motorista\PerfilController as MotoristaPerfilController;
+use App\Http\Controllers\Api\V1\Motorista\SeguroController; 
 
 // 5. Suporte & Webhooks
 use App\Http\Controllers\Api\V1\Partners\GrIntegrationController;
@@ -39,6 +40,7 @@ use App\Http\Controllers\Api\V1\Support\TicketController;
 use App\Http\Controllers\Api\V1\Webhooks\GatewayWebhookController;
 use App\Http\Controllers\Api\V1\Webhooks\PefWebhookController; 
 use App\Http\Controllers\Api\V1\Webhooks\TransatWebhookController;
+use App\Http\Controllers\Api\V1\Webhooks\IzaWebhookController; 
 
 /*
 |--------------------------------------------------------------------------
@@ -79,6 +81,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/pef', [PefWebhookController::class, 'handleCallback'])->name('webhook.pef');
         Route::post('/transat', [TransatWebhookController::class, 'handleCallback'])->name('webhook.transat');
         Route::post('/gateway-pagamento', [GatewayWebhookController::class, 'handleCallback'])->name('webhook.gateway');
+        Route::post('/iza', [IzaWebhookController::class, 'handle'])->name('webhook.iza');
     });
 
     // =========================================================
@@ -90,6 +93,7 @@ Route::prefix('v1')->group(function () {
         Route::controller(AuthController::class)->group(function () {
             Route::post('/logout', 'logout');
             Route::get('/me', 'me');
+            Route::post('/termos/aceitar', 'aceitarTermosRetroativo'); // <-- ADICIONADO: Rota de aceite retroativo
         });
 
         // ROTAS DA ANTT E GOOGLE MAPS ===================
@@ -120,7 +124,7 @@ Route::prefix('v1')->group(function () {
         // ---------------------------------------------------------
         // PORTAL DO EMBARCADOR
         // ---------------------------------------------------------
-        Route::middleware('ability:embarcador')->prefix('embarcador')->group(function () {
+        Route::middleware(['ability:embarcador', 'termos'])->prefix('embarcador')->group(function () { // <-- ADICIONADO: Middleware 'termos'
             
             Route::controller(EmbarcadorPerfilController::class)->prefix('perfil')->group(function () {
                 Route::get('/', 'show');
@@ -158,7 +162,7 @@ Route::prefix('v1')->group(function () {
         // ---------------------------------------------------------
         // PORTAL DO MOTORISTA
         // ---------------------------------------------------------
-        Route::middleware('ability:motorista')->prefix('motorista')->group(function () {
+        Route::middleware(['ability:motorista', 'termos'])->prefix('motorista')->group(function () { // <-- ADICIONADO: Middleware 'termos'
             
             Route::controller(MotoristaPerfilController::class)->prefix('perfil')->group(function () {
                 Route::get('/', 'show');
@@ -184,6 +188,11 @@ Route::prefix('v1')->group(function () {
                     Route::get('/chat', 'getChat');
                     Route::post('/chat', 'storeChat')->middleware('throttle:20,1');
                 });
+            });
+
+            Route::controller(SeguroController::class)->prefix('seguros')->group(function () {
+                Route::get('/', 'meuSeguro'); 
+                Route::post('/contratar', 'contratar')->middleware('throttle:5,1'); 
             });
         });
 

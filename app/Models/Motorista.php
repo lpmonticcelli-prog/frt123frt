@@ -110,6 +110,31 @@ class Motorista extends Model
         return $this->hasMany(Avaliacao::class);
     }
 
+    // ==========================================
+    // RELACIONAMENTOS: IZA SEGURADORA
+    // ==========================================
+
+    /**
+     * Relacionamento: O motorista tem um seguro da Iza ativo/vigente.
+     * Retorna a apólice mais recente caso haja histórico de renovações/cancelamentos.
+     */
+    public function seguroIza()
+    {
+        return $this->hasOne(MotoristaSeguro::class)->latestOfMany();
+    }
+
+    // ==========================================
+    // MÉTODOS DE INTELIGÊNCIA E BYPASS
+    // ==========================================
+
+    /**
+     * Verifica se o motorista possui uma apólice ativa na IZA Seguradora.
+     */
+    public function temSeguroIzaAtivo(): bool
+    {
+        return $this->seguroIza && $this->seguroIza->isAtivo();
+    }
+
     /**
      * ZT-DEFENSE: Inteligência de Bypass.
      * Se a flag de GR estiver desligada, este método anula o bloqueio e libera a operação.

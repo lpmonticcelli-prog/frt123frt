@@ -89,12 +89,17 @@ class AuthController extends Controller
                 $role = Role::where('slug', 'embarcador')->firstOrFail();
 
                 $user = User::create([
-                    'name'     => $request->name,
-                    'email'    => $request->email,
-                    'password' => Hash::make($request->password),
-                    'phone'    => $request->phone,
-                    'role_id'  => $role->id,
-                    'status'   => 'pending' // Aguardando onboarding/contrato
+                    'name'             => $request->name,
+                    'email'            => $request->email,
+                    'password'         => Hash::make($request->password),
+                    'phone'            => $request->phone,
+                    'role_id'          => $role->id,
+                    'status'           => 'pending', // Aguardando onboarding/contrato
+                    // BLINDAGEM JURÍDICA: Registro do Clickwrap
+                    'termo_versao'     => 'v2026-09.03',
+                    'termo_ip'         => $request->ip(),
+                    'termo_user_agent' => $request->userAgent(),
+                    'termo_aceite_em'  => now(),
                 ]);
 
                 Embarcador::create([
@@ -106,7 +111,7 @@ class AuthController extends Controller
 
                 $token = $user->createToken('registro_inicial', ["ability:embarcador"], now()->addHours(12))->plainTextToken;
 
-                Log::info('[IAM] Novo Embarcador registrado.', ['user_id' => $user->id, 'cnpj' => $request->cnpj]);
+                Log::info('[IAM] Novo Embarcador registrado e Termos aceitos.', ['user_id' => $user->id, 'cnpj' => $request->cnpj, 'ip' => $request->ip()]);
 
                 return response()->json([
                     'message' => 'Conta criada com sucesso. Bem-vindo à plataforma.',
@@ -136,12 +141,17 @@ class AuthController extends Controller
                 $role = Role::where('slug', 'motorista')->firstOrFail();
 
                 $user = User::create([
-                    'name'     => $request->name,
-                    'email'    => $request->email,
-                    'password' => Hash::make($request->password),
-                    'phone'    => $request->phone,
-                    'role_id'  => $role->id,
-                    'status'   => 'pending' // Isolado até aprovação do KYC
+                    'name'             => $request->name,
+                    'email'            => $request->email,
+                    'password'         => Hash::make($request->password),
+                    'phone'            => $request->phone,
+                    'role_id'          => $role->id,
+                    'status'           => 'pending', // Isolado até aprovação do KYC
+                    // BLINDAGEM JURÍDICA: Registro do Clickwrap
+                    'termo_versao'     => 'v2026-09.03',
+                    'termo_ip'         => $request->ip(),
+                    'termo_user_agent' => $request->userAgent(),
+                    'termo_aceite_em'  => now(),
                 ]);
 
                 Motorista::create([
@@ -155,7 +165,7 @@ class AuthController extends Controller
 
                 $token = $user->createToken('registro_inicial', ["ability:motorista"], now()->addHours(12))->plainTextToken;
 
-                Log::info('[IAM] Novo Motorista submetido para KYC.', ['user_id' => $user->id, 'cpf' => $request->cpf]);
+                Log::info('[IAM] Novo Motorista submetido para KYC e Termos aceitos.', ['user_id' => $user->id, 'cpf' => $request->cpf, 'ip' => $request->ip()]);
 
                 return response()->json([
                     'message' => 'Conta submetida com sucesso. Aguardando liberação compliance (KYC).',
@@ -172,6 +182,31 @@ class AuthController extends Controller
     public function me(Request $request): JsonResponse 
     { 
         return response()->json($request->user()->load('role')); 
+    }
+
+    /**
+     * Aceite Retroativo de Termos de Uso (Para usuários antigos ou vindos do Google)
+     */
+    public function aceitarTermosRetroativo(Request $request): JsonResponse
+    {
+        $request->validate([
+            'aceite_termos' => ['required', 'accepted']
+        ]);
+
+        $user = $request->user();
+        
+        $user->update([
+            'termo_versao'     => 'v2026-09.03',
+            'termo_ip'         => $request->ip(),
+            'termo_user_agent' => $request->userAgent(),
+            'termo_aceite_em'  => now(),
+        ]);
+
+        Log::info('[IAM] Termos aceitos retroativamente (Clickwrap).', ['user_id' => $user->id, 'ip' => $request->ip()]);
+
+        return response()->json([
+            'message' => 'Termos de Uso aceitos com sucesso. Acesso liberado.'
+        ]);
     }
     
     /**
@@ -239,6 +274,7 @@ class AuthController extends Controller
             'name'               => ['required', 'string', 'max:255'],
             'email'              => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
             'password'           => ['required', 'string', 'min:8', 'confirmed'],
+            'aceite_termos'      => ['required', 'accepted'], // VALIDAÇÃO DE PROTEÇÃO JURÍDICA
             'phone'              => [
                 'required', 'string', 'max:20',
                 function ($attribute, $value, $fail) {
@@ -268,6 +304,7 @@ class AuthController extends Controller
             'name'         => ['required', 'string', 'max:255'],
             'email'        => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
             'password'     => ['required', 'string', 'min:8', 'confirmed'],
+            'aceite_termos'=> ['required', 'accepted'], // VALIDAÇÃO DE PROTEÇÃO JURÍDICA
             'phone'        => [
                 'required', 'string', 'max:20',
                 function ($attribute, $value, $fail) {
@@ -295,7 +332,7 @@ class AuthController extends Controller
                     }
                 }
             ],
-            'validade_cnh' => ['required', 'date', 'after:today'], // Proteção contra CNHs já vencidas no onboarding
+            'validade_cnh' => ['required', 'date', 'after:today'],
             'rntrc'        => [
                 'required', 'string', 'max:15',
                 function ($attribute, $value, $fail) {

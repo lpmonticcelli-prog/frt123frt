@@ -20,9 +20,10 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->trustProxies(at: '*');
         $middleware->alias([
-            'ability' => \Laravel\Sanctum\Http\Middleware\CheckForAnyAbility::class,
-            'b2b.hmac' => \App\Http\Middleware\VerifyB2bHmac::class,
+            'ability'     => \Laravel\Sanctum\Http\Middleware\CheckForAnyAbility::class,
+            'b2b.hmac'    => \App\Http\Middleware\VerifyB2bHmac::class,
             'idempotency' => \App\Http\Middleware\IdempotencyMiddleware::class,
+            'termos'      => \App\Http\Middleware\CheckTermosAceitos::class, // <-- ADICIONADO: Barreira de bloqueio dos Termos de Uso
         ]);
         $middleware->statefulApi();
     })

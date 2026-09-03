@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Carga;
 use App\Models\CargaCandidatura;
 use App\Services\Logistics\CandidaturaService;
+use App\Services\Partners\BypassRiskManager;
 use App\Events\NovaMensagemChat;
 use DomainException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -33,9 +34,6 @@ class CargaController extends Controller
         private readonly CandidaturaService $candidaturaService
     ) {}
 
-    /**
-     * Sanitização Termal Estrita (Defesa contra XSS/Null Byte injetados via Socket).
-     */
     private function sanitizeText(?string $payload): ?string
     {
         if ($payload === null) {
@@ -46,21 +44,15 @@ class CargaController extends Controller
         return htmlspecialchars($clean, ENT_QUOTES | ENT_HTML5 | ENT_SUBSTITUTE, 'UTF-8', false);
     }
 
-    /**
-     * CENTRAL INTELIGENTE DE FRETES (RADAR DE RETORNO)
-     * Aceita parâmetros de GPS (lat, lng, raio) ou Busca Livre (cidade).
-     */
     public function disponiveis(Request $request): JsonResponse
     {
         $query = Carga::where('status', self::STATUS_PUBLICADA);
 
-        // MODO 1: MOTORISTA USOU O BOTÃO DE GPS (CÁLCULO MATEMÁTICO HAVERSINE)
         if ($request->filled('lat') && $request->filled('lng')) {
             $lat = (float) $request->lat;
             $lng = (float) $request->lng;
-            $raio = $request->filled('raio') ? (int) $request->raio : 150; // Padrão 150km de raio
+            $raio = $request->filled('raio') ? (int) $request->raio : 150;
 
-            // Fórmula Global de Haversine para achar distâncias curvos na terra via SQL
             $haversine = "(6371 * acos(cos(radians(?)) 
                          * cos(radians(lat_origem)) 
                          * cos(radians(lng_origem) - radians(?)) 
@@ -71,36 +63,23 @@ class CargaController extends Controller
                   ->selectRaw("{$haversine} AS distancia_calc", [$lat, $lng, $lat]) 
                   ->whereNotNull('lat_origem') 
                   ->whereRaw("{$haversine} <= ?", [$lat, $lng, $lat, $raio]) 
-                  ->orderBy('distancia_calc', 'asc'); // Cargas que estão na rua dele primeiro
+                  ->orderBy('distancia_calc', 'asc');
         } 
-        
-        // MODO 2: BUSCA MANUAL POR NOME DA CIDADE OU ESTADO (ILike Case-Insensitive)
         else if ($request->filled('cidade')) {
             $termo = $request->cidade;
-            
             $query->where(function($q) use ($termo) {
-                // Se for PostgreSQL, substitua LIKE por ILIKE para ignorar maiúsculas/minúsculas perfeitamente
-                $q->where('cidade_origem', 'LIKE', "%{$termo}%")
-                  ->orWhere('uf_origem', 'LIKE', "%{$termo}%");
+                $q->where('cidade_origem', 'ILIKE', "%{$termo}%")
+                  ->orWhere('uf_origem', 'ILIKE', "%{$termo}%");
             });
-            
-            $query->select('*')->selectRaw('NULL as distancia_calc');
-            $query->orderBy('created_at', 'desc');
+            $query->select('*')->selectRaw('NULL as distancia_calc')->orderBy('created_at', 'desc');
         } 
-        
-        // MODO 3: PADRÃO (SEM FILTRO)
         else {
-            $query->select('*')->selectRaw('NULL as distancia_calc');
-            $query->orderBy('created_at', 'desc');
+            $query->select('*')->selectRaw('NULL as distancia_calc')->orderBy('created_at', 'desc');
         }
 
-        $cargas = $query->with('embarcador:id,razao_social')
-                        ->paginate(20);
+        $cargas = $query->with('embarcador:id,razao_social')->paginate(20);
 
-        return response()->json([
-            'status' => 'success',
-            'data'   => $cargas
-        ], 200);
+        return response()->json(['status' => 'success', 'data' => $cargas], 200);
     }
 
     public function minhasCargas(Request $request): JsonResponse
@@ -124,17 +103,10 @@ class CargaController extends Controller
             ->orderBy('created_at', 'desc')
             ->paginate(15);
 
-        return response()->json([
-            'status' => 'success', 
-            'data'   => $cargas
-        ], 200);
+        return response()->json(['status' => 'success', 'data' => $cargas], 200);
     }
 
-    /**
-     * GARGALO CRÍTICO: Matchmaking Engine.
-     * Pessimistic Locking estrito e delegação correta de exceções ao Kernel.
-     */
-    public function aceitar(Request $request, int $id): JsonResponse
+    public function aceitar(Request $request, int $id, BypassRiskManager $riskManager): JsonResponse 
     {
         $motorista = $request->user()->motorista;
 
@@ -143,15 +115,25 @@ class CargaController extends Controller
         }
 
         try {
-            return DB::transaction(function () use ($id, $motorista) {
-                // LOCK CONTENTION DEFENSE
+            // Adicionado $request no use() para o Laravel enxergar o IP lá dentro
+            return DB::transaction(function () use ($id, $motorista, $riskManager, $request) {
                 $carga = Carga::lockForUpdate()->findOrFail($id);
+
+                $avaliacaoRisco = $riskManager->avaliar($motorista, $carga);
+
+                if (!$avaliacaoRisco['permitido']) {
+                    return response()->json([
+                        'error' => 'Acesso negado',
+                        'mensagem' => $avaliacaoRisco['mensagem'],
+                        'motivo' => $avaliacaoRisco['motivo'],
+                        'exibir_oferta_iza' => $avaliacaoRisco['exibir_oferta_iza']
+                    ], 403);
+                }
 
                 if ($carga->status !== self::STATUS_PUBLICADA) {
                     throw new DomainException('Este frete não está mais aceitando lances.');
                 }
 
-                // ATOMIC CHECK
                 $totalCandidaturas = DB::table('carga_candidaturas')
                     ->where('carga_id', $carga->id)
                     ->where('status', self::STATUS_PENDENTE)
@@ -168,6 +150,25 @@ class CargaController extends Controller
 
                 if ($jaCandidatado) {
                     throw new DomainException('Você já registrou um lance neste frete.');
+                }
+
+                // ==========================================
+                // BLINDAGEM JURÍDICA: Registro da Assunção de Risco
+                // ==========================================
+                $assumiuRisco = $request->boolean('assumiu_risco_sem_seguro');
+                
+                if ($assumiuRisco) {
+                    $carga->update([
+                        'isencao_seguro_aceite' => true,
+                        'isencao_seguro_ip'     => $request->ip(),
+                        'isencao_seguro_data'   => now(),
+                    ]);
+
+                    Log::warning('[LEGAL SHIELD] Motorista assumiu risco de viagem sem seguro.', [
+                        'motorista_id' => $motorista->id,
+                        'carga_id'     => $carga->id,
+                        'ip'           => $request->ip()
+                    ]);
                 }
 
                 $candidatura = $this->candidaturaService->aplicar($motorista, $carga);
@@ -187,7 +188,6 @@ class CargaController extends Controller
         } catch (DomainException $e) {
             return response()->json(['error' => $e->getMessage()], 400);
         } catch (QueryException $e) {
-            // Delega falhas de lock atômico (40P01, 55P03) para o Global Exception Handler
             throw $e;
         } catch (Throwable $e) {
             Log::critical('[Matchmaking] Falha sistêmica ao registrar lance', [
