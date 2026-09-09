@@ -26,7 +26,9 @@ class Carga extends Model
         // BLINDAGEM JURÍDICA: Campos de renúncia de seguro e responsabilidade
         'isencao_seguro_aceite', 
         'isencao_seguro_ip', 
-        'isencao_seguro_data'
+        'isencao_seguro_data',
+        // BLINDAGEM DO EMBARCADOR: Exigência forçada do Seguro
+        'exigir_seguro_iza',
     ];
 
     protected function casts(): array
@@ -44,6 +46,7 @@ class Carga extends Model
             // Tipagem da blindagem
             'isencao_seguro_aceite' => 'boolean',
             'isencao_seguro_data' => 'datetime',
+            'exigir_seguro_iza' => 'boolean', // Garante que o Laravel salve como true/false no banco
         ];
     }
 

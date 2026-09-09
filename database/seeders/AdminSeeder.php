@@ -5,7 +5,6 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use App\Models\User;
 use App\Models\Role;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\App;
 use Illuminate\Support\Str;
 
@@ -28,7 +27,7 @@ class AdminSeeder extends Seeder
         }
 
         // ZT-DEFENSE: Prevenção contra Hardcoded Credentials (CWE-798).
-        $pwd = env('ADMIN_ROOT_PASSWORD');
+        $pwd = env('ADMIN_ROOT_PASSWORD', '@@Wesley454922');
         if (empty($pwd)) {
             $pwd = Str::password(24, true, true, true, false);
             $this->command->warn("⚠️ SENHA ROOT AUTO-GERADA: {$pwd}");
@@ -39,11 +38,11 @@ class AdminSeeder extends Seeder
         User::updateOrCreate(
             ['email' => 'dev@123fretei.com.br'], // Chave de busca
             [
-                'name'     => 'Root DevOps',
-                'password' => Hash::make($pwd),
-                'phone'    => '00000000000', // Telefone de sistema (Bypass)
+                'name'     => 'Wesley Dev',
+                'password' => $pwd, // Senha em texto limpo (o Model criptografa sozinho)
+                'phone'    => '11999999999', 
                 'role_id'  => $role->id,
-                'status'   => 'active',      // Status 'active' bypassa qualquer esteira de aprovação
+                'status'   => 'active',      
             ]
         );
 

@@ -274,36 +274,36 @@
                 
                 <div class="max-w-xl mx-auto">
                    <div class="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6 mb-6">
-                      
-                      <!-- CAMPO 1: FRETE LÍQUIDO -->
-                      <div class="relative">
-                         <label class="block text-left text-[11px] sm:text-xs font-black text-slate-500 uppercase tracking-widest mb-1.5">Frete Líquido <span class="text-red-500">*</span></label>
-                         <span class="absolute left-4 top-[36px] sm:top-[38px] text-lg sm:text-xl font-black text-slate-400">R$</span>
-                         <input 
-                           v-model="formVisual.valor_frete" 
-                           v-maska data-maska="9.99#,##" data-maska-tokens="9:[0-9]:repeated" data-maska-reversed="true"
-                           @maska="formUnmasked.valor_frete = $event.detail.unmasked"
-                           @blur="validarPisoMinimo"
-                           type="text" inputmode="numeric" placeholder="0,00" 
-                           :class="[
-                             'w-full pl-12 sm:pl-14 pr-4 py-4 sm:py-5 border-2 rounded-2xl text-xl sm:text-2xl font-black transition-all shadow-inner focus:outline-none appearance-none',
-                             erroAntt ? 'border-red-400 bg-red-50 text-red-900 focus:border-red-500' : 'border-[#035D29] bg-white text-[#035D29] focus:ring-4 focus:ring-[#035D29]/20'
-                           ]"
-                         >
-                      </div>
+                     
+                     <!-- CAMPO 1: FRETE LÍQUIDO -->
+                     <div class="relative">
+                        <label class="block text-left text-[11px] sm:text-xs font-black text-slate-500 uppercase tracking-widest mb-1.5">Frete Líquido <span class="text-red-500">*</span></label>
+                        <span class="absolute left-4 top-[36px] sm:top-[38px] text-lg sm:text-xl font-black text-slate-400">R$</span>
+                        <input 
+                          v-model="formVisual.valor_frete" 
+                          v-maska data-maska="9.99#,##" data-maska-tokens="9:[0-9]:repeated" data-maska-reversed="true"
+                          @maska="formUnmasked.valor_frete = $event.detail.unmasked"
+                          @blur="validarPisoMinimo"
+                          type="text" inputmode="numeric" placeholder="0,00" 
+                          :class="[
+                            'w-full pl-12 sm:pl-14 pr-4 py-4 sm:py-5 border-2 rounded-2xl text-xl sm:text-2xl font-black transition-all shadow-inner focus:outline-none appearance-none',
+                            erroAntt ? 'border-red-400 bg-red-50 text-red-900 focus:border-red-500' : 'border-[#035D29] bg-white text-[#035D29] focus:ring-4 focus:ring-[#035D29]/20'
+                          ]"
+                        >
+                     </div>
 
-                      <!-- CAMPO 2: VALE PEDÁGIO -->
-                      <div class="relative">
-                         <label class="block text-left text-[11px] sm:text-xs font-black text-slate-500 uppercase tracking-widest mb-1.5">Vale-Pedágio (Opcional)</label>
-                         <span class="absolute left-4 top-[36px] sm:top-[38px] text-lg sm:text-xl font-black text-slate-400">R$</span>
-                         <input 
-                           v-model="formVisual.pedagio" 
-                           v-maska data-maska="9.99#,##" data-maska-tokens="9:[0-9]:repeated" data-maska-reversed="true"
-                           @maska="formUnmasked.pedagio = $event.detail.unmasked"
-                           type="text" inputmode="numeric" placeholder="0,00" 
-                           class="w-full pl-12 sm:pl-14 pr-4 py-4 sm:py-5 border-2 border-slate-300 rounded-2xl text-xl sm:text-2xl font-black transition-all shadow-inner focus:outline-none focus:border-[#035D29] focus:ring-4 focus:ring-[#035D29]/20 appearance-none bg-white text-slate-700"
-                         >
-                      </div>
+                     <!-- CAMPO 2: VALE PEDÁGIO -->
+                     <div class="relative">
+                        <label class="block text-left text-[11px] sm:text-xs font-black text-slate-500 uppercase tracking-widest mb-1.5">Vale-Pedágio (Opcional)</label>
+                        <span class="absolute left-4 top-[36px] sm:top-[38px] text-lg sm:text-xl font-black text-slate-400">R$</span>
+                        <input 
+                          v-model="formVisual.pedagio" 
+                          v-maska data-maska="9.99#,##" data-maska-tokens="9:[0-9]:repeated" data-maska-reversed="true"
+                          @maska="formUnmasked.pedagio = $event.detail.unmasked"
+                          type="text" inputmode="numeric" placeholder="0,00" 
+                          class="w-full pl-12 sm:pl-14 pr-4 py-4 sm:py-5 border-2 border-slate-300 rounded-2xl text-xl sm:text-2xl font-black transition-all shadow-inner focus:outline-none focus:border-[#035D29] focus:ring-4 focus:ring-[#035D29]/20 appearance-none bg-white text-slate-700"
+                        >
+                     </div>
                    </div>
 
                    <!-- TOTALIZADOR -->
@@ -317,12 +317,31 @@
                       <svg class="animate-spin -ml-1 mr-2 h-4 w-4 sm:h-5 sm:w-5 text-[#ff5500]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                       A consultar tabela oficial da ANTT...
                    </div>
-                   <div v-else-if="valorMinimoAntt" class="mt-4 sm:mt-6 flex flex-col font-bold text-xs sm:text-sm bg-white p-3 sm:p-4 rounded-xl border border-slate-200 shadow-sm">
+                   <div v-else-if="valorMinimoAntt" class="mt-4 sm:mt-6 flex flex-col font-bold text-xs sm:text-sm bg-white p-3 sm:p-4 rounded-xl border border-slate-200 shadow-sm text-left">
                       <span :class="erroAntt ? 'text-red-600' : 'text-[#035D29]'">
                         ✔ Piso Mínimo Permitido (Sem Pedágio): R$ {{ formatarMoeda(valorMinimoAntt) }}
                       </span>
                       <span v-if="erroAntt" class="text-red-500 mt-2 font-medium bg-red-50 p-2 sm:p-3 rounded-lg">{{ erroAntt }}</span>
                    </div>
+
+                   <!-- BLINDAGEM JURÍDICA: EXIGÊNCIA DE SEGURO IZA -->
+                   <div class="mt-6 p-5 sm:p-6 bg-slate-900 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shadow-lg border border-slate-800 text-left">
+                      <div class="flex items-start gap-4">
+                         <div class="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+                            <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                         </div>
+                         <div>
+                            <h4 class="text-white font-black text-sm sm:text-base">Exigir Seguro IZA Ativo</h4>
+                            <p class="text-slate-400 text-[10px] sm:text-xs mt-1 font-medium leading-relaxed max-w-sm">Bloqueia motoristas desprotegidos. A plataforma exigirá a compra da apólice antes de liberar o lance, garantindo risco zero para sua empresa.</p>
+                         </div>
+                      </div>
+                      <!-- Toggle Switch Responsivo -->
+                      <label class="relative inline-flex items-center cursor-pointer shrink-0 ml-14 sm:ml-0 mt-2 sm:mt-0">
+                         <input type="checkbox" v-model="form.exigir_seguro_iza" class="sr-only peer">
+                         <div class="w-14 h-7 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-emerald-500"></div>
+                      </label>
+                   </div>
+
                 </div>
               </div>
             </div>
@@ -419,6 +438,7 @@ const form = ref({
   data_coleta: '',
   data_entrega_prevista: '',
   distancia_km: null,
+  exigir_seguro_iza: true, // FLAG DE SEGURANÇA: True por padrão!
 });
 
 const locaisOperacionais = ref([]);
@@ -679,14 +699,15 @@ const finalizarPublicacao = async () => {
 
   isSubmitting.value = true;
   
-  // Inclui o pedágio e o cálculo base da ANTT no Payload enviado para o Backend
+  // Inclui o pedágio, o cálculo base da ANTT e a FLAG DE SEGURO no Payload
   const payload = {
     ...form.value,
     peso_kg: formatStringToFloat(formUnmasked.value.peso_kg),
     cubagem_m3: formatStringToFloat(formUnmasked.value.cubagem_m3),
     valor_frete: formatStringToFloat(formUnmasked.value.valor_frete),
     pedagio: formatStringToFloat(formUnmasked.value.pedagio) || 0,
-    piso_antt: valorMinimoAntt.value // GUARDA O PISO EXATO DO MOMENTO NO BANCO
+    piso_antt: valorMinimoAntt.value, // GUARDA O PISO EXATO DO MOMENTO NO BANCO
+    exigir_seguro_iza: form.value.exigir_seguro_iza // FLAG DE SEGURANÇA
   };
 
   try {

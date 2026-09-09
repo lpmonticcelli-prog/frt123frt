@@ -125,15 +125,25 @@
          <AdCarousel posicionamento="rodape" />
       </footer>
 
+      <!-- ========================================================================= -->
+      <!-- BLINDAGEM JURÍDICA: MODAL GLOBAL DE TERMOS DE USO -->
+      <!-- ========================================================================= -->
+      <TermosRetroativoModal 
+        v-if="showModalTermos" 
+        @termos-aceitos="onTermosAceitos" 
+      />
+
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onErrorCaptured } from 'vue';
+import { ref, computed, watch, onErrorCaptured, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
+import axios from 'axios';
 import AdCarousel from '../Components/AdCarousel.vue';
+import TermosRetroativoModal from '@/Components/TermosRetroativoModal.vue'; // ADICIONADO IMPORT
 
 interface AuthUser {
   name?: string;
@@ -146,6 +156,39 @@ const authStore = useAuthStore();
 
 const isMobileMenuOpen = ref<boolean>(false);
 const isLoggingOut = ref<boolean>(false);
+const showModalTermos = ref<boolean>(false); // CONTROLE DO MODAL DE BLINDAGEM
+
+// ==========================================
+// INTERCEPTADOR GLOBAL DE AXIOS
+// ==========================================
+// Essa lógica "ouve" silenciosamente TODAS as requisições que o Embarcador fizer na plataforma.
+// Se qualquer requisição bater no middleware Laravel e retornar 403 TERMOS_PENDENTES, o Modal abre e trava a tela.
+let axiosInterceptorId: number | null = null;
+
+onMounted(() => {
+  axiosInterceptorId = axios.interceptors.response.use(
+    (response) => response,
+    (error) => {
+      if (error.response?.status === 403 && error.response?.data?.error === 'TERMOS_PENDENTES') {
+        showModalTermos.value = true;
+      }
+      return Promise.reject(error);
+    }
+  );
+});
+
+onBeforeUnmount(() => {
+  if (axiosInterceptorId !== null) {
+    axios.interceptors.response.eject(axiosInterceptorId);
+  }
+});
+
+// Ação após o embarcador aceitar os termos no modal
+const onTermosAceitos = () => {
+  showModalTermos.value = false;
+  // Recarrega a página inteira para refazer as requisições com os termos atualizados
+  window.location.reload(); 
+};
 
 watch(() => route.path, () => {
   isMobileMenuOpen.value = false;

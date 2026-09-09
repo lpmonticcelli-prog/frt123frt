@@ -43,7 +43,13 @@ class HomologacaoSeeder extends Seeder
             ];
 
             $staff = [];
-            $staff['admin'] = User::firstOrCreate(['email' => 'dev@123fretei.com.br'], ['name' => 'Wesley Dev', 'phone' => '11999999999', 'password' => $senhaBase, 'role_id' => $roles['admin']->id, 'status' => 'active']);
+            
+            // SENHA PERSONALIZADA DO ADMIN (Texto limpo)
+            $staff['admin'] = User::updateOrCreate(
+                ['email' => 'dev@123fretei.com.br'], 
+                ['name' => 'Wesley Dev', 'phone' => '11999999999', 'password' => '@@Wesley454922', 'role_id' => $roles['admin']->id, 'status' => 'active']
+            );
+            
             $staff['manager'] = User::firstOrCreate(['email' => 'gerente@123fretei.com.br'], ['name' => 'Gerente Operações', 'phone' => '11900000001', 'password' => $senhaBase, 'role_id' => $roles['manager']->id, 'status' => 'active']);
             $staff['compliance'] = User::firstOrCreate(['email' => 'risco@123fretei.com.br'], ['name' => 'Auditoria Risco', 'phone' => '11900000002', 'password' => $senhaBase, 'role_id' => $roles['compliance']->id, 'status' => 'active']);
             $staff['n1'] = User::firstOrCreate(['email' => 'n1@123fretei.com.br'], ['name' => 'Atendente N1', 'phone' => '11900000003', 'password' => $senhaBase, 'role_id' => $roles['suporte_n1']->id, 'status' => 'active']);
@@ -53,15 +59,63 @@ class HomologacaoSeeder extends Seeder
                 $equipeN1[] = User::create(['name' => "Suporte " . $faker->firstName, 'email' => "suporte{$i}@123fretei.com.br", 'phone' => preg_replace('/[^0-9]/', '', $faker->unique()->numerify('119########')), 'password' => $senhaBase, 'role_id' => $roles['suporte_n1']->id, 'status' => 'active']);
             }
 
+            $this->command->info('Criando Contas Fixas de Acesso...');
+
+            // 1. MOTORISTA FIXO PARA LOGIN (Sem os termos, para você testar o Modal, senha em texto limpo)
+            $userMot = User::firstOrCreate(
+                ['email' => 'motorista@123fretei.com.br'],
+                [
+                    'name' => 'João (Motorista Padrão)',
+                    'phone' => '11988888888',
+                    'password' => 'password',
+                    'role_id' => $roles['motorista']->id,
+                    'status' => 'active',
+                ]
+            );
+            $motFixo = Motorista::firstOrCreate(
+                ['user_id' => $userMot->id],
+                [
+                    'cpf' => '12345678909',
+                    'cnh' => '12345678901',
+                    'validade_cnh' => $now->copy()->addYears(2)->format('Y-m-d'),
+                    'rntrc' => '123456789',
+                    'is_disponivel' => true,
+                    'gr_status' => 'aprovado',
+                    'status_verificacao' => 'aprovado',
+                    'seguro_iza_status' => 'ativo',
+                    'seguro_iza_vencimento' => $now->copy()->addYear(),
+                ]
+            );
+
+            // 2. EMBARCADOR FIXO PARA LOGIN (Sem os termos, para você testar o Modal, senha em texto limpo)
+            $userEmb = User::firstOrCreate(
+                ['email' => 'embarcador@123fretei.com.br'],
+                [
+                    'name' => 'Indústria (Embarcador Padrão)',
+                    'phone' => '11977777777',
+                    'password' => 'password',
+                    'role_id' => $roles['embarcador']->id,
+                    'status' => 'active',
+                ]
+            );
+            $embFixo = Embarcador::firstOrCreate(
+                ['user_id' => $userEmb->id],
+                [
+                    'cnpj' => '12345678000199',
+                    'razao_social' => 'Indústria 123Fretei Padrão S/A',
+                    'taxa_frete_percentual' => 5.00
+                ]
+            );
+
             $this->command->info('Gerando Embarcadores...');
-            $embarcadores = [];
+            $embarcadores = [$embFixo];
             for ($i = 0; $i < 30; $i++) {
                 $user = User::create(['name' => $faker->company, 'email' => $faker->unique()->companyEmail, 'phone' => preg_replace('/[^0-9]/', '', $faker->unique()->numerify('119########')), 'password' => $senhaBase, 'role_id' => $roles['embarcador']->id, 'status' => 'active']);
                 $embarcadores[] = Embarcador::create(['user_id' => $user->id, 'cnpj' => preg_replace('/[^0-9]/', '', $faker->unique()->numerify('##############')), 'razao_social' => $user->name, 'taxa_frete_percentual' => 5.00]);
             }
 
             $this->command->info('Gerando Motoristas...');
-            $motoristas = [];
+            $motoristas = [$motFixo];
             for ($i = 0; $i < 100; $i++) {
                 $user = User::create(['name' => $faker->name, 'email' => $faker->unique()->safeEmail, 'phone' => preg_replace('/[^0-9]/', '', $faker->unique()->numerify('119########')), 'password' => $senhaBase, 'role_id' => $roles['motorista']->id, 'status' => 'active']);
                 $motoristas[] = Motorista::create(['user_id' => $user->id, 'cpf' => preg_replace('/[^0-9]/', '', $faker->unique()->numerify('###########')), 'cnh' => preg_replace('/[^0-9]/', '', $faker->unique()->numerify('###########')), 'validade_cnh' => $faker->dateTimeBetween('now', '+3 years')->format('Y-m-d'), 'rntrc' => preg_replace('/[^0-9]/', '', $faker->unique()->numerify('########')), 'is_disponivel' => true, 'gr_status' => 'aprovado', 'status_verificacao' => 'aprovado']);
@@ -122,5 +176,11 @@ class HomologacaoSeeder extends Seeder
         });
 
         $this->command->info('✅ Homologação Concluída. ORM e Criptografia preservados.');
+        $this->command->info('---------------------------------------------------------');
+        $this->command->info('🔐 CONTAS FIXAS PRONTAS:');
+        $this->command->info('   🚛 motorista@123fretei.com.br (Senha: password)');
+        $this->command->info('   🏭 embarcador@123fretei.com.br (Senha: password)');
+        $this->command->info('   👨‍💻 dev@123fretei.com.br (Admin - Senha: @@Wesley454922)');
+        $this->command->info('---------------------------------------------------------');
     }
 }

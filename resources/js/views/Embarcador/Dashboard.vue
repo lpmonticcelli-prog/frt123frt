@@ -110,7 +110,7 @@
                       <div class="text-xs text-slate-500 mt-0.5 capitalize">{{ carga.tipo_carroceria?.replace('_', ' ') }}</div>
                     </td>
                     
-                    <!-- COLUNA DE VALOR (VISÃO COMPLETA: TOTAL, ACORDADO, ANTT E PEDÁGIO) -->
+                    <!-- COLUNA DE VALOR -->
                     <td class="block lg:table-cell px-5 py-4 lg:px-6 lg:py-5 border-b border-slate-100 lg:border-none">
                       <div class="flex lg:block justify-between items-start lg:items-center">
                         <div class="lg:hidden text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Valor Financeiro</div>
@@ -129,7 +129,6 @@
                              </div>
                              <div class="flex justify-between items-center text-slate-500" title="Piso Oficial Calculado pelo Sistema">
                                <span>Piso ANTT (Ref):</span>
-                               <!-- Se a carga foi criada antes do piso_antt, ele exibe o próprio valor do frete como fallback -->
                                <span>{{ carga.piso_antt ? formatMoney(carga.piso_antt) : formatMoney(carga.valor_frete) }}</span>
                              </div>
                              <div class="flex justify-between items-center text-slate-400">
@@ -292,11 +291,27 @@
                       <span :class="['px-2 py-0.5 rounded text-[9px] uppercase font-bold border tracking-widest', getTierBadge(lance.motorista?.tier_reputacao)]">
                         Selo: {{ lance.motorista?.tier_reputacao }}
                       </span>
+                      
+                      <!-- BLINDAGEM JURÍDICA VISUAL (EMBARCADOR) -->
+                      <span 
+                        v-if="lance.motorista?.seguro_iza_status === 'ativo'" 
+                        title="O motorista possui Seguro de Acidentes Pessoais (IZA) ativo para proteção da própria vida durante a viagem."
+                        class="cursor-help px-2 py-0.5 rounded text-[9px] uppercase font-bold border tracking-widest bg-emerald-100 text-emerald-800 border-emerald-300"
+                      >
+                        🛡️ Seguro IZA Ativo
+                      </span>
+                      <span 
+                        v-else 
+                        title="Atenção: Este motorista NÃO possui Seguro de Acidentes Pessoais. Isso NÃO se refere ao seguro da carga, mas sim à falta de proteção de vida do próprio condutor."
+                        class="cursor-help px-2 py-0.5 rounded text-[9px] uppercase font-bold border tracking-widest bg-red-100 text-red-800 border-red-300 animate-pulse"
+                      >
+                        ⚠️ Sem Seguro (Risco)
+                      </span>
                     </div>
                   </div>
                 </div>
                 <div>
-                  <button @click="aprovarMotorista(lance.id)" class="w-full sm:w-auto bg-[#035D29] text-white px-6 py-2.5 rounded-xl font-bold text-sm hover:bg-[#023818] shadow-md transition-colors">
+                  <button @click="aprovarMotorista(lance)" class="w-full sm:w-auto bg-[#035D29] text-white px-6 py-2.5 rounded-xl font-bold text-sm hover:bg-[#023818] shadow-md transition-colors">
                     Aprovar Candidato
                   </button>
                 </div>
@@ -555,6 +570,14 @@
       </div>
     </div>
 
+    <!-- ========================================================================= -->
+    <!-- BLINDAGEM JURÍDICA: MODAL DE TERMOS DE USO (EMBARCADOR) -->
+    <!-- ========================================================================= -->
+    <TermosRetroativoModal 
+      v-if="showModalTermos" 
+      @termos-aceitos="onTermosAceitos" 
+    />
+
   </div>
 </template>
 
@@ -563,6 +586,7 @@ import { ref, onMounted, onBeforeUnmount, computed, nextTick } from 'vue';
 import axios from 'axios';
 import { useAuthStore } from '../../stores/auth'; 
 import AdCarousel from '../../Components/AdCarousel.vue';
+import TermosRetroativoModal from '@/Components/TermosRetroativoModal.vue';
 
 const auth = useAuthStore();
 const cargas = ref([]);
@@ -578,6 +602,7 @@ const showModalContrato = ref(false);
 const showModalLances = ref(false);
 const showModalReputacao = ref(false);
 const showModalChat = ref(false);
+const showModalTermos = ref(false); // Estado do Modal de Termos
 
 const cargaSelecionada = ref(null); 
 const tipoCertificadoSelecionado = ref('embarcador');
@@ -673,7 +698,20 @@ const fetchCargas = async (page = 1) => {
     }
   } catch (error) {
     console.error('[API] Erro ao carregar o mural:', error);
-  } finally { loading.value = false; }
+    
+    // BLINDAGEM JURÍDICA: Intercepta o 403 e levanta o Modal de Termos
+    if (error.response?.status === 403 && error.response?.data?.error === 'TERMOS_PENDENTES') {
+      showModalTermos.value = true;
+    }
+  } finally { 
+    loading.value = false; 
+  }
+};
+
+const onTermosAceitos = () => {
+  // Quando o embarcador clica no botão "Eu Aceito" lá dentro do modal
+  showModalTermos.value = false;
+  fetchCargas(1); // Recarrega as cargas agora que a API liberou o acesso
 };
 
 const cancelarCarga = async (id) => {
@@ -684,11 +722,21 @@ const cancelarCarga = async (id) => {
   } catch (error) { alert('Erro ao tentar cancelar a carga.'); }
 };
 
-const aprovarMotorista = async (candidaturaId) => {
-  if (!confirm('Confirma a aprovação deste motorista para a carga? Os outros lances serão rejeitados automaticamente.')) return;
+// BLINDAGEM JURÍDICA: APROVAÇÃO COM TRANSFERÊNCIA DE RISCO
+const aprovarMotorista = async (lance) => {
+  const temSeguroAtivo = lance.motorista?.seguro_iza_status === 'ativo';
+
+  let alerta = 'Confirma a aprovação deste motorista para a carga? Os outros lances serão rejeitados automaticamente.';
+
+  if (!temSeguroAtivo) {
+    alerta = "⚠️ ALERTA DE RESPONSABILIDADE SOLIDÁRIA ⚠️\n\nEste motorista optou por viajar SEM o Seguro de Acidentes Pessoais (IZA).\n\nAo aprová-lo, a sua empresa assume o risco solidário por eventuais incidentes, acidentes ou óbito durante a viagem, isentando totalmente a 123FRETEI de qualquer passivo.\n\nVocê está ciente e deseja APROVAR este motorista mesmo assim?";
+  }
+
+  if (!confirm(alerta)) return;
+
   try {
     await axios.post(`/api/v1/embarcador/cargas/${cargaSelecionada.value.id}/candidaturas/aprovar`, {
-      candidatura_id: candidaturaId
+      candidatura_id: lance.id
     });
     alert('Motorista aprovado com sucesso! A carga entrou em processamento logístico.');
     fecharModalLances();
@@ -827,4 +875,4 @@ onBeforeUnmount(() => {
   }
   @page { margin: 0.5cm; }
 }
-</style>
+</style> )
