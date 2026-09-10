@@ -26,4 +26,28 @@ class IzaIntegrationService
 
         return $policyId;
     }
+
+    /**
+     * Cancela uma apólice ativa na IZA Seguradora.
+     * 
+     * @param string|null $policyId O ID da apólice retornado pela IZA na contratação
+     * @return bool
+     */
+    public function cancelarPlano(?string $policyId): bool
+    {
+        // TODO: Futura integração real de cancelamento com a IZA
+        /*
+        $response = Http::withToken(env('IZA_TOKEN'))->delete('https://api.iza.com.vc/policies/' . $policyId);
+        return $response->successful();
+        */
+
+        // MOCK ATUAL: Simula que a IZA processou o cancelamento em 1 segundo
+        sleep(1); 
+        
+        Log::info('[IZA MOCK] Simulação de cancelamento de apólice.', [
+            'policy_id' => $policyId ?? 'SEM-ID'
+        ]);
+
+        return true; 
+    }
 }

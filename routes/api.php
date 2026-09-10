@@ -192,7 +192,9 @@ Route::prefix('v1')->group(function () {
 
             Route::controller(SeguroController::class)->prefix('seguros')->group(function () {
                 Route::get('/', 'meuSeguro'); 
-                Route::post('/contratar', 'contratar')->middleware('throttle:5,1'); 
+                // AUMENTADO O THROTTLE PARA 60 REQUISIÇÕES POR MINUTO PARA TESTES LOCAIS
+                Route::post('/contratar', 'contratar')->middleware('throttle:60,1'); 
+                Route::post('/cancelar', 'cancelar')->middleware('throttle:60,1'); // <-- NOVA ROTA ADICIONADA
             });
         });
 

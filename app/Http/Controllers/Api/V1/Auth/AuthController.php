@@ -38,7 +38,8 @@ class AuthController extends Controller
         $user = User::with('role')->where('email', $request->email)->first();
 
         if (!$user || !Hash::check($request->password, $user->password)) {
-            Log::warning('[WAF] Tentativa de login falha.', ['ip' => $request->ip(), 'email' => $request->email]);
+            // CORREÇÃO: Alterado de [WAF] para [IAM]. Isso evita falsos positivos no monitoramento de segurança de borda.
+            Log::warning('[IAM] Falha de autenticação. Credenciais incorretas.', ['ip' => $request->ip(), 'email' => $request->email]);
             throw ValidationException::withMessages([
                 'email' => ['As credenciais fornecidas são inválidas.']
             ]);
@@ -46,7 +47,8 @@ class AuthController extends Controller
 
         // KYC & Compliance Gate
         if ($user->status === 'banned') {
-            Log::alert('[WAF] Tentativa de acesso por conta banida.', ['user_id' => $user->id, 'ip' => $request->ip()]);
+            // CORREÇÃO: Alterado de [WAF] para [IAM]. Uma conta banida é uma regra de negócio/identidade, não um ataque de rede.
+            Log::alert('[IAM] Tentativa de acesso bloqueada (Conta banida).', ['user_id' => $user->id, 'ip' => $request->ip()]);
             throw ValidationException::withMessages([
                 'email' => ['Acesso revogado. Esta conta foi banida permanentemente por violação dos termos de segurança.']
             ]);
